@@ -3,9 +3,9 @@ using BattleShip.Models;
 namespace BattleShip.API.Strategies;
 
 /// <summary>
-/// Adversaire le plus simple : tire au hasard parmi les cases jamais jouées.
-/// L'aléa arrive par le constructeur, jamais via Random.Shared en dur, pour rester
-/// reproductible en test (voir FleetPlacer pour la même discipline).
+/// Simplest opponent: shoots at random among the cells that have never been shot at.
+/// Randomness arrives through the constructor, never through a hard-coded Random.Shared,
+/// so that it stays reproducible under test (see FleetPlacer for the same discipline).
 /// </summary>
 public sealed class RandomStrategy(Random random) : IOpponentStrategy
 {
@@ -13,19 +13,19 @@ public sealed class RandomStrategy(Random random) : IOpponentStrategy
 
     public Coordinate NextShot(ShotHistory history)
     {
-        var jouees = history.Shots.Select(s => s.At).ToHashSet();
+        var alreadyShot = history.Shots.Select(s => s.At).ToHashSet();
 
-        var restantes = new List<Coordinate>();
+        var remaining = new List<Coordinate>();
         for (var x = 0; x < history.GridSize; x++)
         {
             for (var y = 0; y < history.GridSize; y++)
             {
                 var candidate = new Coordinate(x, y);
-                if (!jouees.Contains(candidate))
-                    restantes.Add(candidate);
+                if (!alreadyShot.Contains(candidate))
+                    remaining.Add(candidate);
             }
         }
 
-        return restantes[random.Next(restantes.Count)];
+        return remaining[random.Next(remaining.Count)];
     }
 }

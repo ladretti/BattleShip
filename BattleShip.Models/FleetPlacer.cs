@@ -1,20 +1,20 @@
 namespace BattleShip.Models;
 
 /// <summary>
-/// Place une flotte au hasard sur la grille par tirage-rejet, à partir d'une source
-/// d'aléa injectée par le constructeur (jamais Random.Shared en dur : voir ADR sur
-/// l'injection de l'aléa). La seule règle qui décide de la validité d'un placement
-/// est PlacementRules.Validate : ce type ne réimplémente ni la détection de
-/// chevauchement, ni celle d'adjacence.
+/// Places a fleet at random on the grid by rejection sampling, from a source of
+/// randomness injected through the constructor (never Random.Shared hard-coded: see
+/// the ADR on randomness injection). The only rule that decides whether a placement
+/// is valid is PlacementRules.Validate: this type reimplements neither overlap
+/// detection nor adjacency detection.
 /// </summary>
 public sealed class FleetPlacer(Random random)
 {
-    private const int MaxTentativesParNavire = 500;
-    private const int MaxRelancesCompletes = 200;
+    private const int MaxAttemptsPerShip = 500;
+    private const int MaxFullRestarts = 200;
 
     public Result<IReadOnlyList<Ship>> PlaceAll(GameRules rules)
     {
-        for (var relance = 0; relance < MaxRelancesCompletes; relance++)
+        for (var fullRestart = 0; fullRestart < MaxFullRestarts; fullRestart++)
         {
             var placements = TryPlaceFleet(rules);
             if (placements is null)
@@ -45,8 +45,8 @@ public sealed class FleetPlacer(Random random)
     private ShipPlacement? TryPlaceShip(
         ShipTemplate template, List<ShipPlacement> alreadyPlaced, GameRules rules)
     {
-        // PlacementRules.Validate exige une flotte complète : on lui décrit donc la
-        // flotte partielle (navires déjà posés + candidat) qu'on est en train de valider.
+        // PlacementRules.Validate requires a complete fleet: we therefore describe to it
+        // the partial fleet (ships already placed + candidate) that is being validated.
         List<ShipTemplate> partialFleet =
         [
             .. alreadyPlaced.Select(p => new ShipTemplate(p.Name, p.Size)),
@@ -54,7 +54,7 @@ public sealed class FleetPlacer(Random random)
         ];
         var partialRules = rules with { Fleet = partialFleet };
 
-        for (var tentative = 0; tentative < MaxTentativesParNavire; tentative++)
+        for (var attempt = 0; attempt < MaxAttemptsPerShip; attempt++)
         {
             var origin = new Coordinate(
                 random.Next(rules.GridSize),
@@ -62,8 +62,8 @@ public sealed class FleetPlacer(Random random)
             var orientation = random.Next(2) == 0 ? Orientation.Horizontal : Orientation.Vertical;
             var candidate = new ShipPlacement(template.Name, origin, orientation, template.Size);
 
-            var attempt = PlacementRules.Validate([.. alreadyPlaced, candidate], partialRules);
-            if (attempt.IsOk)
+            var validation = PlacementRules.Validate([.. alreadyPlaced, candidate], partialRules);
+            if (validation.IsOk)
                 return candidate;
         }
 

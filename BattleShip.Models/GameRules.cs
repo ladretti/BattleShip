@@ -10,11 +10,11 @@ public sealed record GameRules(
         GridSize: 10,
         Fleet:
         [
-            new ShipTemplate("Porte-avions", 5),
-            new ShipTemplate("Croiseur", 4),
-            new ShipTemplate("Contre-torpilleur", 3),
-            new ShipTemplate("Sous-marin", 3),
-            new ShipTemplate("Torpilleur", 2)
+            new ShipTemplate("Carrier", 5),
+            new ShipTemplate("Battleship", 4),
+            new ShipTemplate("Cruiser", 3),
+            new ShipTemplate("Submarine", 3),
+            new ShipTemplate("Destroyer", 2)
         ],
         ShipsMayTouch: false,
         ExtraTurnOnHit: true);

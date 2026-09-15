@@ -11,16 +11,16 @@ public sealed class Ship(string name, int size, IEnumerable<Coordinate> cells)
     private readonly HashSet<Coordinate> _hitCells = new();
 
     /// <summary>
-    /// Cases du navire qui ont été touchées. Toute mutation de cet ensemble passe
-    /// exclusivement par TryHit(), qui garantit que seules les cases valides sont
-    /// ajoutées et qu'une case ne peut être touchée qu'une fois.
+    /// The subset of the ship's cells that have been hit. Every mutation of this set
+    /// goes exclusively through TryHit(), which guarantees that only valid cells are
+    /// added and that a cell can only be hit once.
     ///
-    /// Attention : IReadOnlySet est une vue sur un HashSet mutable. Un cast vers
-    /// HashSet permettrait de contourner TryHit() et violer les invariants. Ce
-    /// risque est accepté et confiné au domaine (BattleShip.Models). Contrairement
-    /// à Cells qui est un FrozenSet réellement immuable, cette asymétrie reflète
-    /// une décision : HitCells a besoin de mutations fréquentes pendant le jeu,
-    /// tandis que Cells est stable à la création du navire.
+    /// Careful: IReadOnlySet is a view over a mutable HashSet. A cast to HashSet
+    /// would make it possible to bypass TryHit() and to violate the invariants. This
+    /// risk is accepted and confined to the domain (BattleShip.Models). Unlike Cells,
+    /// which is a genuinely immutable FrozenSet, this asymmetry reflects a decision:
+    /// HitCells needs frequent mutations during play, whereas Cells is stable from
+    /// the ship's creation.
     /// </summary>
     public IReadOnlySet<Coordinate> HitCells => _hitCells;
 

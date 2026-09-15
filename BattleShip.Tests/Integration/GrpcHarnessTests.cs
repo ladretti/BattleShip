@@ -20,7 +20,7 @@ public sealed class GrpcHarnessTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     [Fact]
-    public async Task Un_appel_grpc_web_depuis_le_serveur_de_test_repond()
+    public async Task A_grpc_web_call_from_the_test_server_responds()
     {
         var client = new PingService.PingServiceClient(CreateChannel());
 

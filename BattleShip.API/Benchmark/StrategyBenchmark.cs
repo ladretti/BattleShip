@@ -4,33 +4,33 @@ using BattleShip.Models;
 namespace BattleShip.API.Benchmark;
 
 /// <summary>
-/// Entrée du duel d'IA : nombre de parties par stratégie et graine de départ.
+/// Input of the AI duel: number of games per strategy and starting seed.
 /// </summary>
 public sealed record BenchmarkInput(int Games, int Seed);
 
 /// <summary>
-/// Résultat agrégé d'une stratégie sur <see cref="Games"/> parties : nombre moyen de
-/// coups jusqu'à la flotte coulée, ainsi que les extrêmes observés.
+/// Aggregated result of a strategy over <see cref="Games"/> games: average number of
+/// shots until the fleet is sunk, along with the extremes observed.
 /// </summary>
 public sealed record BenchmarkResult(
     string StrategyName, int Games, double AverageShots, int MinShots, int MaxShots);
 
 /// <summary>
-/// Duel d'IA : mesure le nombre de coups nécessaires à chaque niveau d'adversaire pour
-/// couler une flotte, sur un nombre donné de parties à graine fixe (REVUE-IA.md, revue 3).
+/// AI duel: measures the number of shots each opponent level needs to sink a fleet,
+/// over a given number of games with a fixed seed (REVUE-IA.md, Revue 3).
 ///
-/// Reproduit volontairement la logique de construction de <see cref="ShotHistory"/> de
-/// StrategyInvariantTests.HistoriqueDepuis plutôt que d'en faire dépendre le code de
-/// production d'un fichier de test — voir le rapport de la tâche 11.
+/// Deliberately reproduces the <see cref="ShotHistory"/> building logic of
+/// StrategyInvariantTests.HistoryFrom rather than making production code depend on a
+/// test file — see the task 11 report.
 ///
-/// Discipline de reproductibilité : aucune source d'aléa n'est prise en dur
-/// (jamais Random.Shared) et aucune structure non ordonnée (HashSet, dictionnaire...)
-/// n'est énumérée dans la boucle de mesure. Pour l'indice de partie i, le placement de
-/// flotte des trois stratégies est dérivé de la même graine (seed + i) : sinon la
-/// comparaison mesurerait la chance du placement plutôt que le niveau de la stratégie.
-/// La graine de la stratégie elle-même est dérivée séparément (seed + i + salt) pour ne
-/// pas faire rejouer à la stratégie exactement la même suite de nombres que le placement,
-/// sans que cela soit une exigence de correction — seule la déterminisme compte ici.
+/// Reproducibility discipline: no source of randomness is hard-coded
+/// (never Random.Shared) and no unordered structure (HashSet, dictionary...) is
+/// enumerated in the measurement loop. For game index i, the fleet placement of the
+/// three strategies is derived from the same seed (seed + i): otherwise the comparison
+/// would measure the luck of the placement rather than the level of the strategy. The
+/// seed of the strategy itself is derived separately (seed + i + salt) so that the
+/// strategy does not replay exactly the same sequence of numbers as the placement,
+/// without this being a correctness requirement — only determinism matters here.
 /// </summary>
 public static class StrategyBenchmark
 {
@@ -49,69 +49,69 @@ public static class StrategyBenchmark
 
         foreach (var (name, create) in Strategies)
         {
-            var shotsParPartie = new int[games];
+            var shotsPerGame = new int[games];
 
             for (var i = 0; i < games; i++)
             {
                 var placementSeed = unchecked(seed + i);
                 var fleet = new FleetPlacer(new Random(placementSeed)).PlaceAll(rules).Value;
-                var cible = new Board(rules.GridSize, fleet);
+                var opponentBoard = new Board(rules.GridSize, fleet);
                 var strategy = create(new Random(unchecked(placementSeed + StrategyRandomSalt)));
 
-                shotsParPartie[i] = JoueUnePartie(rules, cible, strategy, name, i);
+                shotsPerGame[i] = PlayGame(rules, opponentBoard, strategy, name, i);
             }
 
             results.Add(new BenchmarkResult(
                 StrategyName: name,
                 Games: games,
-                AverageShots: shotsParPartie.Average(),
-                MinShots: shotsParPartie.Min(),
-                MaxShots: shotsParPartie.Max()));
+                AverageShots: shotsPerGame.Average(),
+                MinShots: shotsPerGame.Min(),
+                MaxShots: shotsPerGame.Max()));
         }
 
         return results;
     }
 
-    private static int JoueUnePartie(
-        GameRules rules, Board cible, IOpponentStrategy strategy, string strategyName, int gameIndex)
+    private static int PlayGame(
+        GameRules rules, Board opponentBoard, IOpponentStrategy strategy, string strategyName, int gameIndex)
     {
-        var coups = new List<ShotRecord>();
-        var coupsMax = rules.GridSize * rules.GridSize;
+        var shots = new List<ShotRecord>();
+        var maxShots = rules.GridSize * rules.GridSize;
 
-        while (!cible.AllSunk)
+        while (!opponentBoard.AllSunk)
         {
-            if (coups.Count >= coupsMax)
+            if (shots.Count >= maxShots)
             {
                 throw new InvalidOperationException(
-                    $"{strategyName} (partie {gameIndex}) n'a pas coulé la flotte en " +
-                    $"{coupsMax} coups : la stratégie ne progresse plus.");
+                    $"{strategyName} (game {gameIndex}) did not sink the fleet in " +
+                    $"{maxShots} shots: the strategy is no longer making progress.");
             }
 
-            var history = HistoriqueDepuis(rules, cible, coups);
-            var coup = strategy.NextShot(history);
-            var tir = cible.Fire(coup, Player.Opponent);
+            var history = HistoryFrom(rules, opponentBoard, shots);
+            var shot = strategy.NextShot(history);
+            var fired = opponentBoard.Fire(shot, Player.Opponent);
 
-            if (!tir.IsOk)
+            if (!fired.IsOk)
             {
                 throw new InvalidOperationException(
-                    $"{strategyName} (partie {gameIndex}) a proposé un coup invalide " +
-                    $"({coup.X}, {coup.Y}) : {tir.Error}.");
+                    $"{strategyName} (game {gameIndex}) proposed an invalid shot " +
+                    $"({shot.X}, {shot.Y}): {fired.Error}.");
             }
 
-            coups.Add(tir.Value);
+            shots.Add(fired.Value);
         }
 
-        return coups.Count;
+        return shots.Count;
     }
 
-    private static ShotHistory HistoriqueDepuis(
-        GameRules rules, Board cible, IReadOnlyList<ShotRecord> coups)
+    private static ShotHistory HistoryFrom(
+        GameRules rules, Board opponentBoard, IReadOnlyList<ShotRecord> shots)
     {
-        var coules = cible.Ships.Where(s => s.IsSunk).ToList();
-        var restants = rules.Fleet
-            .Where(t => coules.All(s => s.Name != t.Name))
+        var sunk = opponentBoard.Ships.Where(s => s.IsSunk).ToList();
+        var remaining = rules.Fleet
+            .Where(t => sunk.All(s => s.Name != t.Name))
             .ToList();
 
-        return new ShotHistory(rules.GridSize, coups, restants, coules, rules.ShipsMayTouch);
+        return new ShotHistory(rules.GridSize, shots, remaining, sunk, rules.ShipsMayTouch);
     }
 }

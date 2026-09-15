@@ -1,38 +1,38 @@
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Domaine;
+namespace BattleShip.Tests.Domain;
 
 public sealed class PlacementRulesTests
 {
-    private static readonly GameRules Petite =
-        new(GridSize: 5, Fleet: [new ShipTemplate("Torpilleur", 2)],
+    private static readonly GameRules Small =
+        new(GridSize: 5, Fleet: [new ShipTemplate("Destroyer", 2)],
             ShipsMayTouch: false, ExtraTurnOnHit: true);
 
-    private static ShipPlacement Torpilleur(int x, int y, Orientation o = Orientation.Horizontal)
-        => new("Torpilleur", new Coordinate(x, y), o, 2);
+    private static ShipPlacement Destroyer(int x, int y, Orientation o = Orientation.Horizontal)
+        => new("Destroyer", new Coordinate(x, y), o, 2);
 
     [Fact]
-    public void Un_placement_valide_est_accepte()
+    public void A_valid_placement_is_accepted()
     {
-        var result = PlacementRules.Validate([Torpilleur(0, 0)], Petite);
+        var result = PlacementRules.Validate([Destroyer(0, 0)], Small);
 
         Assert.True(result.IsOk);
         Assert.Single(result.Value);
     }
 
     [Fact]
-    public void Un_navire_qui_deborde_la_grille_est_refuse()
+    public void A_ship_that_overflows_the_grid_is_rejected()
     {
-        var result = PlacementRules.Validate([Torpilleur(4, 0)], Petite);
+        var result = PlacementRules.Validate([Destroyer(4, 0)], Small);
 
         Assert.False(result.IsOk);
         Assert.Equal(GameError.InvalidPlacement, result.Error);
     }
 
     [Fact]
-    public void Deux_navires_qui_se_chevauchent_sont_refuses()
+    public void Two_overlapping_ships_are_rejected()
     {
-        var rules = Petite with
+        var rules = Small with
         {
             Fleet = [new ShipTemplate("A", 2), new ShipTemplate("B", 2)]
         };
@@ -48,12 +48,12 @@ public sealed class PlacementRulesTests
     }
 
     [Theory]
-    [InlineData(0, 1)]   // dessous
-    [InlineData(2, 0)]   // bout à bout
-    [InlineData(2, 1)]   // diagonale
-    public void Deux_navires_qui_se_touchent_sont_refuses(int x, int y)
+    [InlineData(0, 1)]   // below
+    [InlineData(2, 0)]   // end to end
+    [InlineData(2, 1)]   // diagonal
+    public void Two_touching_ships_are_rejected(int x, int y)
     {
-        var rules = Petite with
+        var rules = Small with
         {
             Fleet = [new ShipTemplate("A", 2), new ShipTemplate("B", 2)]
         };
@@ -69,9 +69,9 @@ public sealed class PlacementRulesTests
     }
 
     [Fact]
-    public void Deux_navires_qui_se_touchent_sont_acceptes_si_la_regle_l_autorise()
+    public void Two_touching_ships_are_accepted_if_the_rule_allows_it()
     {
-        var rules = Petite with
+        var rules = Small with
         {
             Fleet = [new ShipTemplate("A", 2), new ShipTemplate("B", 2)],
             ShipsMayTouch = true
@@ -88,9 +88,9 @@ public sealed class PlacementRulesTests
     }
 
     [Fact]
-    public void Une_flotte_incomplete_est_refusee()
+    public void An_incomplete_fleet_is_rejected()
     {
-        var rules = Petite with
+        var rules = Small with
         {
             Fleet = [new ShipTemplate("A", 2), new ShipTemplate("B", 2)]
         };

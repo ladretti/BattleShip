@@ -1,10 +1,10 @@
 namespace BattleShip.Models;
 
 /// <summary>
-/// Machine à états d'une partie. PlayerFires et OpponentFires sont deux méthodes
-/// symétriques qui partagent le même moteur de tir (Fire) : seuls le joueur tireur
-/// et le plateau visé changent. C'est par OpponentFires que l'adversaire joue — il
-/// n'existe aucune autre voie pour le faire tirer.
+/// State machine of a game. PlayerFires and OpponentFires are two symmetric methods
+/// that share the same firing engine (Fire): only the shooting player and the targeted
+/// board change. It is through OpponentFires that the opponent plays — there is no
+/// other way to make it fire.
 /// </summary>
 public sealed class Game
 {
@@ -15,24 +15,24 @@ public sealed class Game
     public Board HumanBoard { get; }
     public Board OpponentBoard { get; }
     /// <summary>
-    /// Joueur à qui appartient le tir suivant. Une fois <see cref="Status"/> passé à
-    /// <see cref="GameStatus.Finished"/>, cette valeur n'a plus de signification
-    /// stable pour désigner le vainqueur : selon <see cref="GameRules.ExtraTurnOnHit"/>,
-    /// elle pointe soit vers le tireur qui vient de couler le dernier navire (la main
-    /// lui est restée), soit vers son adversaire (la main a basculé sur un coup
-    /// manqué). Ce n'est pas un bug — Finished bloque tout nouveau tir — mais un DTO
-    /// d'état de partie ne doit pas s'appuyer dessus pour désigner le gagnant.
+    /// Player the next shot belongs to. Once <see cref="Status"/> has moved to
+    /// <see cref="GameStatus.Finished"/>, this value no longer carries a stable
+    /// meaning for designating the winner: depending on
+    /// <see cref="GameRules.ExtraTurnOnHit"/>, it points either to the shooter who has
+    /// just sunk the last ship (the turn stayed with them), or to their opponent (the
+    /// turn switched on a missed shot). This is not a bug — Finished blocks any new
+    /// shot — but a game state DTO must not rely on it to designate the winner.
     /// </summary>
     public Player CurrentPlayer { get; private set; }
     public GameStatus Status { get; private set; }
 
     /// <summary>
-    /// Journal des tirs de la partie, dans l'ordre chronologique.
+    /// Log of the game's shots, in chronological order.
     ///
-    /// Attention : IReadOnlyList est une vue sur une List mutable. Un cast vers
-    /// List permettrait de contourner l'ajout contrôlé fait par Fire() et de
-    /// corrompre le journal. Ce risque est accepté et confiné au domaine
-    /// (BattleShip.Models), comme pour Ship.HitCells.
+    /// Careful: IReadOnlyList is a view over a mutable List. A cast to List would
+    /// make it possible to bypass the controlled insertion done by Fire() and to
+    /// corrupt the log. This risk is accepted and confined to the domain
+    /// (BattleShip.Models), as it is for Ship.HitCells.
     /// </summary>
     public IReadOnlyList<ShotRecord> History => _history;
 

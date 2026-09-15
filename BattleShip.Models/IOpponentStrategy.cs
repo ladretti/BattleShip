@@ -1,34 +1,34 @@
 namespace BattleShip.Models;
 
 /// <summary>
-/// Une stratégie adverse remplaçable, pas une méthode privée du moteur (ADR 0003).
-/// Chaque implémentation ne reçoit que ce que le joueur a le droit de connaître —
-/// via <see cref="ShotHistory"/> — et doit respecter l'invariant vérifié par
-/// StrategyInvariantTests : ne jamais proposer un coup hors grille, ni une case
-/// déjà jouée.
+/// A replaceable opponent strategy, not a private method of the engine (ADR 0003).
+/// Each implementation receives only what the player is entitled to know — through
+/// <see cref="ShotHistory"/> — and must respect the invariant checked by
+/// StrategyInvariantTests: never propose a shot outside the grid, nor a cell already
+/// shot.
 /// </summary>
 public interface IOpponentStrategy
 {
     string Name { get; }
 
     /// <summary>
-    /// Propose la prochaine case à tirer à partir de <paramref name="history"/>.
+    /// Proposes the next cell to shoot at, based on <paramref name="history"/>.
     ///
-    /// Précondition : il reste au moins une case jouable dans la grille. Une
-    /// implémentation qui énumère un ensemble de candidats (chasse, ratissage...)
-    /// n'a aucune case à choisir si toutes sont déjà jouées, et peut alors lever une
-    /// exception au lieu de renvoyer une <see cref="Coordinate"/> valide — c'est à
-    /// l'appelant de ne jamais invoquer <see cref="NextShot"/> sur une grille pleine
-    /// ou une partie déjà terminée, jamais à l'implémentation de le vérifier.
+    /// Precondition: at least one playable cell remains in the grid. An
+    /// implementation that enumerates a set of candidates (hunt, target...) has no
+    /// cell left to choose from if all of them have already been shot, and may then
+    /// throw an exception instead of returning a valid <see cref="Coordinate"/> — it
+    /// is up to the caller never to invoke <see cref="NextShot"/> on a full grid or on
+    /// an already finished game, never up to the implementation to check it.
     ///
-    /// Ce contrat est respecté par construction tant que le moteur ne fait tirer
-    /// l'adversaire que sur une partie au statut InProgress : une partie se termine
-    /// dès que la flotte adverse est coulée, ce qui survient strictement avant que
-    /// la grille soit épuisée (une grille 10x10 contient toujours davantage de
-    /// cases que la flotte n'occupe de cellules). La précondition n'est donc jamais
-    /// testée ici — testée, elle imposerait à chaque stratégie de gérer un cas que
-    /// le moteur ne produit jamais — mais elle doit rester vraie pour toute future
-    /// implémentation d'<see cref="IOpponentStrategy"/> câblée au serveur.
+    /// This contract holds by construction as long as the engine only makes the
+    /// opponent fire on a game whose status is InProgress: a game ends as soon as the
+    /// opposing fleet is sunk, which happens strictly before the grid is exhausted (a
+    /// 10x10 grid always contains more cells than the fleet occupies). The
+    /// precondition is therefore never checked here — were it checked, it would force
+    /// every strategy to handle a case the engine never produces — but it must remain
+    /// true for any future implementation of <see cref="IOpponentStrategy"/> wired to
+    /// the server.
     /// </summary>
     Coordinate NextShot(ShotHistory history);
 }

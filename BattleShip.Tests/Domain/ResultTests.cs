@@ -1,11 +1,11 @@
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Domaine;
+namespace BattleShip.Tests.Domain;
 
 public sealed class ResultTests
 {
     [Fact]
-    public void Un_resultat_ok_porte_sa_valeur()
+    public void An_ok_result_carries_its_value()
     {
         var result = Result<int>.Ok(42);
 
@@ -14,7 +14,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Un_resultat_en_echec_porte_son_erreur()
+    public void A_failed_result_carries_its_error()
     {
         var result = Result<int>.Fail(GameError.CellAlreadyShot);
 
@@ -23,7 +23,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Lire_la_valeur_d_un_resultat_en_echec_est_une_anomalie()
+    public void Reading_the_value_of_a_failed_result_is_an_anomaly()
     {
         var result = Result<int>.Fail(GameError.OutOfBounds);
 
@@ -31,7 +31,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Un_resultat_par_defaut_n_est_pas_un_succes()
+    public void A_default_result_is_not_a_success()
     {
         Result<int> result = default;
 
@@ -39,7 +39,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Lire_la_valeur_d_un_resultat_par_defaut_est_une_anomalie()
+    public void Reading_the_value_of_a_default_result_is_an_anomaly()
     {
         Result<int> result = default;
 
@@ -47,7 +47,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Lire_l_erreur_d_un_resultat_par_defaut_est_une_anomalie()
+    public void Reading_the_error_of_a_default_result_is_an_anomaly()
     {
         Result<int> result = default;
 
@@ -55,7 +55,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Lire_l_erreur_d_un_resultat_reussi_est_une_anomalie()
+    public void Reading_the_error_of_a_successful_result_is_an_anomaly()
     {
         var result = Result<int>.Ok(1);
 
@@ -63,7 +63,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Un_tableau_de_resultats_non_initialise_ne_contient_aucun_succes()
+    public void An_uninitialized_array_of_results_contains_no_success()
     {
         var results = new Result<string>[3];
 

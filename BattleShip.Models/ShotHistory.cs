@@ -1,18 +1,17 @@
 namespace BattleShip.Models;
 
 /// <summary>
-/// Vue de la partie communiquée à une stratégie adverse : ses propres tirs et leurs
-/// résultats, les navires restants et coulés — jamais le plateau adverse ni la
-/// position des navires non découverts. C'est cette absence de référence à
-/// <see cref="Board"/> qui rend l'invariant « une stratégie ne triche pas »
-/// vérifiable par le type plutôt que par relecture : une stratégie ne peut
-/// consulter la flotte adverse, même par erreur, puisque ShotHistory ne l'expose
-/// pas.
+/// View of the game handed to an opponent strategy: its own shots and their results,
+/// the remaining and sunk ships — never the opposing board nor the position of the
+/// undiscovered ships. It is this absence of any reference to <see cref="Board"/>
+/// that makes the invariant "a strategy does not cheat" verifiable by the type rather
+/// than by review: a strategy cannot consult the opposing fleet, even by mistake,
+/// since ShotHistory does not expose it.
 ///
-/// RemainingShips et SunkShips sont en revanche des informations légitimes : ce
-/// sont celles annoncées au joueur humain lorsqu'un navire coule. La frontière
-/// n'est pas entre « peu » et « beaucoup » d'informations, mais entre ce que le
-/// joueur a le droit de savoir et la position des navires non découverts.
+/// RemainingShips and SunkShips, on the other hand, are legitimate information: they
+/// are what is announced to the human player when a ship sinks. The boundary is not
+/// between "little" and "much" information, but between what the player is entitled
+/// to know and the position of the undiscovered ships.
 /// </summary>
 public sealed record ShotHistory(
     int GridSize,

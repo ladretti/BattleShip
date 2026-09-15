@@ -3,126 +3,126 @@ using BattleShip.Models;
 namespace BattleShip.API.Strategies;
 
 /// <summary>
-/// Adversaire de niveau difficile : pour chaque navire encore à couler, énumère
-/// tous les placements encore légaux compte tenu de ce qui est connu, compte
-/// combien de placements passent par chaque case, puis vise la case au score
-/// maximal. Aucune heuristique de voisinage : la seule concentration des
-/// placements légaux fait converger la stratégie sur les navires entamés.
+/// Hard level opponent: for each ship still to be sunk, enumerates every
+/// placement still legal given what is known, counts how many placements go
+/// through each cell, then aims at the cell with the highest score. No
+/// neighborhood heuristic: the concentration of legal placements alone makes the
+/// strategy converge on the ships already hit.
 ///
-/// Sans état : reconstruit sa décision depuis ShotHistory à chaque appel, comme
-/// RandomStrategy et HuntTargetStrategy. L'aléa arrive par le constructeur,
-/// jamais via Random.Shared, et ne sert qu'à départager les cases ex æquo.
+/// Stateless: rebuilds its decision from ShotHistory on every call, just like
+/// RandomStrategy and HuntTargetStrategy. Randomness arrives through the
+/// constructor, never through Random.Shared, and only serves to break ties
+/// between cells with equal scores.
 ///
-/// Toute énumération est bornée par navires restants x 2 orientations x
-/// GridSize x GridSize origines : aucune boucle ne tourne « jusqu'à trouver ».
+/// Every enumeration is bounded by remaining ships x 2 orientations x
+/// GridSize x GridSize origins: no loop runs "until it finds something".
 /// </summary>
 public sealed class DensityStrategy(Random random) : IOpponentStrategy
 {
-    private const int PoidsToucheNonCoulee = 10;
+    private const int UnsunkHitWeight = 10;
 
     public string Name => "Density";
 
     public Coordinate NextShot(ShotHistory history)
     {
-        var jouees = history.Shots.Select(s => s.At).ToHashSet();
-        var manquees = history.Shots
+        var alreadyShot = history.Shots.Select(s => s.At).ToHashSet();
+        var missed = history.Shots
             .Where(s => s.Result == ShotResult.Miss)
             .Select(s => s.At)
             .ToHashSet();
-        var casesCoulees = history.SunkShips.SelectMany(s => s.Cells).ToHashSet();
-        var touchesNonCoulees = history.Shots
+        var sunkCells = history.SunkShips.SelectMany(s => s.Cells).ToHashSet();
+        var unsunkHits = history.Shots
             .Where(s => s.Result is ShotResult.Hit or ShotResult.Sunk)
             .Select(s => s.At)
-            .Where(c => !casesCoulees.Contains(c))
+            .Where(c => !sunkCells.Contains(c))
             .ToHashSet();
 
-        var couronneInterdite = history.ShipsMayTouch
+        var blockedHalo = history.ShipsMayTouch
             ? new HashSet<Coordinate>()
-            : CouronneDe(history.SunkShips.SelectMany(s => s.Cells), history.GridSize);
+            : HaloOf(history.SunkShips.SelectMany(s => s.Cells), history.GridSize);
 
         var scores = new Dictionary<Coordinate, int>();
 
-        foreach (var navire in history.RemainingShips)
+        foreach (var ship in history.RemainingShips)
         {
-            foreach (var placement in PlacementsPossibles(navire.Size, history.GridSize))
+            foreach (var placement in PossiblePlacements(ship.Size, history.GridSize))
             {
-                if (!EstLegal(placement, manquees, casesCoulees, couronneInterdite))
+                if (!IsLegal(placement, missed, sunkCells, blockedHalo))
                     continue;
 
-                var poids = placement.Any(touchesNonCoulees.Contains) ? PoidsToucheNonCoulee : 1;
-                foreach (var cellule in placement)
+                var weight = placement.Any(unsunkHits.Contains) ? UnsunkHitWeight : 1;
+                foreach (var cell in placement)
                 {
-                    scores[cellule] = scores.GetValueOrDefault(cellule) + poids;
+                    scores[cell] = scores.GetValueOrDefault(cell) + weight;
                 }
             }
         }
 
-        var candidatesPositifs = scores
-            .Where(kv => !jouees.Contains(kv.Key) && kv.Value > 0)
+        var positiveCandidates = scores
+            .Where(kv => !alreadyShot.Contains(kv.Key) && kv.Value > 0)
             .ToList();
 
-        if (candidatesPositifs.Count > 0)
+        if (positiveCandidates.Count > 0)
         {
-            var meilleur = candidatesPositifs.Max(kv => kv.Value);
+            var best = positiveCandidates.Max(kv => kv.Value);
 
-            // Tri explicite : l'ordre d'énumération d'un Dictionary<,> n'est pas
-            // garanti par la spécification .NET (seulement stable en pratique tant
-            // qu'aucune suppression n'a lieu). Sans ce tri, le tirage aléatoire sur
-            // `meilleures` porterait sur un ordre non contractuel : à graine égale,
-            // un changement de runtime pourrait faire pointer random.Next() vers une
-            // autre case, cassant silencieusement la reproductibilité que la tâche
-            // 11 exige (l'invariant de légalité continuerait de passer sans le
-            // détecter).
-            var meilleures = candidatesPositifs
-                .Where(kv => kv.Value == meilleur)
+            // Explicit sort: the enumeration order of a Dictionary<,> is not
+            // guaranteed by the .NET specification (only stable in practice as long
+            // as no removal takes place). Without this sort, the random draw over
+            // `bestCells` would rest on a non-contractual order: for the same seed,
+            // a runtime change could make random.Next() point at another cell,
+            // silently breaking the reproducibility that task 11 requires (the
+            // legality invariant would keep passing without detecting it).
+            var bestCells = positiveCandidates
+                .Where(kv => kv.Value == best)
                 .Select(kv => kv.Key)
                 .OrderBy(c => c.Y).ThenBy(c => c.X)
                 .ToList();
-            return meilleures[random.Next(meilleures.Count)];
+            return bestCells[random.Next(bestCells.Count)];
         }
 
-        return TirDeRepli(history.GridSize, jouees);
+        return FallbackShot(history.GridSize, alreadyShot);
     }
 
-    private static bool EstLegal(
+    private static bool IsLegal(
         IReadOnlyList<Coordinate> placement,
-        HashSet<Coordinate> manquees,
-        HashSet<Coordinate> casesCoulees,
-        HashSet<Coordinate> couronneInterdite)
+        HashSet<Coordinate> missed,
+        HashSet<Coordinate> sunkCells,
+        HashSet<Coordinate> blockedHalo)
     {
-        foreach (var cellule in placement)
+        foreach (var cell in placement)
         {
-            if (manquees.Contains(cellule))
+            if (missed.Contains(cell))
                 return false;
-            if (casesCoulees.Contains(cellule))
+            if (sunkCells.Contains(cell))
                 return false;
-            if (couronneInterdite.Contains(cellule))
+            if (blockedHalo.Contains(cell))
                 return false;
         }
 
         return true;
     }
 
-    private static IEnumerable<IReadOnlyList<Coordinate>> PlacementsPossibles(int taille, int gridSize)
+    private static IEnumerable<IReadOnlyList<Coordinate>> PossiblePlacements(int size, int gridSize)
     {
         for (var x = 0; x < gridSize; x++)
         {
             for (var y = 0; y < gridSize; y++)
             {
                 // Horizontal.
-                if (x + taille <= gridSize)
+                if (x + size <= gridSize)
                 {
-                    yield return Enumerable.Range(0, taille)
+                    yield return Enumerable.Range(0, size)
                         .Select(i => new Coordinate(x + i, y))
                         .ToList();
                 }
 
-                // Vertical. Un navire de taille 1 produirait le même placement que
-                // l'horizontal : l'éviter ne changerait rien au score (même case,
-                // même poids) mais évite un double comptage.
-                if (taille > 1 && y + taille <= gridSize)
+                // Vertical. A ship of size 1 would produce the same placement as the
+                // horizontal one: skipping it would change nothing to the score (same
+                // cell, same weight) but avoids counting it twice.
+                if (size > 1 && y + size <= gridSize)
                 {
-                    yield return Enumerable.Range(0, taille)
+                    yield return Enumerable.Range(0, size)
                         .Select(i => new Coordinate(x, y + i))
                         .ToList();
                 }
@@ -130,39 +130,39 @@ public sealed class DensityStrategy(Random random) : IOpponentStrategy
         }
     }
 
-    private static HashSet<Coordinate> CouronneDe(IEnumerable<Coordinate> cellules, int gridSize)
+    private static HashSet<Coordinate> HaloOf(IEnumerable<Coordinate> cells, int gridSize)
     {
-        var couronne = new HashSet<Coordinate>();
-        foreach (var cellule in cellules)
+        var halo = new HashSet<Coordinate>();
+        foreach (var cell in cells)
         {
             for (var dx = -1; dx <= 1; dx++)
             {
                 for (var dy = -1; dy <= 1; dy++)
                 {
-                    var voisin = new Coordinate(cellule.X + dx, cellule.Y + dy);
-                    if (voisin.X < 0 || voisin.X >= gridSize || voisin.Y < 0 || voisin.Y >= gridSize)
+                    var neighbor = new Coordinate(cell.X + dx, cell.Y + dy);
+                    if (neighbor.X < 0 || neighbor.X >= gridSize || neighbor.Y < 0 || neighbor.Y >= gridSize)
                         continue;
-                    couronne.Add(voisin);
+                    halo.Add(neighbor);
                 }
             }
         }
 
-        return couronne;
+        return halo;
     }
 
-    private Coordinate TirDeRepli(int gridSize, HashSet<Coordinate> jouees)
+    private Coordinate FallbackShot(int gridSize, HashSet<Coordinate> alreadyShot)
     {
-        var restantes = new List<Coordinate>();
+        var remaining = new List<Coordinate>();
         for (var x = 0; x < gridSize; x++)
         {
             for (var y = 0; y < gridSize; y++)
             {
                 var candidate = new Coordinate(x, y);
-                if (!jouees.Contains(candidate))
-                    restantes.Add(candidate);
+                if (!alreadyShot.Contains(candidate))
+                    remaining.Add(candidate);
             }
         }
 
-        return restantes[random.Next(restantes.Count)];
+        return remaining[random.Next(remaining.Count)];
     }
 }

@@ -3,14 +3,14 @@ using BattleShip.Models;
 namespace BattleShip.API.Strategies;
 
 /// <summary>
-/// Adversaire de niveau normal : chasse sur les cases de parité paire, puis
-/// ratissage des voisins d'une touche non encore couverte par un navire coulé.
-/// Sans état : reconstruit sa décision depuis ShotHistory à chaque appel, comme
-/// RandomStrategy. L'aléa arrive par le constructeur, jamais via Random.Shared.
+/// Normal level opponent: hunts on the even parity cells, then targets the
+/// neighbors of a hit not yet covered by a sunk ship.
+/// Stateless: rebuilds its decision from ShotHistory on every call, just like
+/// RandomStrategy. Randomness arrives through the constructor, never through Random.Shared.
 ///
-/// Toute énumération de candidats est bornée par la taille de la grille : aucune
-/// boucle ne tourne « jusqu'à trouver ». Voir StrategyInvariantTests pour le
-/// garde-fou qui ne détecte, lui, qu'une absence de progression entre deux appels.
+/// Every candidate enumeration is bounded by the grid size: no loop runs "until
+/// it finds something". See StrategyInvariantTests for the safety net, which only
+/// detects an absence of progress between two calls.
 /// </summary>
 public sealed class HuntTargetStrategy(Random random) : IOpponentStrategy
 {
@@ -18,109 +18,109 @@ public sealed class HuntTargetStrategy(Random random) : IOpponentStrategy
 
     public Coordinate NextShot(ShotHistory history)
     {
-        var jouees = history.Shots.Select(s => s.At).ToHashSet();
-        var couvertes = history.SunkShips.SelectMany(s => s.Cells).ToHashSet();
+        var alreadyShot = history.Shots.Select(s => s.At).ToHashSet();
+        var sunkCells = history.SunkShips.SelectMany(s => s.Cells).ToHashSet();
 
-        var touches = history.Shots
+        var hits = history.Shots
             .Where(s => s.Result is ShotResult.Hit or ShotResult.Sunk)
             .Select(s => s.At)
-            .Where(c => !couvertes.Contains(c))
+            .Where(c => !sunkCells.Contains(c))
             .ToList();
 
-        if (touches.Count > 0)
+        if (hits.Count > 0)
         {
-            var candidats = CandidatsDeRatissage(history.GridSize, touches, jouees);
-            if (candidats.Count > 0)
-                return candidats[random.Next(candidats.Count)];
+            var candidates = TargetCandidates(history.GridSize, hits, alreadyShot);
+            if (candidates.Count > 0)
+                return candidates[random.Next(candidates.Count)];
         }
 
-        return TirDeChasse(history.GridSize, jouees);
+        return HuntShot(history.GridSize, alreadyShot);
     }
 
-    private Coordinate TirDeChasse(int gridSize, HashSet<Coordinate> jouees)
+    private Coordinate HuntShot(int gridSize, HashSet<Coordinate> alreadyShot)
     {
-        var paires = new List<Coordinate>();
-        var toutes = new List<Coordinate>();
+        var evenParity = new List<Coordinate>();
+        var all = new List<Coordinate>();
 
         for (var x = 0; x < gridSize; x++)
         {
             for (var y = 0; y < gridSize; y++)
             {
                 var candidate = new Coordinate(x, y);
-                if (jouees.Contains(candidate))
+                if (alreadyShot.Contains(candidate))
                     continue;
 
-                toutes.Add(candidate);
+                all.Add(candidate);
                 if ((x + y) % 2 == 0)
-                    paires.Add(candidate);
+                    evenParity.Add(candidate);
             }
         }
 
-        // Tout navire de taille >= 2 couvre forcément une case de parité paire : la
-        // chasse peut ignorer l'autre moitié de la grille. Repli sur toutes les
-        // cases non jouées si la grille paire est épuisée alors que la partie
-        // continue.
-        var reserve = paires.Count > 0 ? paires : toutes;
-        return reserve[random.Next(reserve.Count)];
+        // Any ship of size >= 2 necessarily covers an even parity cell: the hunt
+        // can ignore the other half of the grid. Falls back to every cell not yet
+        // shot at if the even parity grid is exhausted while the game is still
+        // running.
+        var pool = evenParity.Count > 0 ? evenParity : all;
+        return pool[random.Next(pool.Count)];
     }
 
-    private static IReadOnlyList<Coordinate> CandidatsDeRatissage(
-        int gridSize, IReadOnlyList<Coordinate> touches, HashSet<Coordinate> jouees)
+    private static IReadOnlyList<Coordinate> TargetCandidates(
+        int gridSize, IReadOnlyList<Coordinate> hits, HashSet<Coordinate> alreadyShot)
     {
-        // Si deux touches non couvertes sont alignées, prolonger l'alignement plutôt
-        // que de proposer un voisin perpendiculaire.
-        var prolongements = new List<Coordinate>();
-        for (var i = 0; i < touches.Count; i++)
+        // If two uncovered hits are aligned, extend the line rather than proposing
+        // a perpendicular neighbor.
+        var lineExtensions = new List<Coordinate>();
+        for (var i = 0; i < hits.Count; i++)
         {
-            for (var j = i + 1; j < touches.Count; j++)
+            for (var j = i + 1; j < hits.Count; j++)
             {
-                AjouterProlongements(touches[i], touches[j], gridSize, jouees, prolongements);
+                AddLineExtensions(hits[i], hits[j], gridSize, alreadyShot, lineExtensions);
             }
         }
 
-        if (prolongements.Count > 0)
-            return prolongements;
+        if (lineExtensions.Count > 0)
+            return lineExtensions;
 
-        var voisins = new List<Coordinate>();
-        foreach (var touche in touches)
+        var neighbors = new List<Coordinate>();
+        foreach (var hit in hits)
         {
-            foreach (var voisin in Voisins(touche, gridSize))
+            foreach (var neighbor in Neighbors(hit, gridSize))
             {
-                if (!jouees.Contains(voisin) && !voisins.Contains(voisin))
-                    voisins.Add(voisin);
+                if (!alreadyShot.Contains(neighbor) && !neighbors.Contains(neighbor))
+                    neighbors.Add(neighbor);
             }
         }
 
-        return voisins;
+        return neighbors;
     }
 
-    private static void AjouterProlongements(
-        Coordinate a, Coordinate b, int gridSize, HashSet<Coordinate> jouees, List<Coordinate> resultat)
+    private static void AddLineExtensions(
+        Coordinate a, Coordinate b, int gridSize, HashSet<Coordinate> alreadyShot, List<Coordinate> result)
     {
         if (a.X == b.X && Math.Abs(a.Y - b.Y) == 1)
         {
-            AjouterSiValide(new Coordinate(a.X, Math.Min(a.Y, b.Y) - 1), gridSize, jouees, resultat);
-            AjouterSiValide(new Coordinate(a.X, Math.Max(a.Y, b.Y) + 1), gridSize, jouees, resultat);
+            AddIfValid(new Coordinate(a.X, Math.Min(a.Y, b.Y) - 1), gridSize, alreadyShot, result);
+            AddIfValid(new Coordinate(a.X, Math.Max(a.Y, b.Y) + 1), gridSize, alreadyShot, result);
         }
         else if (a.Y == b.Y && Math.Abs(a.X - b.X) == 1)
         {
-            AjouterSiValide(new Coordinate(Math.Min(a.X, b.X) - 1, a.Y), gridSize, jouees, resultat);
-            AjouterSiValide(new Coordinate(Math.Max(a.X, b.X) + 1, a.Y), gridSize, jouees, resultat);
+            AddIfValid(new Coordinate(Math.Min(a.X, b.X) - 1, a.Y), gridSize, alreadyShot, result);
+            AddIfValid(new Coordinate(Math.Max(a.X, b.X) + 1, a.Y), gridSize, alreadyShot, result);
         }
     }
 
-    private static void AjouterSiValide(
-        Coordinate candidate, int gridSize, HashSet<Coordinate> jouees, List<Coordinate> resultat)
+    private static void AddIfValid(
+        Coordinate candidate, int gridSize, HashSet<Coordinate> alreadyShot, List<Coordinate> result)
     {
         if (candidate.X < 0 || candidate.X >= gridSize || candidate.Y < 0 || candidate.Y >= gridSize)
             return;
-        if (jouees.Contains(candidate))
+        if (alreadyShot.Contains(candidate))
             return;
-        if (!resultat.Contains(candidate))
-            resultat.Add(candidate);
+        if (!result.Contains(candidate))
+            result.Add(candidate);
     }
 
-    private static IEnumerable<Coordinate> Voisins(Coordinate c, int gridSize)
+    private static IEnumerable<Coordinate> Neighbors(Coordinate c, int gridSize)
     {
         if (c.X > 0) yield return new Coordinate(c.X - 1, c.Y);
         if (c.X < gridSize - 1) yield return new Coordinate(c.X + 1, c.Y);

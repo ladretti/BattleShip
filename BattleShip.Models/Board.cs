@@ -1,10 +1,10 @@
 namespace BattleShip.Models;
 
 /// <summary>
-/// Représente la grille d'un joueur : sa flotte et les tirs reçus. C'est la seule
-/// source de vérité — aucune matrice de cellules n'est construite ni mise en cache
-/// ici. Une vue matricielle, si elle est nécessaire (affichage, DTO), se calcule à
-/// la demande à partir de Ships et ReceivedShots, jamais en la dupliquant.
+/// Represents a player's grid: their fleet and the shots received. This is the only
+/// source of truth — no cell matrix is built or cached here. A matrix view, should one
+/// be needed (display, DTO), is computed on demand from Ships and ReceivedShots, never
+/// by duplicating them.
 /// </summary>
 public sealed class Board(int gridSize, IReadOnlyList<Ship> ships)
 {
@@ -12,10 +12,10 @@ public sealed class Board(int gridSize, IReadOnlyList<Ship> ships)
 
     public int GridSize { get; } = gridSize;
 
-    // Copie défensive : sans elle, Board partagerait la référence de la liste passée
-    // par l'appelant. Si celui-ci mute sa propre liste (retire un navire, par
-    // exemple), Fire et AllSunk liraient cette mutation sur ce qui est censé être
-    // l'invariant central du plateau.
+    // Defensive copy: without it, Board would share the reference of the list passed
+    // by the caller. If the caller mutates its own list (removing a ship, for
+    // example), Fire and AllSunk would read that mutation on what is supposed to be
+    // the board's central invariant.
     public IReadOnlyList<Ship> Ships { get; } = [.. ships];
     public IReadOnlySet<Coordinate> ReceivedShots => _receivedShots;
 

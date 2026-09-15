@@ -1,10 +1,10 @@
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Domaine;
+namespace BattleShip.Tests.Domain;
 
 public sealed class FleetPlacerTests
 {
-    public static TheoryData<int> Graines()
+    public static TheoryData<int> Seeds()
     {
         var data = new TheoryData<int>();
         for (var seed = 1; seed <= 50; seed++) data.Add(seed);
@@ -12,8 +12,8 @@ public sealed class FleetPlacerTests
     }
 
     [Theory]
-    [MemberData(nameof(Graines))]
-    public void Un_placement_automatique_respecte_toujours_les_regles(int seed)
+    [MemberData(nameof(Seeds))]
+    public void An_automatic_placement_always_respects_the_rules(int seed)
     {
         var placer = new FleetPlacer(new Random(seed));
 
@@ -22,28 +22,28 @@ public sealed class FleetPlacerTests
         Assert.True(result.IsOk);
         var cells = result.Value.SelectMany(s => s.Cells).ToList();
 
-        // Aucune case hors grille.
+        // No cell outside the grid.
         Assert.All(cells, c =>
         {
             Assert.InRange(c.X, 0, GameRules.Default.GridSize - 1);
             Assert.InRange(c.Y, 0, GameRules.Default.GridSize - 1);
         });
 
-        // Aucun chevauchement.
+        // No overlap.
         Assert.Equal(cells.Count, cells.Distinct().Count());
 
-        // Aucune adjacence entre deux navires distincts.
+        // No adjacency between two distinct ships.
         foreach (var a in result.Value)
             foreach (var b in result.Value.Where(x => !ReferenceEquals(x, a)))
                 foreach (var ca in a.Cells)
                     foreach (var cb in b.Cells)
                         Assert.False(
                             Math.Abs(ca.X - cb.X) <= 1 && Math.Abs(ca.Y - cb.Y) <= 1,
-                            $"navires adjacents en {ca} et {cb} (graine {seed})");
+                            $"adjacent ships at {ca} and {cb} (seed {seed})");
     }
 
     [Fact]
-    public void Deux_graines_identiques_produisent_le_meme_placement()
+    public void Two_identical_seeds_produce_the_same_placement()
     {
         var a = new FleetPlacer(new Random(12345)).PlaceAll(GameRules.Default);
         var b = new FleetPlacer(new Random(12345)).PlaceAll(GameRules.Default);
@@ -54,7 +54,7 @@ public sealed class FleetPlacerTests
     }
 
     [Fact]
-    public void Une_flotte_qui_ne_tient_pas_dans_la_grille_est_refusee_sans_boucler()
+    public void A_fleet_that_does_not_fit_in_the_grid_is_rejected_without_looping()
     {
         var impossible = new GameRules(
             GridSize: 3,

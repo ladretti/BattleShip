@@ -1,17 +1,17 @@
 namespace BattleShip.Models;
 
 /// <summary>
-/// Abstraction d'accès à l'état des parties, indépendante de tout mécanisme de
-/// stockage concret. Existe pour deux raisons : permettre aux tests d'intégration
-/// d'injecter un store pré-rempli dans un état donné, et matérialiser la durée de
-/// vie du store comme un choix explicite (une implémentation Singleton porte de
-/// l'état partagé et doit donc gérer l'accès concurrent).
+/// Abstraction for accessing game state, independent of any concrete storage
+/// mechanism. It exists for two reasons: to let integration tests inject a store
+/// pre-filled into a given state, and to make the store's lifetime an explicit
+/// choice (a Singleton implementation carries shared state and must therefore handle
+/// concurrent access).
 ///
-/// <see cref="Mutate{T}"/> est le SEUL point de mutation d'une partie déjà
-/// enregistrée. Toute évolution future qui ferait Find, puis muterait l'objet
-/// obtenu, puis Save, contournerait le verrou par partie : deux requêtes
-/// simultanées sur la même partie pourraient alors muter le même objet en
-/// parallèle (compteur de touches faussé, deux tirs acceptés sur la même case).
+/// <see cref="Mutate{T}"/> is the ONLY mutation point of a game that is already
+/// stored. Any future change that would Find, then mutate the object obtained, then
+/// Save, would bypass the per-game lock: two simultaneous requests on the same game
+/// could then mutate the same object in parallel (skewed hit counter, two shots
+/// accepted on the same cell).
 /// </summary>
 public interface IGameStore
 {
@@ -20,12 +20,12 @@ public interface IGameStore
     bool Remove(Guid id);
 
     /// <summary>
-    /// Seul point de mutation d'une partie déjà enregistrée. Récupère la partie
-    /// (échoue avec <see cref="GameError.GameNotFound"/> si elle est absente),
-    /// applique <paramref name="change"/> sous le verrou propre à cette partie,
-    /// puis renvoie son résultat. Ne pas contourner ce point d'entrée par un
-    /// Find suivi d'une mutation directe et d'un Save : cela romprait la garantie
-    /// d'exclusion mutuelle par partie.
+    /// The only mutation point of a game that is already stored. Retrieves the game
+    /// (fails with <see cref="GameError.GameNotFound"/> if it is absent), applies
+    /// <paramref name="change"/> under the lock belonging to that game, then returns
+    /// its result. Do not bypass this entry point with a Find followed by a direct
+    /// mutation and a Save: that would break the per-game mutual exclusion
+    /// guarantee.
     /// </summary>
     Result<T> Mutate<T>(Guid id, Func<Game, Result<T>> change);
 }

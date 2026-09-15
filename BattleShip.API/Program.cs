@@ -25,10 +25,10 @@ app.UseHttpsRedirection();
 app.UseGrpcWeb();
 app.MapGrpcService<PingGrpcService>().EnableGrpcWeb();
 
-// Duel d'IA (REVUE-IA.md, revue 3) : mesure le nombre de coups des trois niveaux
-// d'adversaire sur N parties à graine fixe. La liaison du corps de requête et sa
-// validation sont deux responsabilités distinctes : le validateur est résolu par DI
-// mais appelé explicitement, jamais implicitement.
+// AI duel (REVUE-IA.md, Revue 3): measures the number of shots of the three opponent
+// levels over N games with a fixed seed. Binding the request body and validating it are
+// two distinct responsibilities: the validator is resolved by DI but called explicitly,
+// never implicitly.
 app.MapPost("/benchmark", async Task<IResult> (
     BenchmarkInput input, IValidator<BenchmarkInput> validator) =>
 {
