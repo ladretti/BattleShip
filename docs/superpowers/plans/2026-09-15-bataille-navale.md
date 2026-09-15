@@ -147,9 +147,14 @@ Déclarer dans `BattleShip.API.csproj` :
 
 ```xml
 <ItemGroup>
-  <Protobuf Include="Protos\ping.proto" GrpcServices="Server" />
+  <Protobuf Include="Protos\ping.proto" GrpcServices="Both" />
 </ItemGroup>
 ```
+
+> **`Both`, pas `Server`.** `GrpcServices="Server"` ne génère que la classe de base du service ;
+> le **client** (`PingService.PingServiceClient`) ne serait pas généré et le test de l'étape 2
+> ne compilerait pas. Avec `Both`, `BattleShip.Tests` obtient le client par sa référence de
+> projet sur `BattleShip.API`, sans copie du `.proto` ni types dupliqués.
 
 - [ ] **Étape 2 : Écrire le test d'intégration — il doit échouer**
 
@@ -1977,6 +1982,11 @@ table de l'ADR 0004.
 3. traduire un éventuel `GameError` via `ErrorMapping`, sinon composer la `FireResponse`.
 
 Câbler dans `Program.cs` : `app.MapGrpcService<BattleGrpcService>().EnableGrpcWeb();`
+
+Déclarer le contrat dans `BattleShip.API.csproj` avec **`GrpcServices="Both"`** (même raison
+qu'en tâche 2 : `BattleShip.Tests` a besoin du client et l'obtient par la référence de
+projet). `BattleShip.App`, qui ne référence pas `BattleShip.API`, garde sa propre entrée
+`GrpcServices="Client"` (tâche 18) — aucun conflit de types entre les deux assemblages.
 
 - [ ] **Étape 5 : Supprimer le spike**
 
