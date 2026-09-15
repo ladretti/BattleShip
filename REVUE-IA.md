@@ -158,6 +158,9 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
 
 ## Revue 4 — Le pouvoir discriminant du test de concurrence du store
 
+Cette revue a changé de conclusion à deux reprises au fil des mesures. Les trois tentatives
+sont rapportées dans l'ordre où elles ont eu lieu, avec ce que chacune a infirmé.
+
 - **Proposition et référence dans le dépôt** : `BattleShip.Tests/Domaine/InMemoryGameStoreTests.cs`,
   test `Un_seul_tir_simultane_sur_la_meme_case_reussit` (5 `[InlineData]`), qui vérifie
   qu'un seul de 32 tirs concurrents sur la même case réussit. L'implémentation testée est
@@ -167,8 +170,8 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
 
 - **Hypothèse à vérifier** : pour qu'un passage au vert de ce test signifie quelque chose,
   il faut qu'il **puisse échouer** en l'absence du verrou — pas seulement une fois, mais de
-  façon fiable. Un contrôle de course qui rate le bug une fois sur trois est un contrôle dont
-  le vert ne prouve rien.
+  façon fiable — et cela **sans dégrader la durée de la suite complète**, qui doit rester dans
+  l'ordre de grandeur de la seconde pour les quatorze tâches restantes du plan.
 
 - **Scénario, données ou commande** : commenter temporairement le `lock (gameLock)` dans
   `Mutate` (corps conservé, exécuté sans synchronisation), puis lancer trois fois de suite :
@@ -177,20 +180,15 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
   dotnet test --filter "Un_seul_tir_simultane_sur_la_meme_case_reussit"
   ```
 
-  Répété une seconde fois après avoir remplacé `Enumerable.Range(0, 32).Select(_ => Task.Run(...))`
-  par un départ synchronisé par `Barrier(32)` (chaque tâche appelle `depart.SignalAndWait()`
-  avant `store.Mutate(...)`), pour mesurer si la fenêtre de course s'élargit.
+  répété à chacune des trois versions du mécanisme de départ des 32 tirs concurrents :
+  1. `Enumerable.Range(0, 32).Select(_ => Task.Run(...))` (version d'origine, commit `883fe0b`) ;
+  2. la même chose précédée d'un départ synchronisé par `Barrier(32)` (`depart.SignalAndWait()`
+     avant `store.Mutate(...)`, commit `44bd57c`) ;
+  3. 32 `Thread` dédiés (et non mis en file sur le pool) partageant la même `Barrier(32)`
+     (commit `c604123`).
 
-- **Résultat attendu avant exécution** — *première mesure, sans Barrier* : sans verrou, les 32
-  appels `Task.Run` concurrents devraient laisser plusieurs threads passer les gardes de
-  `Game.Fire` avant qu'aucun n'ait fini de muter l'état ; j'attendais un échec sur les 3
-  exécutions, probablement systématique.
-
-  *Seconde mesure, avec Barrier* — énoncée avant de relancer : en forçant les 32 tâches à
-  démarrer réellement ensemble au lieu de dépendre de l'ordonnanceur du pool de threads,
-  j'attendais que la collision devienne indépendante du hasard d'ordonnancement et donc que
-  le test échoue sur les **3 exécutions sur 3**, probablement avec un nombre de tirs acceptés
-  (`Actual`) plus élevé qu'avant.
+  À chaque version, la durée de la suite complète (`dotnet test`) est mesurée **avant** de
+  toucher au verrou.
 
 - **Erreur que ce contrôle pourrait détecter** : une implémentation de `Mutate` qui ne
   sérialise pas réellement les mutations concurrentes sur une même partie — verrou absent,
@@ -198,68 +196,107 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
   verrou qui ne correspond pas à l'identifiant de la partie), ou lecture de l'état hors du
   verrou (le défaut corrigé au commit `37f9734`).
 
-- **Résultat réellement observé** :
+- **Résultat attendu avant exécution, puis résultat réellement observé, mesure par mesure** :
 
-  *Sans Barrier* (`Task.Run` seul), 3 exécutions sans verrou :
+  **Mesure 1 — `Task.Run` seul (commit `883fe0b`).** Attendu : sans verrou, les 32 appels
+  concurrents devraient laisser plusieurs threads passer les gardes de `Game.Fire` avant
+  qu'aucun n'ait fini de muter l'état ; j'attendais un échec sur les 3 exécutions, probablement
+  systématique.
+
+  Observé, 3 exécutions sans verrou :
   - Exécution 1 : ÉCHEC — `execution: 3`, `Expected: 1, Actual: 2`
   - Exécution 2 : ÉCHEC — `execution: 3`, `Expected: 1, Actual: 2`
   - Exécution 3 : **succès complet, 5/5**, sans aucune synchronisation en place
 
-  → Le test ne détectait la course que **2 fois sur 3**. Ce résultat a **infirmé**
-  l'attendu initial (échec systématique) : `Task.Run` seul ne garantit pas que les tâches se
-  chevauchent réellement — l'ordonnanceur peut démarrer et terminer les premières avant même
-  d'avoir lancé les dernières, ce qui a produit un vert qui ne prouvait rien un tiers du temps.
+  → **Infirmé** : le test ne détectait la course que **2 fois sur 3**. `Task.Run` seul ne
+  garantit pas que les tâches se chevauchent réellement — l'ordonnanceur peut démarrer et
+  terminer les premières avant même d'avoir lancé les dernières.
 
-  *Avec Barrier(32)* (départ synchronisé, code du commit `44bd57c`), 3 exécutions sans
-  verrou :
+  **Mesure 2 — `Barrier(32)` sur `Task.Run` (commit `44bd57c`).** Attendu : en forçant les 32
+  tâches à démarrer réellement ensemble, la collision devient indépendante du hasard
+  d'ordonnancement et le test échoue sur les **3 exécutions sur 3**, probablement avec un
+  `Actual` plus élevé qu'avant.
+
+  Observé, 3 exécutions sans verrou :
   - Exécution 1 : **succès complet, 5/5**, toujours sans aucune synchronisation en place
   - Exécution 2 : ÉCHEC — `execution: 4`, `Expected: 1, Actual: 3`
-  - Exécution 3 : ÉCHEC — `execution: 4`, `Expected: 1, Actual: 4` ; **et** `execution: 1`,
-    `Expected: 1, Actual: 4`
+  - Exécution 3 : ÉCHEC — `execution: 4` et `execution: 1`, `Expected: 1, Actual: 4`
 
-  → Toujours **2 échecs sur 3**, pas 3 sur 3. La Barrier a rendu les échecs observés plus
-  sévères (jusqu'à 4 tirs acceptés au lieu de 2), signe d'une collision plus large entre
-  threads, mais elle n'a **pas** rendu le test déterministe. Ce second résultat infirme
-  également l'attendu de la seconde mesure : la Barrière synchronise le *départ* des tâches,
-  pas leur exécution effective par le pool de threads, qui doit d'abord injecter 32 threads
-  disponibles (les exécutions ont pris 15 à 18 s au lieu de 80 ms, signe de cette montée en
-  charge), et rien ne garantit qu'elles entrent ensuite dans `Board.Fire` de façon
-  parfaitement simultanée.
+  → **Infirmé, et la correction s'est révélée pire que le mal.** Toujours 2 échecs sur 3, pas
+  3 sur 3 : la `Barrier` a rendu les échecs plus sévères (jusqu'à `Actual: 4`) sans améliorer
+  le taux de détection. Pire, la suite complète (`dotnet test`) est passée de **0,86 s à 15-18 s
+  par exécution du test ciblé** (mesuré indépendamment par la coordination sur la suite
+  complète : 0,86 s → 18 s). Cause identifiée : `Task.Run` passe par le pool de threads, qui
+  n'injecte de nouveaux threads qu'au compte-gouttes (environ un toutes les 500 ms au-delà du
+  seuil initial) ; la `Barrier(32)` doit attendre que 32 threads existent avant de se relâcher,
+  donc elle synchronise le *départ nominal* des tâches mais pas leur *entrée effective* dans le
+  code critique. **Cette tentative a été abandonnée après la mesure — parce qu'elle dégradait
+  la suite pour un gain de détection nul, pas parce qu'elle était mal écrite.**
 
-- **Décision et justification** : le test est **conservé avec la Barrier** (commit `44bd57c`)
-  car il constitue une amélioration mesurable et sans régression (voir avant/après ci-dessous),
-  mais la conclusion est **rapportée sans l'enjoliver** : ce test, tel qu'il existe aujourd'hui,
-  a un pouvoir discriminant réel mais **imparfait** (échec observé sur 4 des 6 exécutions sans
-  verrou au total, tous scénarios confondus). Un vert isolé de ce test ne suffit pas à
-  conclure à l'absence de course ; c'est la revue de code de `Mutate` (verrou par `Guid`,
-  lecture sous verrou) qui reste la garantie principale, le test n'étant qu'un filet de
-  sécurité partiel. Ne pas invoquer ce test seul comme preuve d'absence de race condition en
-  soutenance.
+  **Mesure 3 — `Barrier(32)` sur `Thread` dédiés (commit `c604123`).** Attendu : des `Thread`
+  démarrés directement (hors du pool) ne subissent pas l'injection progressive ; la barrière
+  devrait se relâcher en quelques millisecondes et les 32 tirs entrer réellement ensemble dans
+  `Mutate`. J'attendais une détection plus fiable que les deux mesures précédentes, sans
+  préjuger d'un 3 sur 3 exact.
+
+  Durée de la suite complète mesurée **avant** de toucher au verrou : `dotnet test` →
+  `Passed! ... Duration: 842 ms` (puis 841 ms après restauration du verrou) — revenue à
+  l'ordre de grandeur d'avant les deux mesures précédentes (810/806/856/842/841 ms observés au
+  fil des étapes de la tâche 7, contre 15-18 s avec la Barrier sur `Task.Run`).
+
+  Observé, 3 exécutions sans verrou (verrou commenté dans `Mutate`) :
+  - Exécution 1 : ÉCHEC — 4 des 5 `[InlineData]` en échec (`execution: 4` → `Actual: 4`,
+    `execution: 1` → `Actual: 6`, `execution: 2` → `Actual: 3`, `execution: 5` → `Actual: 4`),
+    en 88 ms
+  - Exécution 2 : ÉCHEC — 4 des 5 en échec (`Actual: 2`, `Actual: 3`, `Actual: 5`, `Actual: 2`),
+    en 97 ms
+  - Exécution 3 : ÉCHEC — 4 des 5 en échec (`Actual: 2`, `Actual: 5`, `Actual: 3`, `Actual: 3`),
+    en 92 ms
+
+  → **Confirmé, et net.** Les 3 exécutions échouent (contre 2 sur 3 pour les deux mesures
+  précédentes), avec 4 des 5 `[InlineData]` en échec à chaque fois, et une durée de test
+  (88-97 ms) comparable à la version d'origine — sans le surcoût de la Barrier sur le pool.
+  C'est la première mesure de cette revue qui confirme son propre attendu plutôt que de
+  l'infirmer.
+
+- **Décision et justification** : le test est **conservé avec des `Thread` dédiés synchronisés
+  par une `Barrier`** (commit `c604123`), et c'est la mesure — pas une préférence de conception
+  — qui a tranché entre les trois versions : la version 1 était rapide mais peu fiable (2/3), la
+  version 2 était tout aussi peu fiable et 20 fois plus lente (rejetée sur cette seule mesure),
+  la version 3 est à la fois rapide (retour à l'ordre de grandeur d'origine) et nettement plus
+  fiable (3/3 exécutions en échec, 4/5 `[InlineData]` à chaque fois). Elle reste néanmoins
+  **imparfaite** : sur les 3 exécutions, 1 `[InlineData]` sur 5 en moyenne n'a pas détecté la
+  course (voir le détail par exécution ci-dessus). **Ce test ne doit pas être invoqué seul
+  comme preuve d'absence de course : il détecte une régression du verrou de façon probable,
+  pas certaine.** La garantie principale reste la revue de code de `Mutate` (verrou indexé par
+  `Guid`, lecture de la partie faite sous le verrou).
 
 - **Preuves reproductibles et liens vers les commits** :
   - `883fe0b` — ajout du store et du test de concurrence initial (`Task.Run` seul).
   - `37f9734` — correction de la lecture hors verrou dans `Mutate`, documentation de `Find`
     et du dictionnaire de verrous.
-  - `44bd57c` — remplacement du départ par une `Barrier(32)` dans le test, sans modification
-    des assertions.
+  - `44bd57c` — tentative rejetée : départ synchronisé par `Barrier(32)` sur `Task.Run`.
+  - `c604123` — version retenue : `Barrier(32)` sur 32 `Thread` dédiés, assertions inchangées.
   - Commande rejouable telle quelle (avec le `lock` commenté manuellement pour l'expérience) :
     `dotnet test --filter "Un_seul_tir_simultane_sur_la_meme_case_reussit"`.
 
 - **Après correction éventuelle : résultat avant / après** :
-  - *Avant* (verrou en place, test original `Task.Run`) : 3 exécutions consécutives, 7/7 à
-    chaque fois (voir `.superpowers/sdd/2026-09-15-bataille-navale/task-7-report.md`).
-  - *Après renforcement par Barrier, verrou en place* : re-testé après le commit `44bd57c`,
-    3/5 puis 5/5 sur les exécutions ciblées, et suite complète à 92/92 (`dotnet test`), verrou
-    confirmé stable — aucune régression introduite par le changement du mécanisme de départ.
-  - *Sans verrou* : le passage de `Task.Run` seul à `Barrier(32)` a fait passer la sévérité
-    des échecs observés de `Actual: 2` à `Actual: 3`/`4`, mais pas le taux de détection
-    (2 échecs sur 3 dans les deux cas mesurés).
+  - *Avant toute mesure* (verrou en place, test original `Task.Run`, commit `883fe0b`) :
+    3 exécutions consécutives, 7/7 à chaque fois, suite complète ≈ 0,81-0,86 s.
+  - *Après la tentative rejetée* (Barrier sur `Task.Run`, commit `44bd57c`, verrou en place) :
+    5/5 sur les exécutions ciblées, mais suite complète à 15-18 s par exécution du test —
+    régression de durée d'un facteur ≈ 20 pour un taux de détection sans verrou inchangé
+    (2/3, contre 2/3 sans Barrier).
+  - *Après la version retenue* (Barrier sur `Thread` dédiés, commit `c604123`, verrou en
+    place) : 5/5 sur les exécutions ciblées (84 ms), suite complète à 841-842 ms — revenue à
+    l'ordre de grandeur d'origine — et taux de détection sans verrou passé de 2/3 à **3/3**
+    (avec 4/5 `[InlineData]` en échec par exécution, contre 1/5 auparavant).
 
-- **Limites et points non vérifiés** : la Barrier ne garantit que le départ synchronisé des
-  tâches, pas leur entrée simultanée dans `Board.Fire` une fois relâchées par le pool de
-  threads — l'injection progressive de threads par le pool (15-18 s observées) reste un
-  facteur non contrôlé. Une mesure plus poussée (fixer `ThreadPool.SetMinThreads` avant le
-  test, ou remplacer `Task.Run` par des `Thread` dédiés) n'a pas été tentée : elle est laissée
-  en piste pour une tâche ultérieure si une garantie plus forte est un jour nécessaire. Cette
-  revue ne porte que sur la case `(0,0)` d'une grille 10×10 ; elle ne dit rien d'un
-  comportement à plus grande échelle (plusieurs cases visées simultanément, par exemple).
+- **Limites et points non vérifiés** : même avec des `Thread` dédiés, 1 `[InlineData]` sur 5
+  en moyenne n'a pas détecté l'absence de verrou sur les 3 exécutions observées — la fenêtre de
+  course reste probabiliste, pas garantie à 100 %. Une mesure plus poussée (augmenter le nombre
+  de tirs concurrents au-delà de 32, ou introduire un point de contention supplémentaire dans
+  `Board.Fire` lui-même) n'a pas été tentée et est laissée en piste pour une tâche ultérieure si
+  une garantie plus forte est un jour nécessaire. Cette revue ne porte que sur la case `(0,0)`
+  d'une grille 10×10 ; elle ne dit rien d'un comportement à plus grande échelle (plusieurs
+  cases visées simultanément, par exemple).
