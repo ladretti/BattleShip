@@ -1,0 +1,30 @@
+@api = https://localhost:7050
+
+### Créer une partie
+# Les routes ci-dessous sont implémentées en tâche 13.
+POST {{api}}/games
+Content-Type: application/json
+
+{ "gridSize": 10, "difficulty": "Normal" }
+
+### Consulter une partie
+GET {{api}}/games/{{gameId}}
+
+### Placer la flotte
+POST {{api}}/games/{{gameId}}/placement
+Content-Type: application/json
+
+{ "ships": [] }
+
+### Consulter l'historique des tirs
+GET {{api}}/games/{{gameId}}/history
+
+### Benchmark : lancer 200 parties
+POST {{api}}/benchmark
+Content-Type: application/json
+
+{ "games": 200, "seed": 20260915 }
+
+### Note sur le tir
+# Le tir (endpoint POST /games/{gameId}/shots) n'apparaît pas ici : il passe exclusivement
+# par gRPC-Web (décision ADR 0005). La démonstration se fait depuis le navigateur (console F12).
