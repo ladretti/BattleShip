@@ -12,7 +12,10 @@ public sealed class Game
 
     public Guid Id { get; }
     public GameRules Rules { get; }
-    public Board HumanBoard { get; }
+    // Private setter: only PlaceHumanFleet replaces it, once, to move a Placing game to
+    // InProgress. OpponentBoard has no such setter — the opponent fleet is placed once,
+    // up front, and never replaced.
+    public Board HumanBoard { get; private set; }
     public Board OpponentBoard { get; }
     /// <summary>
     /// Player the next shot belongs to. Once <see cref="Status"/> has moved to
@@ -36,14 +39,14 @@ public sealed class Game
     /// </summary>
     public IReadOnlyList<ShotRecord> History => _history;
 
-    private Game(Guid id, GameRules rules, Board humanBoard, Board opponentBoard)
+    private Game(Guid id, GameRules rules, Board humanBoard, Board opponentBoard, GameStatus status)
     {
         Id = id;
         Rules = rules;
         HumanBoard = humanBoard;
         OpponentBoard = opponentBoard;
         CurrentPlayer = Player.Human;
-        Status = GameStatus.InProgress;
+        Status = status;
     }
 
     public static Game Start(
@@ -51,7 +54,50 @@ public sealed class Game
     {
         var humanBoard = new Board(rules.GridSize, humanShips);
         var opponentBoard = new Board(rules.GridSize, opponentShips);
-        return new Game(id, rules, humanBoard, opponentBoard);
+        return new Game(id, rules, humanBoard, opponentBoard, GameStatus.InProgress);
+    }
+
+    /// <summary>
+    /// Creates a game whose human fleet is not placed yet: <see cref="HumanBoard"/> starts
+    /// empty and <see cref="Status"/> is <see cref="GameStatus.Placing"/>. The opponent's
+    /// fleet, by contrast, is placed up front by the server (<see cref="FleetPlacer"/>)
+    /// and never changes afterwards, so it is supplied here just like in
+    /// <see cref="Start"/>. Call <see cref="PlaceHumanFleet"/> to complete the setup and
+    /// move the game to <see cref="GameStatus.InProgress"/>.
+    /// </summary>
+    public static Game Create(Guid id, GameRules rules, IReadOnlyList<Ship> opponentShips)
+    {
+        var humanBoard = new Board(rules.GridSize, []);
+        var opponentBoard = new Board(rules.GridSize, opponentShips);
+        return new Game(id, rules, humanBoard, opponentBoard, GameStatus.Placing);
+    }
+
+    /// <summary>
+    /// Installs the human player's fleet and moves the game from
+    /// <see cref="GameStatus.Placing"/> to <see cref="GameStatus.InProgress"/>. Refuses
+    /// with <see cref="GameError.InvalidPlacement"/> in two distinct cases that this
+    /// single error deliberately does not distinguish between (see
+    /// <see cref="PlacementRules"/>, which already collapses overlap, out-of-bounds, wrong
+    /// fleet composition and adjacency into the same error): the placement itself may be
+    /// illegal, or the game may no longer be in the phase that accepts one (fleet already
+    /// placed, game already finished). No other <see cref="GameError"/> member describes
+    /// "placement no longer possible" without being misleading: <see cref="GameError.GameAlreadyFinished"/>
+    /// would be wrong for a game merely InProgress, and <see cref="GameError.GameNotStarted"/>
+    /// would say the opposite of what is true here (the game HAS started, which is
+    /// precisely why placing is refused).
+    /// </summary>
+    public Result<bool> PlaceHumanFleet(IReadOnlyList<ShipPlacement> placements)
+    {
+        if (Status != GameStatus.Placing)
+            return Result<bool>.Fail(GameError.InvalidPlacement);
+
+        var validation = PlacementRules.Validate(placements, Rules);
+        if (!validation.IsOk)
+            return Result<bool>.Fail(validation.Error);
+
+        HumanBoard = new Board(Rules.GridSize, validation.Value);
+        Status = GameStatus.InProgress;
+        return Result<bool>.Ok(true);
     }
 
     public Result<ShotRecord> PlayerFires(Coordinate at) =>

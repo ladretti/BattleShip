@@ -1,7 +1,6 @@
 @api = https://localhost:7050
 
 ### Create a game
-# The routes below are implemented in task 13.
 POST {{api}}/games
 Content-Type: application/json
 
@@ -20,7 +19,15 @@ GET {{api}}/games/{{gameId}}
 POST {{api}}/games/{{gameId}}/placement
 Content-Type: application/json
 
-{ "ships": [] }
+{
+  "ships": [
+    { "name": "Carrier", "x": 0, "y": 0, "orientation": "Horizontal" },
+    { "name": "Battleship", "x": 0, "y": 2, "orientation": "Horizontal" },
+    { "name": "Cruiser", "x": 0, "y": 4, "orientation": "Horizontal" },
+    { "name": "Submarine", "x": 0, "y": 6, "orientation": "Horizontal" },
+    { "name": "Destroyer", "x": 0, "y": 8, "orientation": "Horizontal" }
+  ]
+}
 
 ### Get the shot history
 GET {{api}}/games/{{gameId}}/history
@@ -32,5 +39,6 @@ Content-Type: application/json
 { "games": 200, "seed": 20260915 }
 
 ### Note on firing
-# Firing (endpoint POST /games/{gameId}/shots) does not appear here: it goes exclusively
-# through gRPC-Web (decision ADR 0005). The demonstration is done from the browser (F12 console).
+# Firing has no HTTP route: none was ever planned for it. It goes exclusively through
+# gRPC-Web (decision ADR 0005, task 14). The demonstration is done from the browser
+# (F12 console).
