@@ -189,6 +189,9 @@ Lever des exceptions explicites et typées côté domaine (`ArgumentOutOfRangeEx
 `InvalidOperationException`, `KeyNotFoundException`) ; les traduire en statuts HTTP ou
 en `RpcException` à la frontière. Ne jamais avaler une exception silencieusement.
 
+Règle en vigueur tant que l'ADR 0004 n'a pas tranché l'alternative `Result<T>` pour les
+refus métier (§ 3 bis).
+
 ---
 
 ## 3. Conventions ASP.NET Core / Blazor / gRPC
@@ -219,7 +222,8 @@ app.MapGet("/games/{id:guid}", IResult (Guid id, IGameStore store) =>
 - `Scoped` : une instance par requête HTTP.
 - `Transient` : une instance à chaque résolution.
 
-Justifier le choix quand il porte de l'état.
+Justifier le choix quand il porte de l'état. Cas concret : `IGameStore` en `Singleton`
+impose un accès concurrent (§ 3 bis).
 
 ### FluentValidation
 
@@ -292,6 +296,130 @@ les autorisations.
 
 ---
 
+## 3 bis. Patterns de conception retenus
+
+Trois patterns sont retenus, chacun pour une raison vérifiable, chacun documenté par un ADR.
+Un pattern posé sans raison défendable coûte des points plutôt qu'il n'en rapporte (diapo 61 :
+« responsabilités, lisibilité, cohérence » ; diapo 63 : chaque membre doit pouvoir l'expliquer).
+**La liste est fermée** : tout ajout se décide et s'écrit en ADR avant d'être codé.
+
+### Repository — `IGameStore` (ADR 0002)
+
+L'accès à l'état des parties passe par une abstraction, **pas** par un dictionnaire statique.
+
+Les justifications retenues ne sont *pas* « on pourra changer de base » — ce serait du YAGNI,
+l'état est en mémoire et la persistance est du backlog (§ 1 bis). Ce sont :
+
+- Les **tests d'intégration** doivent pouvoir injecter un store pré-rempli. Sans l'abstraction,
+  amener un endpoint sur une partie dans un état donné oblige à passer par d'autres endpoints :
+  le test ne mesure plus ce qu'il prétend mesurer et échoue pour des causes étrangères.
+- Le store **porte de l'état partagé**, donc sa durée de vie est un choix à justifier
+  (§ Injection de dépendances). `Singleton` implique un **accès concurrent** :
+  `ConcurrentDictionary`, jamais `Dictionary`.
+
+Placement : l'**interface** appartient au domaine (`BattleShip.Models`), l'**implémentation en
+mémoire** vit dans `BattleShip.API`. `Models` reste ainsi un domaine pur sans dépendance, et
+`BattleShip.Tests` — qui référence `API` — peut malgré tout exercer l'implémentation.
+
+```csharp
+// BattleShip.Models — le domaine possède le contrat.
+public interface IGameStore
+{
+    Game? Find(Guid id);
+    void Save(Game game);
+    bool Remove(Guid id);
+}
+
+// BattleShip.API — implémentation Singleton, donc concurrente.
+public sealed class InMemoryGameStore : IGameStore
+{
+    private readonly ConcurrentDictionary<Guid, Game> _games = new();
+
+    public Game? Find(Guid id) => _games.TryGetValue(id, out var game) ? game : null;
+    public void Save(Game game) => _games[game.Id] = game;
+    public bool Remove(Guid id) => _games.TryRemove(id, out _);
+}
+
+// Program.cs, avant builder.Build().
+builder.Services.AddSingleton<IGameStore, InMemoryGameStore>();
+```
+
+Ces signatures sont un point de départ **synchrone**, cohérent avec un store en mémoire. Passer
+à `Task<Game?>` n'a d'intérêt que si une implémentation réellement asynchrone apparaît : ne pas
+rendre asynchrone ce qui ne l'est pas.
+
+### Strategy — `IOpponentStrategy` (ADR 0003)
+
+L'adversaire est une stratégie remplaçable, pas une méthode privée du moteur. Lecture directe
+de la diapo 38 (« définissez sa stratégie ») et de la diapo 60 (la difficulté enrichit le backlog).
+
+- Niveaux envisagés : tir aléatoire → `HuntTarget` (aléatoire, puis ratissage des cases
+  adjacentes après une touche) → densité probabiliste. Le périmètre réellement livré est un
+  arbitrage du binôme, à consigner dans le README.
+- **Invariant à tester pour chaque stratégie** : elle ne propose jamais un coup invalide — hors
+  grille, ou déjà joué. Le test est identique pour toutes les implémentations, donc un `[Theory]`
+  paramétré par la liste des stratégies le couvre et couvrira les suivantes.
+- La stratégie ne reçoit **que ce que le joueur a le droit de connaître** : ses propres tirs et
+  leurs résultats, jamais la grille adverse. C'est la même règle de visibilité qu'au § Blazor,
+  appliquée à l'intérieur du serveur. Un adversaire qui triche est un adversaire dont le niveau
+  n'est pas mesurable.
+
+```csharp
+public interface IOpponentStrategy
+{
+    string Name { get; }
+    Coordinate NextShot(ShotHistory history);
+}
+```
+
+### Injection de la source d'aléa
+
+Le placement de flotte et l'adversaire aléatoire ne doivent **jamais** appeler `Random.Shared`
+en dur.
+
+Un test « aucun chevauchement ni débordement » sur un placement non déterministe passe presque
+toujours et échoue de loin en loin, sans moyen de reproduire l'échec — exactement le genre de
+contrôle qui ne prouve rien (§ 6, règle 2). Avec un `Random` à graine fixe, le test devient
+reproductible et les cas limites deviennent atteignables. C'est la condition de vérifiabilité
+de la spécification 1.
+
+```csharp
+public sealed class FleetPlacer(Random random)
+{
+    public IReadOnlyList<Ship> PlaceAll(IReadOnlyList<ShipTemplate> fleet, int gridSize) { /* ... */ }
+}
+
+// Production : builder.Services.AddSingleton(_ => Random.Shared);
+// Test       : new FleetPlacer(new Random(12345));
+```
+
+### Ce qui n'est pas retenu
+
+À ne pas introduire sans un ADR qui renverse explicitement cette liste :
+
+- **`IRepository<T>` générique et Unit of Work** — aucune base, aucune transaction, un seul
+  agrégat (`Game`). Cérémonie sans contrepartie, et difficile à défendre à l'oral.
+- **Une couche `IGameService` qui relaie l'appel au moteur** — si la méthode ne fait que
+  transmettre ses paramètres, elle ajoute un fichier et retire de la lisibilité. Le moteur de
+  `BattleShip.Models` *est* la couche métier.
+- **AutoMapper / `IMapper`** — quelques DTO seulement ; des méthodes d'extension `ToDto()`
+  suffisent et se lisent sans indirection.
+- **MediatR / CQRS** — hors périmètre pour un domaine à un seul agrégat.
+
+### Décision en suspens — ADR 0004
+
+Le traitement des **refus métier** (case déjà jouée, coup hors grille, coup après fin de partie)
+n'est pas tranché. Ces refus sont des cas *normaux et fréquents*, ce qui plaide pour un type
+`Result<T>` ; le § Gestion des erreurs prescrit aujourd'hui des exceptions typées. Les deux se
+défendent — ce qu'il ne faut pas faire, c'est les mélanger.
+
+Tant que l'ADR 0004 n'est pas écrit, **la règle en vigueur reste les exceptions typées**. Le
+passage à `Result<T>` se décide d'abord, se consigne en ADR, puis se répercute ici et dans tout
+le moteur. Argument à instruire si la question est ouverte : le coût des exceptions en boucle
+serrée quand l'adversaire probabiliste évalue beaucoup de coups — à **mesurer**, pas à supposer.
+
+---
+
 ## 4. Commandes
 
 ```bash
@@ -347,6 +475,9 @@ contribution significative, ajouter :
 Un ADR par **choix structurant** : représentation de la grille, stockage de l'état,
 découpage du contrat d'API, choix de l'échange gRPC, algorithme de l'adversaire,
 gestion de l'état côté Blazor… Statut mis à jour, historique conservé.
+
+Déjà identifiés (§ 3 bis) : **0002** `IGameStore`, **0003** `IOpponentStrategy`,
+**0004** exceptions ou `Result<T>` pour les refus métier.
 
 ```markdown
 # ADR NNNN : <intitulé de la décision>
@@ -441,21 +572,7 @@ tentative sans diagnostic.
 
 ---
 
-## 7. Ce que l'IA ne fait pas à la place du binôme
-
-- Elle ne **décide pas** du périmètre, des règles du jeu ni des priorités : elle
-  propose des options et leurs conséquences, le binôme tranche.
-- Elle ne **remplit pas** les livrables avec du contenu inventé : PROMPTS.md,
-  les ADR et REVUE-IA.md consignent des échanges, décisions et observations **réels**.
-  Si une vérification n'a pas été exécutée, l'écrire comme non vérifiée.
-- Elle ne **conclut pas** à la place du binôme : chaque membre doit pouvoir expliquer
-  le fonctionnement, le périmètre choisi et les limites du projet.
-- Elle **signale** le code qu'elle a généré, pour qu'il soit identifiable et compris.
-- Aucun secret ni donnée personnelle dans les prompts : utiliser des données d'exemple.
-
----
-
-## 8. Checklist avant de rendre (diapo 63)
+## 7. Checklist avant de rendre (diapo 63)
 
 - [ ] Le README suffit à lancer le projet avec les prérequis indiqués.
 - [ ] Une partie complète se joue, y compris la fin et la création d'une autre partie.
@@ -472,7 +589,7 @@ QCM (jour 5). Seul ce commit, poussé avant le QCM, est évalué.
 
 ---
 
-## 9. Références
+## 8. Références
 
 - Support : `csharp-school/Cours C# ASP.NET - Bataille Navale - autonomie.pptx`
 - Référentiel texte : `csharp-school/Ressources Bataille Navale/Referentiel.md`
