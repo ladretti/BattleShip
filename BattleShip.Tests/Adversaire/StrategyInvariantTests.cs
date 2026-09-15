@@ -8,7 +8,7 @@ public sealed class StrategyInvariantTests
     public static TheoryData<string, Func<Random, IOpponentStrategy>> Strategies() => new()
     {
         { "Random", r => new RandomStrategy(r) },
-        // Tâche 9  : { "HuntTarget", r => new HuntTargetStrategy(r) },
+        { "HuntTarget", r => new HuntTargetStrategy(r) },
         // Tâche 10 : { "Density",    r => new DensityStrategy(r) },
     };
 
