@@ -1138,8 +1138,16 @@ public sealed class StrategyInvariantTests
 ```
 
 > Ce test détecte les deux fautes les plus probables : ne pas filtrer les cases déjà jouées,
-> et déborder la grille en ratissant depuis un bord (tâche 9). Il ne se termine pas si une
-> stratégie ne progresse plus — c'est voulu, et le harnais xUnit le signalera en timeout.
+> et déborder la grille en ratissant depuis un bord (tâche 9).
+>
+> **La boucle de jeu doit être bornée.** xUnit n'impose **aucune** limite de temps par défaut
+> et aucun `Timeout` n'est posé ici : une stratégie qui cesserait de progresser figerait la
+> suite entière sans jamais produire d'échec, ce qui est pire qu'un test absent. Compter les
+> coups et échouer au-delà de `GridSize * GridSize` — une partie ne peut pas dépasser ce
+> nombre, puisque l'invariant garantit qu'aucune case n'est rejouée. Ce garde-fou ne protège
+> pas d'une boucle infinie **à l'intérieur** d'un seul appel à `NextShot` : la parade contre
+> ce cas-là est que les stratégies n'aient aucune boucle non bornée (contrainte portée par les
+> tâches 9 et 10).
 
 - [ ] **Étape 2 : Lancer le test et constater l'échec**
 
@@ -1268,6 +1276,12 @@ ce qui la rend testable en isolation et immunisée contre une remise en jeu.
    touches sont alignées, privilégier la prolongation de l'alignement.
 3. Sinon, phase de chasse : cases non jouées avec `(x + y) % 2 == 0`. Si cet ensemble est
    vide, se rabattre sur toutes les cases non jouées.
+
+**Aucune boucle non bornée dans `NextShot`.** Le ratissage doit énumérer un ensemble fini de
+candidats — les voisins des touches non couvertes, filtrés — et non tourner jusqu'à trouver.
+Le garde-fou du test d'invariant (tâche 8) détecte une stratégie qui ne progresse pas d'un
+coup à l'autre ; il ne peut rien contre une boucle infinie à l'intérieur d'un seul appel, qui
+figerait la suite sans produire d'échec.
 
 - [ ] **Étape 4 : Ajouter la stratégie à l'invariant partagé**
 
