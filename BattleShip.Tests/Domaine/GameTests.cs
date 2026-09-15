@@ -130,4 +130,20 @@ public sealed class GameTests
         Assert.False(result.IsOk);
         Assert.Equal(GameError.NotYourTurn, result.Error);
     }
+
+    [Fact]
+    public void Un_tir_sur_une_partie_qui_n_a_pas_commence_est_refuse()
+    {
+        // GameStatus.Placing n'est atteint par aucun chemin à ce stade : ce test force
+        // l'état par réflexion pour vérifier que la garde de Fire est fail-closed, donc
+        // qu'elle refusera aussi tout état ajouté à l'énumération plus tard.
+        var game = PartieMinuscule();
+        typeof(Game).GetProperty(nameof(Game.Status))!
+            .SetValue(game, GameStatus.Placing);
+
+        var result = game.PlayerFires(new Coordinate(0, 0));
+
+        Assert.False(result.IsOk);
+        Assert.Equal(GameError.GameNotStarted, result.Error);
+    }
 }

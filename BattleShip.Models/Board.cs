@@ -11,7 +11,12 @@ public sealed class Board(int gridSize, IReadOnlyList<Ship> ships)
     private readonly HashSet<Coordinate> _receivedShots = new();
 
     public int GridSize { get; } = gridSize;
-    public IReadOnlyList<Ship> Ships { get; } = ships;
+
+    // Copie défensive : sans elle, Board partagerait la référence de la liste passée
+    // par l'appelant. Si celui-ci mute sa propre liste (retire un navire, par
+    // exemple), Fire et AllSunk liraient cette mutation sur ce qui est censé être
+    // l'invariant central du plateau.
+    public IReadOnlyList<Ship> Ships { get; } = [.. ships];
     public IReadOnlySet<Coordinate> ReceivedShots => _receivedShots;
 
     public bool AllSunk => Ships.All(s => s.IsSunk);

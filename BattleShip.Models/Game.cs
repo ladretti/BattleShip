@@ -14,8 +14,26 @@ public sealed class Game
     public GameRules Rules { get; }
     public Board HumanBoard { get; }
     public Board OpponentBoard { get; }
+    /// <summary>
+    /// Joueur à qui appartient le tir suivant. Une fois <see cref="Status"/> passé à
+    /// <see cref="GameStatus.Finished"/>, cette valeur n'a plus de signification
+    /// stable pour désigner le vainqueur : selon <see cref="GameRules.ExtraTurnOnHit"/>,
+    /// elle pointe soit vers le tireur qui vient de couler le dernier navire (la main
+    /// lui est restée), soit vers son adversaire (la main a basculé sur un coup
+    /// manqué). Ce n'est pas un bug — Finished bloque tout nouveau tir — mais un DTO
+    /// d'état de partie ne doit pas s'appuyer dessus pour désigner le gagnant.
+    /// </summary>
     public Player CurrentPlayer { get; private set; }
     public GameStatus Status { get; private set; }
+
+    /// <summary>
+    /// Journal des tirs de la partie, dans l'ordre chronologique.
+    ///
+    /// Attention : IReadOnlyList est une vue sur une List mutable. Un cast vers
+    /// List permettrait de contourner l'ajout contrôlé fait par Fire() et de
+    /// corrompre le journal. Ce risque est accepté et confiné au domaine
+    /// (BattleShip.Models), comme pour Ship.HitCells.
+    /// </summary>
     public IReadOnlyList<ShotRecord> History => _history;
 
     private Game(Guid id, GameRules rules, Board humanBoard, Board opponentBoard)
@@ -46,6 +64,9 @@ public sealed class Game
     {
         if (Status == GameStatus.Finished)
             return Result<ShotRecord>.Fail(GameError.GameAlreadyFinished);
+
+        if (Status != GameStatus.InProgress)
+            return Result<ShotRecord>.Fail(GameError.GameNotStarted);
 
         if (CurrentPlayer != shooter)
             return Result<ShotRecord>.Fail(GameError.NotYourTurn);
