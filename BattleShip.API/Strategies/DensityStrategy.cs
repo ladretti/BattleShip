@@ -64,9 +64,19 @@ public sealed class DensityStrategy(Random random) : IOpponentStrategy
         if (candidatesPositifs.Count > 0)
         {
             var meilleur = candidatesPositifs.Max(kv => kv.Value);
+
+            // Tri explicite : l'ordre d'énumération d'un Dictionary<,> n'est pas
+            // garanti par la spécification .NET (seulement stable en pratique tant
+            // qu'aucune suppression n'a lieu). Sans ce tri, le tirage aléatoire sur
+            // `meilleures` porterait sur un ordre non contractuel : à graine égale,
+            // un changement de runtime pourrait faire pointer random.Next() vers une
+            // autre case, cassant silencieusement la reproductibilité que la tâche
+            // 11 exige (l'invariant de légalité continuerait de passer sans le
+            // détecter).
             var meilleures = candidatesPositifs
                 .Where(kv => kv.Value == meilleur)
                 .Select(kv => kv.Key)
+                .OrderBy(c => c.Y).ThenBy(c => c.X)
                 .ToList();
             return meilleures[random.Next(meilleures.Count)];
         }

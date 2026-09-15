@@ -75,4 +75,44 @@ public sealed class StrategyInvariantTests
 
         return new ShotHistory(rules.GridSize, coups, restants, coules, rules.ShipsMayTouch);
     }
+
+    [Theory]
+    [MemberData(nameof(Strategies))]
+    public void Une_strategie_rejoue_la_meme_partie_a_graine_egale(
+        string nom, Func<Random, IOpponentStrategy> fabrique)
+    {
+        var rules = GameRules.Default;
+
+        for (var seed = 1; seed <= 5; seed++)
+        {
+            var premiere = CoupsJoues(rules, fabrique(new Random(seed)), seed);
+            var seconde = CoupsJoues(rules, fabrique(new Random(seed)), seed);
+
+            Assert.Equal(premiere, seconde);
+            Assert.NotEmpty(premiere);
+        }
+
+        _ = nom;
+    }
+
+    private static List<Coordinate> CoupsJoues(
+        GameRules rules, IOpponentStrategy strategy, int seed)
+    {
+        var cible = new Board(rules.GridSize,
+            new FleetPlacer(new Random(seed * 31)).PlaceAll(rules).Value);
+        var coups = new List<ShotRecord>();
+        var joues = new List<Coordinate>();
+
+        var coupsMax = rules.GridSize * rules.GridSize;
+        while (!cible.AllSunk)
+        {
+            Assert.True(joues.Count < coupsMax, $"partie non terminée en {coupsMax} coups");
+
+            var coup = strategy.NextShot(HistoriqueDepuis(rules, cible, coups));
+            joues.Add(coup);
+            coups.Add(cible.Fire(coup, Player.Opponent).Value);
+        }
+
+        return joues;
+    }
 }
