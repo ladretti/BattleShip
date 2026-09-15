@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BattleShip.API\BattleShip.API.csproj" />
+    <ProjectReference Include="..\BattleShip.Models\BattleShip.Models.csproj" />
   </ItemGroup>
 
 </Project>
