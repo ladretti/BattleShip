@@ -1558,7 +1558,10 @@ git commit -m "feat: mesure les trois niveaux d'adversaire et clôt la revue 3"
 
 **Interfaces**
 - Produit :
-  - `record CellDto(int X, int Y, string State)` — `State` ∈ `"miss"`, `"hit"`, `"sunk"`
+  - `record CellDto(int X, int Y, string State)` — `State` ∈ `"ship"`, `"miss"`, `"hit"`, `"sunk"`.
+    `"ship"` est une case **intacte d'un navire du joueur** : elle n'apparaît jamais sous
+    `OpponentBoardDto`, et c'est ce qui la rend sûre. Sans elle, le plateau du joueur est
+    indessinable et les tâches 17 et 18 sont bloquées.
   - `record OpponentBoardDto(int GridSize, IReadOnlyList<CellDto> Shots, IReadOnlyList<SunkShipDto> SunkShips)`
   - `record OwnBoardDto(int GridSize, IReadOnlyList<ShipDto> Ships, IReadOnlyList<CellDto> ReceivedShots)`
   - `record SunkShipDto(string Name, IReadOnlyList<CellDto> Cells)`
@@ -1567,6 +1570,11 @@ git commit -m "feat: mesure les trois niveaux d'adversaire et clôt la revue 3"
     par l'endpoint d'historique (tâche 20)
   - `record GameDto(Guid Id, string Status, string CurrentPlayer, OwnBoardDto Own, OpponentBoardDto Opponent)`
   - `static GameDto DtoMappings.ToDto(this Game game)`
+  - **Casse sur le fil** : les résultats de tir sont en **minuscules** (`CellDto.State`,
+    `ShotDto.Result`), parce que le `.proto` de la tâche 14 attend `miss | hit | sunk` ;
+    `GameDto.Status`, `GameDto.CurrentPlayer` et `ShotDto.By` restent en **PascalCase**, le même
+    `.proto` les documentant ainsi. À documenter dans `GameDto`, sinon cela passe pour une
+    incohérence.
   - `static IReadOnlyList<ShotDto> DtoMappings.ToDto(this IReadOnlyList<ShotRecord> history)`
 
 - [ ] **Étape 1 : Écrire le test de fuite**
@@ -1592,38 +1600,58 @@ public sealed class SecretTests
 
         game.PlayerFires(new Coordinate(0, 0));
 
-        var json = JsonSerializer.Serialize(game.ToDto());
+        var dto = game.ToDto();
+
+        var exposedByOpponentBoard = dto.Opponent.Shots
+            .Concat(dto.Opponent.SunkShips.SelectMany(s => s.Cells))
+            .Select(c => new Coordinate(c.X, c.Y))
+            .ToHashSet();
 
         var revealed = game.OpponentBoard.ReceivedShots;
         var secretCells = opponentFleet
             .SelectMany(s => s.Cells)
             .Where(c => !revealed.Contains(c))
-            .ToList();
+            .ToHashSet();
 
-        Assert.NotEmpty(secretCells);   // otherwise the test would prove nothing
-
-        foreach (var c in secretCells)
-            Assert.DoesNotContain($"\"x\":{c.X},\"y\":{c.Y}",
-                json, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEmpty(secretCells);
+        Assert.Empty(exposedByOpponentBoard.Intersect(secretCells));
     }
 
     [Fact]
-    public void The_dto_exposes_the_player_s_fleet()
+    public void The_own_board_is_the_player_board_and_not_the_opponent_one()
     {
         var rules = GameRules.Default;
         var playerFleet = new FleetPlacer(new Random(1)).PlaceAll(rules).Value;
-        var game = Game.Start(Guid.NewGuid(), rules, playerFleet,
-            new FleetPlacer(new Random(2)).PlaceAll(rules).Value);
+        var opponentFleet = new FleetPlacer(new Random(2)).PlaceAll(rules).Value;
+        var game = Game.Start(Guid.NewGuid(), rules, playerFleet, opponentFleet);
 
-        var dto = game.ToDto();
+        var ownCells = game.ToDto().Own.Ships
+            .SelectMany(s => s.Cells)
+            .Select(c => new Coordinate(c.X, c.Y))
+            .ToHashSet();
 
-        Assert.Equal(rules.Fleet.Count, dto.Own.Ships.Count);
+        Assert.Equal(playerFleet.SelectMany(s => s.Cells).ToHashSet(), ownCells);
     }
 }
 ```
 
-> L'assertion `Assert.NotEmpty(secretCells)` est là pour que le test ne puisse pas passer
-> **vide** : sans elle, une boucle sur une liste vide prouverait la règle sans rien vérifier.
+> **Deux pièges que ce test évite, et qui ont coûté un tour de correction.**
+>
+> Il assertait initialement sur une **sous-chaîne** `"x":N,"y":N` cherchée dans le JSON du
+> `GameDto` **entier**. Or les deux plateaux partagent le même espace de coordonnées : mesuré,
+> 186 paires de graines sur 200 partagent au moins une case. Le test ne vérifiait donc pas
+> « rien ne fuit du plateau adverse » mais « aucune paire (x,y) n'apparaît nulle part » — et il
+> ne passait que parce que le plateau du joueur était amputé. Asserter sur le **graphe d'objets**
+> de `dto.Opponent` supprime ce faux positif, et supprime aussi la cécité silencieuse à un
+> réordonnancement des paramètres du record, que le motif de chaîne supposait adjacents.
+>
+> Le second test attrape l'**inversion des deux plateaux** : intervertir les arguments de `ToDto`
+> ferait fuiter toute la flotte adverse, et le premier test seul ne le verrait pas. Il échoue
+> aussi si le plateau du joueur ne projette pas ses navires intacts — d'où un seul test pour les
+> deux fautes plutôt que deux.
+>
+> `Assert.NotEmpty(secretCells)` reste indispensable : sans lui, une intersection vide avec un
+> ensemble vide prouverait la règle sans rien vérifier.
 
 - [ ] **Étape 2 : Lancer les tests et constater l'échec**
 
