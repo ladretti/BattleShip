@@ -42,4 +42,13 @@ public sealed class ShipTests
 
         Assert.False(ship.IsSunk);
     }
+
+    [Fact]
+    public void Retirer_sur_une_case_deja_touchee_ne_compte_pas_comme_une_nouvelle_touche()
+    {
+        var ship = Torpilleur();
+
+        Assert.True(ship.TryHit(new Coordinate(0, 0)));
+        Assert.False(ship.TryHit(new Coordinate(0, 0)));
+    }
 }
