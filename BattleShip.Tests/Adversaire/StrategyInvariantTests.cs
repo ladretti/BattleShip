@@ -9,7 +9,7 @@ public sealed class StrategyInvariantTests
     {
         { "Random", r => new RandomStrategy(r) },
         { "HuntTarget", r => new HuntTargetStrategy(r) },
-        // Tâche 10 : { "Density",    r => new DensityStrategy(r) },
+        { "Density", r => new DensityStrategy(r) },
     };
 
     [Theory]
