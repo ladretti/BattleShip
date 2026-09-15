@@ -12,6 +12,13 @@ namespace BattleShip.API.Endpoints;
 /// Binding a request body and validating it are two distinct responsibilities: every
 /// route below resolves its FluentValidation validator through DI but calls it
 /// explicitly, never implicitly.
+///
+/// Both GET routes read through <see cref="IGameStore.Read{T}"/>, not
+/// <see cref="IGameStore.Find"/>: both project a collection (<c>ToDto()</c> walks
+/// <c>Game.History</c> and each board's ships/received shots), and <see cref="IGameStore"/>'s
+/// own remarks reserve <c>Find</c> for reads that never enumerate. See
+/// <see cref="IGameStore.Read{T}"/>'s doc comment for why this matters as soon as a
+/// concurrent mutation exists (task 14's gRPC <c>Fire</c>).
 /// </summary>
 public static class GameEndpoints
 {
@@ -29,16 +36,19 @@ public static class GameEndpoints
 
             // The opponent's fleet is placed automatically, up front: the player never
             // chooses it, so there is nothing to validate here beyond what
-            // CreateGameInputValidator already checked (GridSize in [5, 20]).
+            // CreateGameInputValidator already checked.
             var opponentFleet = new FleetPlacer(random).PlaceAll(rules);
             if (!opponentFleet.IsOk)
             {
-                // FleetPlacer.PlaceAll only fails if rejection sampling is exhausted for a
-                // grid/fleet combination that cannot legally hold the fleet at all.
-                // CreateGameInputValidator's [5, 20] range keeps every grid this large
-                // enough for the default fleet (longest ship: 5) — reaching this branch
-                // would be an anomaly in the placement algorithm, not a business refusal
-                // a caller could act on, hence an exception rather than a 4xx.
+                // FleetPlacer.PlaceAll fails deterministically for a grid too small to
+                // legally hold the fleet under the non-adjacency rule (verified by direct
+                // execution for every GridSize from 5 to 10 — see the task 13 correction
+                // report): 0/20 successes at 5 and 6, 20/20 at 7 and above.
+                // CreateGameInputValidator's lower bound of 7 exists precisely to keep
+                // this branch unreachable through the validated range; reaching it despite
+                // that would be a genuine anomaly in the placement algorithm itself, not a
+                // business refusal a caller could act on, hence an exception rather than a
+                // 4xx.
                 throw new InvalidOperationException(
                     $"Could not place the opponent fleet: {opponentFleet.Error}.");
             }
@@ -50,9 +60,10 @@ public static class GameEndpoints
         });
 
         app.MapGet("/games/{id:guid}", IResult (Guid id, IGameStore store) =>
-            store.Find(id) is { } game
-                ? TypedResults.Ok(game.ToDto())
-                : TypedResults.NotFound());
+        {
+            var result = store.Read(id, game => game.ToDto());
+            return result.IsOk ? TypedResults.Ok(result.Value) : TypedResults.NotFound();
+        });
 
         app.MapPost("/games/{id:guid}/placement", async Task<IResult> (
             Guid id, PlacementInput input, IValidator<PlacementInput> validator, IGameStore store) =>
@@ -62,35 +73,62 @@ public static class GameEndpoints
                 return TypedResults.ValidationProblem(check.ToDictionary());
 
             var result = store.Mutate(id, game =>
-                game.PlaceHumanFleet(ToShipPlacements(input, game.Rules)));
+            {
+                var placements = ToShipPlacements(input, game.Rules);
+                return placements.IsOk
+                    ? game.PlaceHumanFleet(placements.Value)
+                    : Result<bool>.Fail(placements.Error);
+            });
 
             return result.IsOk ? TypedResults.NoContent() : ToProblem(result.Error);
         });
 
         app.MapGet("/games/{id:guid}/history", IResult (Guid id, IGameStore store) =>
-            store.Find(id) is { } game
-                ? TypedResults.Ok(game.History.ToDto())
-                : TypedResults.NotFound());
+        {
+            var result = store.Read(id, game => game.History.ToDto());
+            return result.IsOk ? TypedResults.Ok(result.Value) : TypedResults.NotFound();
+        });
     }
 
-    private static IReadOnlyList<ShipPlacement> ToShipPlacements(PlacementInput input, GameRules rules) =>
-        [.. input.Ships.Select(s => ToShipPlacement(s, rules))];
-
-    private static ShipPlacement ToShipPlacement(ShipPlacementInput input, GameRules rules)
+    /// <summary>
+    /// Looks up each ship's size from <paramref name="rules"/>.Fleet by name — never from
+    /// <c>GameRules.Default</c> directly, unlike <c>PlacementInputValidator</c>, which can
+    /// only check against the default fleet since it has no access to a specific game.
+    /// The two coincide today (no route lets a game be created with anything but the
+    /// default fleet), but this lookup uses FirstOrDefault and fails cleanly with
+    /// InvalidPlacement rather than throwing if a name the validator accepted is somehow
+    /// absent from the targeted game's actual fleet — a defense against that invariant
+    /// breaking later (e.g. a per-game custom fleet), not a currently reachable path.
+    /// </summary>
+    private static Result<IReadOnlyList<ShipPlacement>> ToShipPlacements(PlacementInput input, GameRules rules)
     {
-        var template = rules.Fleet.First(t => t.Name == input.Name);
-        var orientation = Enum.Parse<Orientation>(input.Orientation);
-        return new ShipPlacement(input.Name, new Coordinate(input.X, input.Y), orientation, template.Size);
+        var placements = new List<ShipPlacement>(input.Ships.Count);
+
+        foreach (var ship in input.Ships)
+        {
+            var template = rules.Fleet.FirstOrDefault(t => t.Name == ship.Name);
+            if (template is null)
+                return Result<IReadOnlyList<ShipPlacement>>.Fail(GameError.InvalidPlacement);
+
+            // Enum.Parse (not TryParse) is safe here: PlacementInputValidator already
+            // rejected any Orientation other than the two literal names "Horizontal" and
+            // "Vertical" before this method can run.
+            var orientation = Enum.Parse<Orientation>(ship.Orientation);
+            placements.Add(new ShipPlacement(ship.Name, new Coordinate(ship.X, ship.Y), orientation, template.Size));
+        }
+
+        return Result<IReadOnlyList<ShipPlacement>>.Ok(placements);
     }
 
     /// <summary>
     /// Translates a placement refusal to its HTTP status, per the ADR 0004 table
-    /// (GameNotFound → 404, InvalidPlacement → 400). PlaceHumanFleet's only two failure
-    /// causes — an illegal placement (overlap, out of bounds, wrong fleet, adjacency) and
-    /// a placement submitted outside the Placing phase — both surface as the same
-    /// InvalidPlacement error (see Game.PlaceHumanFleet's own remarks), so this message
-    /// spells out every possible reason, including the word "adjacent" that
-    /// HttpEndpointsTests checks for, without claiming to know which one actually applied.
+    /// (GameNotFound → 404, InvalidPlacement → 400). PlaceHumanFleet's and
+    /// ToShipPlacements's only failure cause — an illegal placement (overlap, out of
+    /// bounds, wrong fleet, adjacency, an unrecognized ship name), or a placement
+    /// submitted outside the Placing phase — all surface as the same InvalidPlacement
+    /// error (see Game.PlaceHumanFleet's own remarks), so this message spells out every
+    /// possible reason, including the word "adjacent" that HttpEndpointsTests checks for,
+    /// without claiming to know which one actually applied.
     /// </summary>
     private static IResult ToProblem(GameError error) => error switch
     {

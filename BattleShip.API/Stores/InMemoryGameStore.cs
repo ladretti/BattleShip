@@ -73,4 +73,20 @@ public sealed class InMemoryGameStore : IGameStore
             return change(game);
         }
     }
+
+    public Result<T> Read<T>(Guid id, Func<Game, T> projection)
+    {
+        // Same lock as Mutate, keyed the same way (by Guid, obtained under the lock via
+        // GetOrAdd — see Mutate's own remarks on why): a projection that enumerates
+        // History/ReceivedShots must never run concurrently with a Mutate appending to
+        // them, and this is the only way to guarantee that with a single per-game lock.
+        var gameLock = _locks.GetOrAdd(id, static _ => new object());
+        lock (gameLock)
+        {
+            if (!_games.TryGetValue(id, out var game))
+                return Result<T>.Fail(GameError.GameNotFound);
+
+            return Result<T>.Ok(projection(game));
+        }
+    }
 }

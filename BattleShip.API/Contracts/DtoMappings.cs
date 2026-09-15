@@ -18,7 +18,9 @@ public static class DtoMappings
             game.CurrentPlayer.ToString(),
             ToOwnBoardDto(game.HumanBoard, game.History),
             ToOpponentBoardDto(game.OpponentBoard, game.History),
-            game.OpponentDifficulty);
+            game.OpponentDifficulty,
+            [.. game.Rules.Fleet.Select(t => new ShipTemplateDto(t.Name, t.Size))],
+            game.Rules.ShipsMayTouch);
 
     public static IReadOnlyList<ShotDto> ToDto(this IReadOnlyList<ShotRecord> history) =>
         [.. history.Select(ToShotDto)];

@@ -48,6 +48,14 @@ public sealed record ShipDto(string Name, int Size, IReadOnlyList<CellDto> Cells
 public sealed record ShotDto(int X, int Y, string Result, string By, string? SunkShipName);
 
 /// <summary>
+/// One template of the fleet to place: a name and a size, nothing else. Mirrors
+/// <c>ShipTemplate</c> from the domain — not a secret, it is the rule of the game, and the
+/// placement page (task 17) needs it to know what it must place without recoding the
+/// default fleet's composition (name and size per ship) on the client.
+/// </summary>
+public sealed record ShipTemplateDto(string Name, int Size);
+
+/// <summary>
 /// The whole state of a game as the current player is entitled to see it.
 ///
 /// Casing rule for the string fields of this DTO graph, settled to match the gRPC-Web
@@ -64,7 +72,14 @@ public sealed record ShotDto(int X, int Y, string Result, string By, string? Sun
 /// <see cref="OpponentDifficulty"/> mirrors <c>Game.OpponentDifficulty</c> verbatim (e.g.
 /// "Easy", "Normal", "Hard") so the front end can display the level of the game in
 /// progress — the name only, never a behavioral object.
+///
+/// <see cref="Fleet"/> and <see cref="ShipsMayTouch"/> mirror <c>Game.Rules.Fleet</c> and
+/// <c>Game.Rules.ShipsMayTouch</c>: what the human player must place, and whether the
+/// server will accept ships touching. Neither is secret — both are the rule of the game,
+/// not the state of either board — and the placement page (task 17) needs them to render
+/// the fleet to place and to explain why a placement was refused, instead of hard-coding
+/// the default fleet client-side and drifting from it the day the fleet changes.
 /// </summary>
 public sealed record GameDto(
     Guid Id, string Status, string CurrentPlayer, OwnBoardDto Own, OpponentBoardDto Opponent,
-    string OpponentDifficulty);
+    string OpponentDifficulty, IReadOnlyList<ShipTemplateDto> Fleet, bool ShipsMayTouch);
