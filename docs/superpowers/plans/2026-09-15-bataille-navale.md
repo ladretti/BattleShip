@@ -90,7 +90,11 @@ dotnet add BattleShip.App package Grpc.Tools
 
 dotnet add BattleShip.Tests package Microsoft.AspNetCore.Mvc.Testing
 dotnet add BattleShip.Tests package Grpc.Net.Client
+dotnet add BattleShip.Tests package Grpc.Net.Client.Web
 ```
+
+> `Grpc.Net.Client.Web` est requis côté test : `GrpcWebHandler` n'est pas dans
+> `Grpc.Net.Client`. Sans lui, le test de la tâche 2 échoue à la compilation (CS0234).
 
 Éditer `BattleShip.App/BattleShip.App.csproj` pour que `Grpc.Tools` soit en
 `PrivateAssets="all"`.
