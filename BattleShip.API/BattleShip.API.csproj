@@ -18,4 +18,8 @@
     <ProjectReference Include="..\BattleShip.Models\BattleShip.Models.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Protobuf Include="Protos\ping.proto" GrpcServices="Both" />
+  </ItemGroup>
+
 </Project>
