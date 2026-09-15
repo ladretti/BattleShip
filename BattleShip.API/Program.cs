@@ -1,6 +1,7 @@
 using BattleShip.API.Benchmark;
 using BattleShip.API.Contracts;
 using BattleShip.API.Endpoints;
+using BattleShip.API.Grpc;
 using BattleShip.API.Services;
 using BattleShip.API.Stores;
 using BattleShip.API.Strategies;
@@ -24,6 +25,7 @@ builder.Services.AddSingleton(_ => Random.Shared);
 builder.Services.AddSingleton<IOpponentStrategyFactory, OpponentStrategyFactory>();
 builder.Services.AddScoped<IValidator<CreateGameInput>, CreateGameInputValidator>();
 builder.Services.AddScoped<IValidator<PlacementInput>, PlacementInputValidator>();
+builder.Services.AddScoped<IValidator<FireRequest>, FireRequestValidator>();
 
 var app = builder.Build();
 
@@ -36,7 +38,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseGrpcWeb();
-app.MapGrpcService<PingGrpcService>().EnableGrpcWeb();
+app.MapGrpcService<BattleGrpcService>().EnableGrpcWeb();
 
 app.MapGameEndpoints();
 

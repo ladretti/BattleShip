@@ -85,7 +85,14 @@ public static class DtoMappings
     private static ShotDto ToShotDto(ShotRecord shot) =>
         new(shot.At.X, shot.At.Y, ToState(shot.Result), shot.By.ToString(), shot.SunkShipName);
 
-    private static string ToState(ShotResult result) => result switch
+    /// <summary>
+    /// Lower-case rendering of a shot's outcome ("miss" | "hit" | "sunk") — the casing
+    /// rule <see cref="GameDto"/>'s own doc comment fixes for shot outcomes, shared
+    /// verbatim with the gRPC-Web contract's <c>Shot.result</c> field (task 14). Internal,
+    /// not private: <c>BattleGrpcService</c> reuses this exact conversion for the
+    /// <c>FireResponse</c> it builds, rather than writing a second one.
+    /// </summary>
+    internal static string ToState(ShotResult result) => result switch
     {
         ShotResult.Miss => "miss",
         ShotResult.Hit => "hit",

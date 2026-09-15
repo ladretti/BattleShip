@@ -338,3 +338,109 @@ sont rapportées dans l'ordre où elles ont eu lieu, avec ce que chacune a infir
   une garantie plus forte est un jour nécessaire. Cette revue ne porte que sur la case `(0,0)`
   d'une grille 10×10 ; elle ne dit rien d'un comportement à plus grande échelle (plusieurs
   cases visées simultanément, par exemple).
+
+## Revue 5 — Le pouvoir discriminant du test de course `Read` vs `Mutate` (tâche 14)
+
+Cette revue documente une tentative qui n'a **pas** atteint son objectif, rapportée
+fidèlement plutôt que passée sous silence (CLAUDE.md § 6, règle 6).
+
+- **Proposition et référence dans le dépôt** : `BattleShip.Tests/Api/FireGrpcTests.cs`, test
+  `Concurrent_fires_and_reads_on_the_same_game_never_return_500_or_corrupt_state` — un test
+  additionnel, au-delà des cinq tests donnés par le brief de tâche 14, demandé pour vérifier
+  la première occasion du projet où une mutation concurrente réelle (`Fire` gRPC, via
+  `IGameStore.Mutate`) peut croiser une lecture qui énumère le même état (`GET /games/{id}`,
+  via `IGameStore.Read`) — cas que la tâche 13 avait laissé explicitement non vérifié faute de
+  mutation concurrente à l'époque.
+
+- **Hypothèse à vérifier** : que le test **puisse échouer** si `GameEndpoints` revenait à lire
+  par `store.Find(id)` plutôt que `store.Read(id, ...)` — c'est-à-dire s'il expose vraiment le
+  risque documenté dans `IGameStore.cs` : une lecture qui énumère `Game.History` (une
+  `List<ShotRecord>`) pendant qu'un tir y ajoute une entrée doit lever
+  `InvalidOperationException: Collection was modified`.
+
+- **Scénario, données ou commande** : `GameEndpoints`'s route `GET /games/{id:guid}` a été
+  temporairement ramenée à `store.Find(id)` (verrou contourné), puis le test ci-dessus a été
+  exécuté à travers **quatre conceptions successives**, chacune plus agressive que la
+  précédente :
+  1. ~100 tirs gRPC séquentiels pour faire grossir l'historique, puis 32 `Fire` uniques
+     contre 32 fils faisant chacun 3 lectures ;
+  2. la même forme, mais avec 1500 paires de tirs de préremplissage (3000 entrées
+     d'historique) et 64 fils de tir jouant chacun 30 tirs séquentiels (1920 tirs), contre
+     32 fils de lecture tournant en continu ;
+  3. la même chose sur une grille 300×300 plutôt que 60×60 (voir plus bas pourquoi) ;
+  4. une salve simultanée de 300 tirs uniques (un seul par fil, tous libérés par la même
+     `Barrier`, à l'image des deux autres tests de course du dépôt), contre 64 fils de
+     lecture en continu.
+
+  Chaque exécution a été **instrumentée** (version jetable, non conservée) : un
+  luminaire temporaire horodatait chaque `_history.Add` réel (dans `Game.Fire`) et chaque
+  appel réel à `history.Where(...).Select(...).ToList()` (dans `DtoMappings`), pour vérifier
+  après coup si les deux se chevauchaient réellement en temps horloge — pas seulement en
+  théorie.
+
+  Commande rejouable (verrou de lecture remis à `Find` manuellement pour l'expérience) :
+  ```bash
+  dotnet test --filter "Concurrent_fires_and_reads_on_the_same_game_never_return_500_or_corrupt_state"
+  ```
+
+- **Résultat attendu avant exécution** : au moins une des quatre conceptions ferait échouer le
+  test avec une `InvalidOperationException: Collection was modified` et/ou une réponse HTTP
+  500, une fois la lecture ramenée à `Find`.
+
+- **Erreur que ce contrôle pourrait détecter** : un retour accidentel de
+  `IGameStore.Read` à `IGameStore.Find` dans un endpoint qui énumère l'état d'une partie —
+  exactement la régression que le commentaire de `IGameStore.cs` anticipe.
+
+- **Résultat réellement observé** :
+  - Les **quatre** conceptions sont restées **vertes** (aucune exception, aucun 500) malgré
+    la lecture ramenée à `Find`.
+  - L'instrumentation a pourtant confirmé un chevauchement réel : sur la conception 3
+    (grille 300×300, 1920 tirs), 224 occurrences d'un `_history.Add` tombant à l'intérieur
+    de la fenêtre horloge d'un appel `Where(...).Select(...).ToList()` ont été mesurées sur
+    une seule exécution — sans qu'aucune n'ait provoqué l'exception.
+  - Un cinquième palier (2000 fils de tir simultanés) a été tenté puis abandonné : au lieu de
+    renforcer le test, la sursouscription (2032 fils pour 16 cœurs) a provoqué une pathologie
+    d'ordonnancement — le test n'a pas terminé en 180 s. Ce n'est pas un résultat exploitable,
+    seulement la preuve qu'« ajouter des fils » cesse d'aider passé un certain point.
+  - **Contrôle de cohérence, hors ASP.NET Core et gRPC** : deux répliques isolées du même
+    mécanisme (`dotnet run --file`, fichiers non conservés) confirment qu'il est bien réel et
+    reproductible sur cette machine : une boucle serrée de 50 000 `Add` contre 8 lecteurs en
+    boucle produit l'exception dans 8 lecteurs sur 8 ; une écriture « éparse » (une toutes les
+    ~1 ms, plus proche du rythme réel d'un tir) contre 16 lecteurs en produit 4069 sur 11357
+    lectures. Le mécanisme n'est donc pas en cause — seul le passage par la pile
+    ASP.NET Core/gRPC réelle, des deux côtés, semble diluer suffisamment la fréquence de
+    tentative pour ne pas capter la fenêtre exacte requise par l'énumérateur de `List<T>`,
+    dans un budget de temps raisonnable pour un test automatisé.
+
+- **Décision et justification** : le test est **conservé**, mais avec sa portée revue à la
+  baisse et documentée explicitement dans son propre commentaire : il vérifie qu'aucune
+  requête ne répond 500 et qu'aucune exception de corruption ne survient sous une charge
+  concurrente réelle et vérifiée-chevauchante — une vérification de non-régression légitime
+  en elle-même — mais il n'est **pas** présenté comme la garantie contre un retour à `Find`.
+  Cette garantie reste portée par la revue de code de `IGameStore.Mutate`/`Read` (même verrou,
+  obtenu par la même clé `Guid`, voir les commentaires de `IGameStore.cs` et
+  `InMemoryGameStore.cs`), pas par ce test. Corriger l'implémentation plutôt que l'assertion
+  aurait ici signifié fabriquer artificiellement la course (par exemple un délai injecté dans
+  le code de production) — ce qui aurait faussé le test plutôt que le renforcer ; ce chemin a
+  été explicitement écarté.
+
+- **Preuves reproductibles et liens vers les commits** : commande ci-dessus ; le détail des
+  quatre conceptions et les deux répliques isolées sont conservés dans le rapport de la
+  tâche 14 (`.superpowers/sdd/2026-09-15-bataille-navale/task-14-report.md`), pas dans le
+  dépôt de code (fichiers d'instrumentation jetables, jamais commités).
+
+- **Après correction éventuelle : résultat avant / après** : sans objet — aucune correction
+  n'a été apportée à l'implémentation (`IGameStore.Read`/`Mutate` n'ont pas changé, hors
+  l'expérimentation temporaire décrite ci-dessus, intégralement annulée avant ce commit) ; la
+  correction porterait sur le test, pas sur le produit, et reste à faire.
+
+- **Limites et points non vérifiés** : la cause exacte de l'écart entre les répliques isolées
+  (fiables) et le test de bout en bout (jamais observé en échec) n'a pas été élucidée avec
+  certitude — l'hypothèse retenue est la dilution du taux de tentative par la pile réseau/RPC,
+  mais des pauses GC et l'ordonnancement du système d'exploitation ont été envisagés et
+  partiellement écartés (mode `SustainedLowLatency` + `GC.Collect` forcé avant la salve : sans
+  effet observé) sans être formellement exclus. Une piste non tentée : un test **au niveau du
+  store seul** (`IGameStore.Mutate`/`Find` appelés directement, sans HTTP ni gRPC), qui
+  removerait la dilution réseau tout en gardant `Game`/`DtoMappings` réels — ébauché puis
+  invalidé par un bug de conception du test lui-même (tour non rejoué correctement lors d'une
+  touche adverse), non corrigé faute de temps disponible dans cette session.

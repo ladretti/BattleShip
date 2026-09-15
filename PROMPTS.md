@@ -70,3 +70,70 @@ Une entrée par échange qui a compté. Les échanges de pure exécution ne sont
     des stratégies restent une **hypothèse non vérifiée** ; la mesure est une tâche du plan.
     Le montage `WebApplicationFactory` + `GrpcChannel` n'est pas davantage vérifié — c'est le
     risque technique principal du projet, traité en premier dans le plan.
+
+---
+
+## 2026-09-15 — Tâche 14 : le tir en gRPC-Web et la traduction des erreurs
+
+- **Outil / modèle** : Claude Code (Claude Opus 5, contexte 1M).
+- **Contexte** : dernière brique manquante de la contrainte centrale du sujet — un échange
+  gRPC-Web fonctionnel, réponse et erreur attendue démontrables. Le contrat `.proto`, le
+  squelette de `BattleGrpcService`, les cinq tests d'intégration et la table ADR 0004 étaient
+  déjà spécifiés dans le brief de tâche ; restait à les recopier verbatim, implémenter, et
+  fusionner la traduction d'erreur (jusqu'ici dupliquée dans `GameEndpoints.ToProblem`) dans un
+  `ErrorMapping` unique servant les deux façades.
+- **Prompt réellement utilisé** : le brief de tâche 14 (`task-14-brief.md`), relayé avec des
+  contraintes supplémentaires : TDD strict (constater l'échec de compilation avant
+  d'implémenter), un contrôle à pouvoir discriminant sur le mapping `NotFound`, et un test de
+  course `IGameStore.Read` vs `Mutate` — la première mutation concurrente réelle du projet,
+  que la tâche 13 avait explicitement laissée non vérifiée.
+- **Réponse et hypothèses résumées** : l'implémentation suppose que `Fire` doit renvoyer une
+  **séquence** (le coup du joueur, puis la chaîne des coups adverses tant qu'ils touchent), que
+  l'adversaire ne doit recevoir qu'un `ShotHistory` construit à partir de `HumanBoard` et de ses
+  propres tirs passés (jamais `OpponentBoard`), et que la casse des champs `Shot.result` /
+  `status` / `current_player` doit réutiliser `DtoMappings.ToState` plutôt qu'une seconde
+  conversion.
+- **Décision et justification** : la proposition du brief a été suivie **telle quelle** pour
+  les cinq tests et le contrat `.proto`. Le test de course, en revanche, a demandé plusieurs
+  itérations : les deux premières versions (une salve modeste, puis une version « écriture
+  soutenue » sur une grille 60×60) ont échoué à faire échouer le mutant `Find` malgré un
+  historique pré-rempli et des lectures en boucle — **adaptée** en conséquence (grille 300×300
+  pour éviter que le tir aléatoire de l'adversaire ne termine la partie avant la fin de la
+  salve, conception en salve simultanée plutôt qu'en écriture séquentielle par fil). Voir
+  `REVUE-IA.md`, revue 5 : même after cette adaptation, le test ne démontre pas de pouvoir
+  discriminant contre ce mutant précis, ce qui est rapporté comme une limite plutôt que masqué.
+- **Scénario ou commande de vérification** :
+
+  ```bash
+  dotnet test --filter FireGrpc                 # constat d'échec de compilation, puis 6/6 verts
+  dotnet test                                   # 133/133
+  # Contrôle discriminant 1 : GameError.GameNotFound => StatusCode.Unknown (temporaire)
+  dotnet test --filter "A_shot_on_an_unknown_game_returns_NotFound"
+  # Contrôle discriminant 2 : GameEndpoints revient à store.Find (temporaire)
+  dotnet test --filter "Concurrent_fires_and_reads_on_the_same_game_never_return_500_or_corrupt_state"
+  ```
+
+- **Résultat attendu, puis résultat observé** :
+  - Avant l'implémentation : `error CS0246: The type or namespace name 'BattleService' could
+    not be found` — **observé**, conforme au brief.
+  - Après l'implémentation : 133/133, dont les 6 tests de `FireGrpcTests.cs` (5 donnés + 1
+    ajouté) — **observé**.
+  - Contrôle discriminant 1, attendu : le test échoue avec un message qui distingue
+    `NotFound` de la valeur erronée — **observé** : `Assert.Equal() Failure: Values differ /
+    Expected: NotFound / Actual: Unknown`.
+  - Contrôle discriminant 2, attendu (avant mesure) : le test échoue également, montrant que
+    la lecture non verrouillée corrompt l'énumération de `Game.History` — **observé : le test
+    reste vert** malgré une mesure instrumentée (retirée avant ce commit) confirmant un
+    chevauchement réel, en temps horloge, entre l'ajout (`_history.Add`) et l'énumération
+    (`history.Where(...).Select(...).ToList()`). Le mécanisme lui-même a été vérifié isolément
+    (hors ASP.NET Core/gRPC, via `dotnet run --file`) : il s'y reproduit de façon fiable
+    (8/8, puis 4069/11357 occurrences selon la densité d'écriture).
+- **Erreur que ce contrôle pourrait détecter** : le contrôle discriminant 1 détecte un mapping
+  d'erreur gRPC erroné pour n'importe lequel des sept membres de `GameError`. Le contrôle
+  discriminant 2, tel que livré, ne détecte **pas de façon fiable** un retour de `IGameStore.Read`
+  à `Find` dans `GameEndpoints` — c'est sa limite documentée, pas une affirmation de succès.
+- **Preuves reproductibles et limites** : commandes ci-dessus, rejouables telles quelles.
+  Limite principale : le test de course additionnel (au-delà des cinq du brief) ne constitue
+  pas, à ce jour, une garantie automatisée contre une régression `Find` — cette garantie repose
+  sur la revue de code de `IGameStore.Mutate`/`Read` (même verrou, même clé) plutôt que sur ce
+  test. Voir `REVUE-IA.md`, revue 5, pour l'analyse complète.

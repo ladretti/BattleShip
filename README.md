@@ -5,12 +5,13 @@ TP d'autonomie — Cours C# ASP.NET (HTS Learning, Christophe MOMMER).
 > **État au 2026-09-15 : implémentation en cours.**
 > Les décisions structurantes sont prises et documentées (`docs/adr/`,
 > `docs/superpowers/specs/`). Le moteur de jeu (`BattleShip.Models`), le store en mémoire et les
-> trois niveaux d'adversaire sont écrits et couverts par des tests, et le duel d'IA est mesuré
-> (voir « Limites connues »). En revanche, les endpoints de partie et le `Fire` gRPC-Web ne sont
-> **pas encore écrits** — seul un harnais gRPC-Web (`Ping`) est en place — et l'interface Blazor
-> reste le gabarit par défaut.
-> Les sections « Fonctionnalités visées » et « Démonstration gRPC-Web » ci-dessous décrivent
-> le **périmètre visé** et seront reprises au fur et à mesure des livraisons réelles.
+> trois niveaux d'adversaire sont écrits et couverts par des tests, le duel d'IA est mesuré
+> (voir « Limites connues »), les quatre endpoints HTTP de partie (création, état, placement,
+> historique) sont écrits et validés, et le tir en gRPC-Web (`BattleService/Fire`) est écrit et
+> couvert par des tests d'intégration — le harnais `Ping` qui avait servi à le vérifier a été
+> retiré, son rôle rempli. En revanche, l'interface Blazor reste le gabarit par défaut.
+> La section « Fonctionnalités visées » ci-dessous décrit le **périmètre visé** ; la section
+> « Démonstration gRPC-Web » est, elle, déjà exécutable telle que décrite.
 
 ## Binôme
 

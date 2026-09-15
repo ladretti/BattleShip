@@ -121,18 +121,19 @@ public static class GameEndpoints
     }
 
     /// <summary>
-    /// Translates a placement refusal to its HTTP status, per the ADR 0004 table
-    /// (GameNotFound → 404, InvalidPlacement → 400). PlaceHumanFleet's and
-    /// ToShipPlacements's only failure cause — an illegal placement (overlap, out of
+    /// Translates a placement refusal to its HTTP status, read from
+    /// <see cref="ErrorMapping.ToHttpStatusCode"/> — the single ADR 0004 table shared with
+    /// <c>BattleGrpcService</c>'s gRPC façade, not a second copy of it. PlaceHumanFleet's
+    /// and ToShipPlacements's only failure cause — an illegal placement (overlap, out of
     /// bounds, wrong fleet, adjacency, an unrecognized ship name), or a placement
     /// submitted outside the Placing phase — all surface as the same InvalidPlacement
     /// error (see Game.PlaceHumanFleet's own remarks), so this message spells out every
     /// possible reason, including the word "adjacent" that HttpEndpointsTests checks for,
     /// without claiming to know which one actually applied.
     /// </summary>
-    private static IResult ToProblem(GameError error) => error switch
+    private static IResult ToProblem(GameError error) => ErrorMapping.ToHttpStatusCode(error) switch
     {
-        GameError.GameNotFound => TypedResults.NotFound(),
+        StatusCodes.Status404NotFound => TypedResults.NotFound(),
         _ => TypedResults.BadRequest(new
         {
             error = "Invalid placement: the fleet must be placed exactly once, inside " +

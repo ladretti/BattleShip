@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protos\ping.proto" GrpcServices="Both" />
+    <Protobuf Include="Protos\battle.proto" GrpcServices="Both" />
   </ItemGroup>
 
 </Project>

@@ -64,16 +64,33 @@ manqué.
 
 ## Vérification et réexamen
 
-À vérifier lors de l'implémentation, non encore fait :
+Vérifié à l'implémentation (tâche 14) :
 
-- **Spike prioritaire, au jour 1** : un test d'intégration qui appelle un service gRPC
-  minimal via `WebApplicationFactory` et qui passe — **avant** d'écrire la logique de tir.
-  Le découvrir au jour 1 plutôt qu'au jour 4 est tout l'intérêt de le faire d'abord.
-- Trois tests d'intégration sur `Fire` : un succès, un `InvalidArgument`, un `NotFound`.
-- Une capture de la console réseau du navigateur montrant l'appel et l'erreur.
-
-À réexaminer si le spike échoue : il faudrait alors basculer sur l'option B, où le tir reste
-testable par sa façade HTTP.
+- Le spike (`GrpcHarnessTests`, un `PingService` minimal monté via `WebApplicationFactory`)
+  a réussi dès la tâche 2 : le montage `GrpcChannel` + `GrpcWebHandler` sur
+  `TestServer.CreateHandler()` fonctionne. Le spike a été retiré à la tâche 14 (son rôle
+  rempli), remplacé par `BattleShip.Tests/Api/FireGrpcTests.cs`.
+- Cinq tests d'intégration sur `Fire` (dépassant les trois envisagés ici) : un succès, une
+  case déjà jouée (`InvalidArgument`), une case hors grille (`InvalidArgument`), une partie
+  inconnue (`NotFound`), et l'enchaînement des tirs adverses sur un tir manqué. Les sept
+  membres de `GameError` sont traduits vers un `StatusCode` gRPC en un seul endroit
+  (`ErrorMapping.cs`), partagé avec la façade HTTP.
+- Contrôle à pouvoir discriminant réalisé sur la traduction d'erreur : `GameNotFound` a été
+  temporairement remappé vers `StatusCode.Unknown` — le test `A_shot_on_an_unknown_game_returns_NotFound`
+  échoue alors avec `Expected: NotFound / Actual: Unknown`, confirmant que le test mesure
+  bien ce qu'il prétend mesurer (rapport de la tâche 14).
+- **Non concluant** : un test de course `IGameStore.Read` (lecture HTTP) contre
+  `IGameStore.Mutate` (tir gRPC) a été écrit et renforcé à plusieurs reprises (grille et
+  historique agrandis, salve de tirs simultanés, mesure instrumentée confirmant un
+  chevauchement réel des fenêtres d'écriture et de lecture) sans parvenir à observer
+  l'exception `InvalidOperationException: Collection was modified` lorsque la lecture est
+  délibérément ramenée à `Find`. Le mécanisme sous-jacent a été vérifié séparément, en
+  dehors d'ASP.NET Core/gRPC, où il se reproduit de façon fiable. Voir `REVUE-IA.md`,
+  revue 5, pour le détail chiffré et les limites de ce constat — la garantie contre une
+  régression `Find` repose donc, pour l'instant, sur la revue de code de `Mutate`/`Read`
+  plutôt que sur un test automatisé au pouvoir discriminant démontré.
+- Non encore fait : la capture de la console réseau du navigateur montrant l'appel et
+  l'erreur (nécessite l'interface Blazor, hors périmètre de la tâche 14).
 
 ## Références
 
