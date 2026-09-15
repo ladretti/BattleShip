@@ -1835,11 +1835,25 @@ app.MapPost("/games", async Task<IResult> (
 });
 ```
 
-`CreateGameInputValidator` : `GridSize` entre 5 et 20, `Difficulty` dans
+`CreateGameInputValidator` : `GridSize` entre **7** et 20, `Difficulty` dans
 `{ "Easy", "Normal", "Hard" }`. `PlacementInputValidator` : un navire par
 `ShipTemplate` de la flotte, `Orientation` analysable, coordonnées dans la grille ; la règle
 d'adjacence vient de `PlacementRules.Validate`, **jamais réécrite dans le validateur**. Le
 message d'erreur mentionne explicitement le mot « adjacent » (le test le vérifie).
+
+> **La borne basse vaut 7, pas 5 — et c'est une mesure, pas une intuition.** Une recherche
+> exhaustive des placements légaux de la flotte par défaut donne **0** possibilité en grille 5 et
+> en grille 6, contre 811 728 en grille 7. La contrainte qui mord n'est pas la longueur du plus
+> grand navire (5) mais la règle de **non-adjacence** de l'ADR 0006 : chaque navire s'entoure
+> d'une couronne interdite. Une borne à 5 fait répondre `500` à une entrée que le contrat déclare
+> valide, et brûle ~550 ms de CPU par appel à épuiser les compteurs de garde du `FleetPlacer`.
+>
+> **L'orientation se valide par comparaison aux noms littéraux**, pas par `Enum.TryParse` :
+> celui-ci accepte les formes numériques (`"2"`, `"-1"`) et `Enum.IsDefined` ne rattrape pas la
+> forme composée `"Horizontal,Vertical"`. Les deux traversent et font lever `ShipPlacement.Cells()`.
+>
+> **Le validateur doit garder contre `null`** — liste absente, nulle, ou contenant un élément nul —
+> sans quoi il lève lui-même avant d'avoir validé quoi que ce soit.
 
 Mettre à jour `api.http` avec un appel par route, en notant que **le tir n'y figure pas**
 (ADR 0005).
