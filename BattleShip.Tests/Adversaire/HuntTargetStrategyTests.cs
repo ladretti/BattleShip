@@ -62,4 +62,22 @@ public sealed class HuntTargetStrategyTests
 
         Assert.Equal(0, (coup.X + coup.Y) % 2);   // retour en phase de chasse
     }
+
+    [Fact]
+    public void Deux_touches_alignees_font_prolonger_l_alignement()
+    {
+        // Deux touches verticalement adjacentes en (4,4) et (4,5) : le navire suit cet
+        // axe. La stratégie doit viser une extrémité — (4,3) ou (4,6) — et jamais un
+        // voisin perpendiculaire comme (3,4) ou (5,5), qui ne peut appartenir au navire.
+        var history = Historique(
+            new ShotRecord(new Coordinate(4, 4), ShotResult.Hit, Player.Opponent, null),
+            new ShotRecord(new Coordinate(4, 5), ShotResult.Hit, Player.Opponent, null));
+
+        for (var seed = 1; seed <= 20; seed++)
+        {
+            var coup = new HuntTargetStrategy(new Random(seed)).NextShot(history);
+
+            Assert.Contains(coup, new[] { new Coordinate(4, 3), new Coordinate(4, 6) });
+        }
+    }
 }
