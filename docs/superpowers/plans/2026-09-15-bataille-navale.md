@@ -248,8 +248,11 @@ git commit -m "test: valide le montage gRPC-Web sur WebApplicationFactory"
 
 **Interfaces**
 - Produit : `Coordinate(int X, int Y)`, `ShipTemplate(string Name, int Size)`,
-  `Ship` avec `Name`, `Size`, `IReadOnlySet<Coordinate> Cells`, `IReadOnlySet<Coordinate> HitCells`,
-  `bool IsSunk`, `bool TryHit(Coordinate at)` ; `Orientation { Horizontal, Vertical }` ;
+  `Ship(string name, int size, IEnumerable<Coordinate> cells)` — constructeur positionnel
+  acceptant une **`IEnumerable`** pour que les expressions de collection `[...]` des tests
+  compilent — exposant `Name`, `Size`, `IReadOnlySet<Coordinate> Cells`,
+  `IReadOnlySet<Coordinate> HitCells`, `bool IsSunk`, `bool TryHit(Coordinate at)` ;
+  `Orientation { Horizontal, Vertical }` ;
   `GameError` ; `Result<T>` avec `Ok(T)`, `Fail(GameError)`, `IsOk`, `Value`, `Error`.
 
 - [ ] **Étape 1 : Écrire les tests**
@@ -409,7 +412,10 @@ git commit -m "feat: ajoute les types de base du domaine et Result<T>"
 - Consomme : `Coordinate`, `Orientation`, `ShipTemplate`, `GameError` (tâche 3).
 - Produit :
   - `GameRules(int GridSize, IReadOnlyList<ShipTemplate> Fleet, bool ShipsMayTouch, bool ExtraTurnOnHit)`
-    avec `GameRules.Default` = 10×10, 5-4-3-3-2, `ShipsMayTouch: false`, `ExtraTurnOnHit: true`
+    avec `GameRules.Default` = grille 10 et la flotte **exactement nommée** :
+    `Porte-avions` 5, `Croiseur` 4, `Contre-torpilleur` 3, `Sous-marin` 3, `Torpilleur` 2 ;
+    `ShipsMayTouch: false`, `ExtraTurnOnHit: true`. Ces noms sont codés en dur dans les tests
+    des tâches 13 et 14 : ne pas les changer.
   - `ShipPlacement(string Name, Coordinate Origin, Orientation Orientation, int Size)`
     avec `IEnumerable<Coordinate> Cells()`
   - `static Result<IReadOnlyList<Ship>> PlacementRules.Validate(IReadOnlyList<ShipPlacement> placements, GameRules rules)`
@@ -702,7 +708,11 @@ git commit -m "feat: ajoute le placement automatique à aléa injecté"
   - `Board(int gridSize, IReadOnlyList<Ship> ships)` avec `ReceivedShots`,
     `bool AllSunk`, `Result<ShotRecord> Fire(Coordinate at, Player by)`
   - `Game` avec `Id`, `Rules`, `HumanBoard`, `OpponentBoard`, `CurrentPlayer`, `Status`,
-    `IReadOnlyList<ShotRecord> History`, `Result<ShotRecord> PlayerFires(Coordinate at)`
+    `IReadOnlyList<ShotRecord> History`, `Result<ShotRecord> PlayerFires(Coordinate at)`,
+    et son symétrique `Result<ShotRecord> OpponentFires(Coordinate at)` — qui tire sur
+    `HumanBoard`, exige `CurrentPlayer == Opponent`, rend la main au joueur sur un coup
+    manqué, et passe en `Finished` si `HumanBoard.AllSunk`. **La tâche 14 n'a aucun autre
+    moyen de faire jouer l'adversaire.**
 
 - [ ] **Étape 1 : Écrire les tests**
 
@@ -740,13 +750,39 @@ public sealed class GameTests
     [Fact]
     public void Un_tir_sur_une_case_deja_jouee_est_refuse()
     {
+        // (0,0) TOUCHE, donc la main reste au joueur (ExtraTurnOnHit).
+        // Sur un coup manqué le refus attendu serait NotYourTurn, pas CellAlreadyShot.
         var game = PartieMinuscule();
-        game.PlayerFires(new Coordinate(2, 2));
+        game.PlayerFires(new Coordinate(0, 0));
 
-        var result = game.PlayerFires(new Coordinate(2, 2));
+        var result = game.PlayerFires(new Coordinate(0, 0));
 
         Assert.False(result.IsOk);
         Assert.Equal(GameError.CellAlreadyShot, result.Error);
+    }
+
+    [Fact]
+    public void L_adversaire_ne_peut_pas_tirer_quand_c_est_au_joueur()
+    {
+        var game = PartieMinuscule();
+
+        var result = game.OpponentFires(new Coordinate(0, 0));
+
+        Assert.False(result.IsOk);
+        Assert.Equal(GameError.NotYourTurn, result.Error);
+    }
+
+    [Fact]
+    public void Un_coup_manque_de_l_adversaire_rend_la_main_au_joueur()
+    {
+        var game = PartieMinuscule();
+        game.PlayerFires(new Coordinate(2, 2));   // manqué : la main passe
+
+        var result = game.OpponentFires(new Coordinate(2, 2));
+
+        Assert.True(result.IsOk);
+        Assert.Equal(ShotResult.Miss, result.Value.Result);
+        Assert.Equal(Player.Human, game.CurrentPlayer);
     }
 
     [Fact]
@@ -838,10 +874,14 @@ construit les deux `Board` et passe en `InProgress`. `PlayerFires` contrôle dan
 succès : enregistrer dans `History`, passer la main si le coup est manqué ou si
 `ExtraTurnOnHit` est faux, et passer en `Finished` si `OpponentBoard.AllSunk`.
 
+`OpponentFires` est son symétrique exact : mêmes contrôles avec `CurrentPlayer == Opponent`,
+tir sur `HumanBoard`, `Finished` si `HumanBoard.AllSunk`. Factoriser le corps commun dans une
+méthode privée prenant le plateau cible et le joueur — ne pas dupliquer la logique de tour.
+
 - [ ] **Étape 4 : Lancer les tests et constater le succès**
 
 Exécuter : `dotnet test --filter GameTests`
-Attendu : 8 tests au vert.
+Attendu : 10 tests au vert.
 
 - [ ] **Étape 5 : Commit**
 
@@ -2224,7 +2264,10 @@ git commit -m "docs: ajoute les preuves de démonstration gRPC-Web"
 
 **Fichiers**
 - Créer : `BattleShip.App/Components/PanneauHistorique.razor`
-- Modifier : `BattleShip.API/Endpoints/GameEndpoints.cs`, `BattleShip.App/Pages/Jeu.razor`
+- Modifier : `BattleShip.App/Pages/Jeu.razor`
+
+> La route `GET /games/{id:guid}/history` est **déjà implémentée par la tâche 13**. Cette
+> tâche n'ajoute que son test et le panneau d'interface.
 - Tests : `BattleShip.Tests/Api/HistoryEndpointTests.cs`
 
 **Interfaces**
