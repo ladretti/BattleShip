@@ -383,18 +383,31 @@ public enum GameError
 }
 ```
 
-`Ship.cs` : classe `sealed`, `Cells` en `HashSet<Coordinate>` fourni à la construction,
-`HitCells` en `HashSet<Coordinate>` privé exposé en lecture seule,
-`IsSunk => HitCells.Count == Size`, et `TryHit` qui n'ajoute que si la case appartient à
-`Cells`.
+`Ship.cs` : classe `sealed`, `Cells` en **`FrozenSet<Coordinate>`** construit depuis
+l'`IEnumerable` reçu (`System.Collections.Frozen`, en boîte depuis .NET 8 — aucun paquet, donc
+`BattleShip.Models` reste sans dépendance ; et un `FrozenSet` n'expose aucune méthode de
+mutation, contrairement à un `HashSet` masqué derrière `IReadOnlySet` qu'un simple cast
+suffirait à vider). `HitCells` en `HashSet<Coordinate>` privé exposé en lecture seule, avec
+une doc XML disant que la mutation passe exclusivement par `TryHit`.
+`IsSunk => HitCells.Count == Size`. `TryHit` ne renvoie `true` que pour une touche
+**nouvelle** — convention `TryAdd` — afin qu'un appelant des tâches 6 ou 14 ne déclenche pas
+deux fois un effet de bord sur le même dégât.
 
 `Result.cs` : `readonly struct Result<T>` avec les fabriques `Ok` / `Fail` ; `Value` lève
 `InvalidOperationException` si `IsOk` est faux (c'est une anomalie, pas un refus métier).
 
+> **Discriminant explicite obligatoire.** Un `struct` a toujours un constructeur implicite
+> sans paramètre : si `IsOk` se déduisait de `_error == null`, alors `default(Result<T>)`, un
+> élément de tableau non initialisé ou un champ non assigné rapporteraient un **succès** avec
+> `Value == default(T)`, sans qu'aucun `Ok(...)` n'ait été appelé. Porte donc un champ
+> `bool _isOk` posé uniquement par les fabriques, fais lever `Value` **et** `Error` sur un
+> `default`, et n'écris qu'**un seul** constructeur privé — deux constructeurs `Result(T)` et
+> `Result(GameError)` entrent en collision de signatures dès que `T` vaut `GameError`.
+
 - [ ] **Étape 4 : Lancer les tests et constater le succès**
 
 Exécuter : `dotnet test --filter Domaine`
-Attendu : 7 tests, tous au vert.
+Attendu : 13 tests, tous au vert (5 sur `Ship`, 8 sur `Result`).
 
 - [ ] **Étape 5 : Commit**
 
