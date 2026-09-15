@@ -2124,7 +2124,23 @@ builder.Services.AddCors(options => options.AddPolicy("front", policy => policy
                         "grpc-accept-encoding")));
 ```
 
-Ordre dans le pipeline : `app.UseCors("front");` **avant** `app.UseGrpcWeb();`.
+Ordre dans le pipeline : `app.UseCors("front");` avant `app.UseGrpcWeb();`, conformément à la
+documentation ASP.NET Core.
+
+> **Cet ordre est respecté, mais sa nécessité n'a pas pu être démontrée — et le plan affirmait
+> le contraire.** Trois expériences ont été construites pour faire dépendre un résultat
+> observable de l'ordre relatif des deux middlewares : la suite complète, un vrai POST
+> `application/grpc-web+proto` avec `Origin`, et la requête préliminaire `OPTIONS` sur la route
+> gRPC — celle que le navigateur envoie en premier — y compris avec un `Content-Type` gRPC-Web
+> forcé. **Aucune ne discrimine** : `GrpcWebMiddleware` ne court-circuite ni ne modifie jamais
+> une requête `OPTIONS`, et le middleware CORS pose ses en-têtes via un callback `OnStarting`
+> exécuté juste avant l'écriture de la réponse, donc indépendamment de sa position tant qu'il
+> précède le dispatch terminal.
+>
+> Aucun test de garde n'est donc écrit pour cet ordre : on n'en connaît pas de régression
+> fabricable. Ce qui **est** gardé par un test : qu'une origine non déclarée ne reçoive pas
+> `Access-Control-Allow-Origin` — le contrôle qui empêcherait un futur `AllowAnyOrigin()` de
+> passer inaperçu.
 
 - [ ] **Étape 2 : Activer OpenAPI en développement**
 
