@@ -3,10 +3,10 @@
 Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusion doit être
 étayée.
 
-> **État au 2026-09-15** : deux revues (1 et 4) sont complètes et étayées par une exécution.
-> Les revues 2 et 3 restent **ouvertes** : l'hypothèse et le résultat attendu y sont énoncés
+> **État au 2026-09-15** : trois revues (1, 3 et 4) sont complètes et étayées par une
+> exécution. La revue 2 reste **ouverte** : l'hypothèse et le résultat attendu y sont énoncés
 > *avant* exécution, comme le demande la discipline de vérification, mais l'exécution n'a pas
-> encore eu lieu. Elles doivent être closes avant la remise.
+> encore eu lieu. Elle doit être close avant la remise.
 
 ---
 
@@ -113,7 +113,7 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
 
 ---
 
-## Revue 3 — *(ouverte)* Les chiffres de performance des stratégies
+## Revue 3 — Les chiffres de performance des stratégies
 
 - **Proposition et référence dans le dépôt** : l'IA a avancé, pour justifier le périmètre à
   trois niveaux d'adversaire, des nombres moyens de coups de ≈ 96 (aléatoire), ≈ 65
@@ -126,9 +126,20 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
   que le périmètre à trois niveaux soit justifié, il suffit que l'**ordre** soit respecté :
   aléatoire > chasse/cible+parité > densité.
 
-- **Scénario, données ou commande** : endpoint de duel d'IA (backlog nº 1), N = 1000 parties
-  par stratégie, `Random` à graine fixe, avec les règles réellement retenues (10×10,
-  flotte 5-4-3-3-2, non-adjacence). À compléter avec la commande exacte.
+- **Scénario, données ou commande** : `StrategyBenchmark.Run` (tâche 11,
+  `BattleShip.API/Benchmark/StrategyBenchmark.cs`), N = 200 parties par stratégie, graine de
+  placement dérivée de `seed + i` (même flotte pour les trois stratégies à un indice de partie
+  donné), avec les règles réellement retenues (`GameRules.Default` : 10×10, flotte 5-4-3-3-2,
+  `ShipsMayTouch: false`). Commande exacte, testée par `StrategyBenchmarkTests` :
+
+  ```bash
+  dotnet test --filter "FullyQualifiedName~StrategyBenchmark" --logger "console;verbosity=detailed"
+  ```
+
+  Les trois moyennes elles-mêmes ont été relevées via un petit programme jetable référençant
+  `BattleShip.API` et appelant `StrategyBenchmark.Run(GameRules.Default, games: 200, seed:
+  20260915)` directement (le test xUnit ne fait qu'asserter l'ordre et le seuil, il n'imprime
+  pas les valeurs) — voir le rapport de la tâche 11 pour le script.
 
 - **Résultat attendu avant exécution** — *énoncé le 2026-09-15, avant toute implémentation* :
   l'ordre `RandomStrategy` > `HuntTargetStrategy` > `DensityStrategy` sera respecté, et
@@ -140,19 +151,46 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
   valeurs de l'aléatoire. Si l'ordre n'est pas respecté, le périmètre à trois niveaux n'est
   plus défendable et doit être revu.
 
-- **Résultat réellement observé** : **non exécuté à ce jour.**
+- **Résultat réellement observé** : sur 200 parties par stratégie, graine 20260915,
+  `GameRules.Default` :
 
-- **Décision et justification** : les chiffres sont consignés partout comme **hypothèse non
-  vérifiée** et ne doivent apparaître dans aucun document comme un résultat tant que cette
-  revue n'est pas close.
+  | Stratégie   | Moyenne | Min | Max |
+  |---|---|---|---|
+  | `Random`     | **95,69** coups | 80 | 100 |
+  | `HuntTarget` | **52,60** coups | 29 | 67  |
+  | `Density`    | **41,22** coups | 26 | 58  |
+
+  `dotnet test --filter "FullyQualifiedName~StrategyBenchmark" --logger "console;verbosity=detailed"`
+  → `Passed! - Failed: 0, Passed: 2, Skipped: 0, Total: 2` (les deux `[Fact]` de
+  `StrategyBenchmarkTests`, dont l'assertion d'ordre et de seuil ci-dessus).
+
+  L'ordre `95,69 > 52,60 > 41,22` respecte l'attendu, et `41,22 < 55`.
+
+- **Décision et justification** : **confirmée.** L'attendu énoncé le 2026-09-15 avant toute
+  implémentation est vérifié par la mesure : le périmètre à trois niveaux d'adversaire est
+  défendable tel quel, sans ajustement de seuil ni de stratégie. Les valeurs de la littérature
+  citées initialement (≈ 96 / ≈ 65-60 / ≈ 42) se sont révélées étonnamment proches malgré la
+  règle de non-adjacence — la marge de `HuntTarget` (52,6 contre ≈ 60-65 attendu par analogie)
+  est même meilleure que l'hypothèse, probablement grâce au filtre de parité qui élimine la
+  moitié de la grille dès la phase de chasse.
 
 - **Preuves reproductibles et liens vers les commits** :
-  `docs/adr/0003-strategie-adversaire.md` (commit `f379852`).
+  `BattleShip.API/Benchmark/StrategyBenchmark.cs`,
+  `BattleShip.Tests/Adversaire/StrategyBenchmarkTests.cs`,
+  `docs/adr/0003-strategie-adversaire.md` (tâche 11). La commande ci-dessus est rejouable
+  telle quelle et redonne le même ordre (test
+  `La_mesure_est_reproductible_a_graine_egale` : deux exécutions à graine 1 sur 50 parties
+  produisent des moyennes strictement égales).
 
-- **Après correction éventuelle : résultat avant / après** : sans objet à ce stade.
+- **Après correction éventuelle : résultat avant / après** : sans objet — aucune correction
+  n'a été nécessaire, l'attendu a été confirmé du premier coup.
 
-- **Limites et points non vérifiés** : la mesure portera sur une seule composition de flotte
-  et une seule taille de grille. Elle ne dira rien du comportement sur une grille réduite.
+- **Limites et points non vérifiés** : la mesure porte sur une seule composition de flotte et
+  une seule taille de grille (`GameRules.Default`, 10×10). Elle ne dit rien du comportement sur
+  une grille réduite ou une flotte différente. Elle ne mesure pas non plus l'effet de
+  `ExtraTurnOnHit` isolément : les trois stratégies en bénéficient également, donc la
+  comparaison relative reste valide, mais la valeur absolue de chaque moyenne inclut cet
+  avantage.
 
 ---
 

@@ -83,9 +83,31 @@ moitié de la grille. Une ligne de filtre, et elle s'explique en une phrase.
   Résultat attendu avant exécution : `RandomStrategy` > `HuntTargetStrategy` >
   `DensityStrategy`. Si l'ordre n'est pas respecté, une stratégie est fautive.
 
-Les valeurs souvent citées dans la littérature (≈ 96 / ≈ 65 / ≈ 42 coups) portent sur la
-grille 10×10 classique **sans** non-adjacence. Elles ne sont pas transposables ici et ne sont
-pas mesurées à ce jour : **hypothèse, pas résultat.**
+### Nombre moyen de coups — mesuré (tâche 11, REVUE-IA.md revue 3)
+
+Mesuré avec `StrategyBenchmark.Run(GameRules.Default, games: 200, seed: 20260915)`
+(`BattleShip.API/Benchmark/StrategyBenchmark.cs`), donc sur la grille 10×10, la flotte
+5-4-3-3-2 et **avec** la règle de non-adjacence (`ShipsMayTouch: false`, ADR 0006) — les
+conditions réellement retenues par ce dépôt, pas celles de la littérature :
+
+| Stratégie   | Moyenne (200 parties) | Min | Max |
+|---|---|---|---|
+| `RandomStrategy`     | 95,69 coups | 80 | 100 |
+| `HuntTargetStrategy` | 52,60 coups | 29 | 67  |
+| `DensityStrategy`    | 41,22 coups | 26 | 58  |
+
+Reproductible : `dotnet test --filter "FullyQualifiedName~StrategyBenchmark"` (voir
+`BattleShip.Tests/Adversaire/StrategyBenchmarkTests.cs` — `La_mesure_est_reproductible_a_graine_egale`
+compare deux exécutions à graine identique et exige des moyennes strictement égales).
+
+L'ordre attendu (`Random` > `HuntTarget` > `Density`) est confirmé, et `DensityStrategy`
+reste sous le seuil de 55 coups fixé avant mesure. Les valeurs de la littérature sur grille
+sans non-adjacence (≈ 96 / ≈ 65 / ≈ 42) restaient une hypothèse non transposable telle
+quelle ; la mesure réelle s'en approche malgré tout, `HuntTargetStrategy` faisant même mieux
+(52,6 contre ≈ 60-65 attendu par analogie), vraisemblablement grâce au filtre de parité qui
+élimine la moitié de la grille dès la phase de chasse. Ces chiffres portent sur une seule
+composition de flotte et une seule taille de grille ; ils ne disent rien d'une grille réduite
+ou d'une flotte différente (limite consignée dans `REVUE-IA.md`, revue 3).
 
 ## Références
 

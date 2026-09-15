@@ -115,9 +115,11 @@ Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible a
   systématiquement. C'est le résultat attendu de la combinaison de règles, pas un défaut.
   **Le niveau Normal est le mode jouable ; le niveau Difficile est une démonstration de
   l'algorithme.**
-- Les nombres moyens de coups par niveau ne sont **pas encore mesurés** : les valeurs citées
-  dans les ADR sont des hypothèses issues de la littérature, sur une grille sans règle de
-  non-adjacence (`REVUE-IA.md`, revue 3).
+- Les nombres moyens de coups par niveau sont **mesurés** (200 parties par stratégie, graine
+  20260915, `GameRules.Default` avec non-adjacence) : `Random` 95,7, `HuntTarget` 52,6,
+  `Density` 41,2 coups. L'ordre attendu est confirmé et `Density` reste sous le seuil de 55
+  coups fixé avant mesure (`docs/adr/0003-strategie-adversaire.md`, `REVUE-IA.md` revue 3).
+  Ces chiffres ne portent que sur cette composition de flotte et cette taille de grille.
 - L'état de partie est **en mémoire** : redémarrer l'API perd les parties en cours.
 - Le tir n'est pas testable depuis `api.http` (conséquence assumée de l'ADR 0005).
 
