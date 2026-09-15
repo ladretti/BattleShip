@@ -37,8 +37,19 @@ public sealed class InMemoryGameStoreTests
         store.Save(game);
 
         var cible = new Coordinate(0, 0);
-        var tirs = Enumerable.Range(0, 32).Select(_ => Task.Run(() =>
-            store.Mutate(game.Id, g => g.PlayerFires(cible))));
+        const int nombreDeTirs = 32;
+        // Task.Run seul ne garantit pas la collision : l'ordonnanceur peut démarrer
+        // et terminer les premières tâches avant même de lancer les dernières. La
+        // barrière force les 32 tâches à attendre un point de rendez-vous commun
+        // avant de tirer, pour qu'elles entrent réellement dans Mutate en même
+        // temps. Le nombre de participants DOIT correspondre exactement au nombre
+        // de tâches : sinon SignalAndWait bloque indéfiniment au lieu d'échouer.
+        using var depart = new Barrier(nombreDeTirs);
+        var tirs = Enumerable.Range(0, nombreDeTirs).Select(_ => Task.Run(() =>
+        {
+            depart.SignalAndWait();
+            return store.Mutate(game.Id, g => g.PlayerFires(cible));
+        }));
 
         var resultats = await Task.WhenAll(tirs);
 
