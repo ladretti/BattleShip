@@ -93,4 +93,13 @@ public sealed class HttpEndpointsTests : IClassFixture<WebApplicationFactory<Pro
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
+
+    [Fact]
+    public async Task The_created_game_keeps_the_requested_difficulty()
+    {
+        var response = await _client.PostAsJsonAsync("/games", new CreateGameInput(10, "Hard"));
+        var dto = await response.Content.ReadFromJsonAsync<GameDto>();
+
+        Assert.Equal("Hard", dto!.OpponentDifficulty);
+    }
 }

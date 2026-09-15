@@ -17,7 +17,8 @@ public static class DtoMappings
             game.Status.ToString(),
             game.CurrentPlayer.ToString(),
             ToOwnBoardDto(game.HumanBoard, game.History),
-            ToOpponentBoardDto(game.OpponentBoard, game.History));
+            ToOpponentBoardDto(game.OpponentBoard, game.History),
+            game.OpponentDifficulty);
 
     public static IReadOnlyList<ShotDto> ToDto(this IReadOnlyList<ShotRecord> history) =>
         [.. history.Select(ToShotDto)];

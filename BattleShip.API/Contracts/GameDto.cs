@@ -60,5 +60,11 @@ public sealed record ShotDto(int X, int Y, string Result, string By, string? Sun
 /// <see cref="ShotDto.By"/> follows suit for consistency, since it carries the same
 /// <c>Player</c> enum as <see cref="CurrentPlayer"/>. Both casings are deliberate;
 /// neither is an oversight.
+///
+/// <see cref="OpponentDifficulty"/> mirrors <c>Game.OpponentDifficulty</c> verbatim (e.g.
+/// "Easy", "Normal", "Hard") so the front end can display the level of the game in
+/// progress — the name only, never a behavioral object.
 /// </summary>
-public sealed record GameDto(Guid Id, string Status, string CurrentPlayer, OwnBoardDto Own, OpponentBoardDto Opponent);
+public sealed record GameDto(
+    Guid Id, string Status, string CurrentPlayer, OwnBoardDto Own, OpponentBoardDto Opponent,
+    string OpponentDifficulty);

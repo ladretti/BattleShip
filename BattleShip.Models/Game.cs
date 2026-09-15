@@ -12,6 +12,20 @@ public sealed class Game
 
     public Guid Id { get; }
     public GameRules Rules { get; }
+
+    /// <summary>
+    /// Name of the difficulty level the opponent was created with (e.g. "Easy", "Normal",
+    /// "Hard" — see <c>CreateGameInputValidator</c> for the closed set of accepted
+    /// values). Deliberately a name, not an <see cref="IOpponentStrategy"/> instance:
+    /// a name is data, so it survives a future serialization the day persistence leaves
+    /// the backlog, where a strategy instance would not; the front end needs to display
+    /// the game's level, which calls for the data, not the behavior; and it keeps this
+    /// aggregate free of any behavioral object, consistent with a store that only holds
+    /// state. The API layer resolves the actual <see cref="IOpponentStrategy"/> from this
+    /// name, through <c>IOpponentStrategyFactory</c>, at the moment it makes the opponent
+    /// fire — never here.
+    /// </summary>
+    public string OpponentDifficulty { get; }
     // Private setter: only PlaceHumanFleet replaces it, once, to move a Placing game to
     // InProgress. OpponentBoard has no such setter — the opponent fleet is placed once,
     // up front, and never replaced.
@@ -39,7 +53,9 @@ public sealed class Game
     /// </summary>
     public IReadOnlyList<ShotRecord> History => _history;
 
-    private Game(Guid id, GameRules rules, Board humanBoard, Board opponentBoard, GameStatus status)
+    private Game(
+        Guid id, GameRules rules, Board humanBoard, Board opponentBoard, GameStatus status,
+        string opponentDifficulty)
     {
         Id = id;
         Rules = rules;
@@ -47,14 +63,23 @@ public sealed class Game
         OpponentBoard = opponentBoard;
         CurrentPlayer = Player.Human;
         Status = status;
+        OpponentDifficulty = opponentDifficulty;
     }
 
+    /// <summary>
+    /// <paramref name="opponentDifficulty"/> defaults to "Normal" so that the many
+    /// existing domain tests built around <see cref="Start"/>, which predate
+    /// <see cref="OpponentDifficulty"/>, keep compiling unchanged — this default is a
+    /// backward-compatibility convenience for tests, not a claim that "Normal" is the
+    /// right difficulty for production callers.
+    /// </summary>
     public static Game Start(
-        Guid id, GameRules rules, IReadOnlyList<Ship> humanShips, IReadOnlyList<Ship> opponentShips)
+        Guid id, GameRules rules, IReadOnlyList<Ship> humanShips, IReadOnlyList<Ship> opponentShips,
+        string opponentDifficulty = "Normal")
     {
         var humanBoard = new Board(rules.GridSize, humanShips);
         var opponentBoard = new Board(rules.GridSize, opponentShips);
-        return new Game(id, rules, humanBoard, opponentBoard, GameStatus.InProgress);
+        return new Game(id, rules, humanBoard, opponentBoard, GameStatus.InProgress, opponentDifficulty);
     }
 
     /// <summary>
@@ -64,12 +89,19 @@ public sealed class Game
     /// and never changes afterwards, so it is supplied here just like in
     /// <see cref="Start"/>. Call <see cref="PlaceHumanFleet"/> to complete the setup and
     /// move the game to <see cref="GameStatus.InProgress"/>.
+    ///
+    /// <paramref name="opponentDifficulty"/> is required, unlike <see cref="Start"/>'s
+    /// optional parameter of the same name: a game created through the HTTP contract
+    /// always names a difficulty (see <c>CreateGameInputValidator</c>), so there is no
+    /// legacy caller to keep compiling here, and a game without one designated would not
+    /// make sense.
     /// </summary>
-    public static Game Create(Guid id, GameRules rules, IReadOnlyList<Ship> opponentShips)
+    public static Game Create(
+        Guid id, GameRules rules, IReadOnlyList<Ship> opponentShips, string opponentDifficulty)
     {
         var humanBoard = new Board(rules.GridSize, []);
         var opponentBoard = new Board(rules.GridSize, opponentShips);
-        return new Game(id, rules, humanBoard, opponentBoard, GameStatus.Placing);
+        return new Game(id, rules, humanBoard, opponentBoard, GameStatus.Placing, opponentDifficulty);
     }
 
     /// <summary>

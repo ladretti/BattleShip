@@ -43,7 +43,7 @@ public static class GameEndpoints
                     $"Could not place the opponent fleet: {opponentFleet.Error}.");
             }
 
-            var game = Game.Create(Guid.NewGuid(), rules, opponentFleet.Value);
+            var game = Game.Create(Guid.NewGuid(), rules, opponentFleet.Value, input.Difficulty);
             store.Save(game);
 
             return TypedResults.Created($"/games/{game.Id}", game.ToDto());
