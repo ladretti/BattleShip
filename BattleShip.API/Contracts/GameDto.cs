@@ -1,13 +1,20 @@
 namespace BattleShip.API.Contracts;
 
 /// <summary>
-/// A single cell, always tied to something the receiving player is entitled to know:
-/// a shot that was fired (<see cref="OpponentBoardDto.Shots"/>,
-/// <see cref="OwnBoardDto.ReceivedShots"/>) or a cell of a ship that hit status has
-/// already revealed (<see cref="ShipDto.Cells"/>, <see cref="SunkShipDto.Cells"/>).
-/// <see cref="State"/> is one of "miss", "hit" or "sunk" — there is deliberately no
-/// fourth value for "nothing happened here yet", because this type never carries a
-/// cell whose outcome is still secret.
+/// A single cell, always tied to something the receiving player is entitled to know.
+/// <see cref="State"/> is one of "miss", "hit", "sunk" or "ship" (lower case: see
+/// <see cref="GameDto"/> for the casing rule).
+///
+/// "miss", "hit" and "sunk" report the outcome of a shot that was actually fired —
+/// they appear under <see cref="OpponentBoardDto.Shots"/>,
+/// <see cref="OwnBoardDto.ReceivedShots"/> and, once a ship is sunk, under
+/// <see cref="ShipDto.Cells"/> / <see cref="SunkShipDto.Cells"/>.
+///
+/// "ship" marks a cell of one of the player's own ships that has not been hit yet. It
+/// can only appear under <see cref="OwnBoardDto"/>: <see cref="SunkShipDto"/> (under
+/// <see cref="OpponentBoardDto"/>) only ever projects ships that are already fully
+/// hit, so it never has an untouched cell to describe. This is precisely what keeps
+/// "ship" from ever exposing an undiscovered opposing cell.
 /// </summary>
 public sealed record CellDto(int X, int Y, string State);
 
@@ -30,14 +37,28 @@ public sealed record OpponentBoardDto(int GridSize, IReadOnlyList<CellDto> Shots
 public sealed record SunkShipDto(string Name, IReadOnlyList<CellDto> Cells);
 
 /// <summary>
-/// One of the player's own ships. <see cref="Cells"/> lists the cells hit so far (all
-/// of them, once <see cref="IsSunk"/> is true) — never the cells still afloat, since a
-/// cell with no shot outcome has no valid <see cref="CellDto.State"/> to carry.
+/// One of the player's own ships. <see cref="Cells"/> always lists every one of the
+/// ship's <see cref="Size"/> cells — it is the player's own ship, so its full shape is
+/// never secret. Each cell's <see cref="CellDto.State"/> is "sunk" once the whole ship
+/// is sunk, otherwise "hit" or "ship" depending on that individual cell.
 /// </summary>
 public sealed record ShipDto(string Name, int Size, IReadOnlyList<CellDto> Cells, bool IsSunk);
 
 /// <summary>One entry of the shot history, as exposed by the history endpoint (task 20).</summary>
 public sealed record ShotDto(int X, int Y, string Result, string By, string? SunkShipName);
 
-/// <summary>The whole state of a game as the current player is entitled to see it.</summary>
+/// <summary>
+/// The whole state of a game as the current player is entitled to see it.
+///
+/// Casing rule for the string fields of this DTO graph, settled to match the gRPC-Web
+/// contract of task 14 rather than pick a single convention for its own sake: shot
+/// outcomes (<see cref="CellDto.State"/>, <see cref="ShotDto.Result"/>) are lower case
+/// ("miss", "hit", "sunk", "ship"), because the task 14 `.proto`'s `Shot.result` field
+/// is documented there as `miss | hit | sunk`. <see cref="Status"/> and
+/// <see cref="CurrentPlayer"/> stay PascalCase (e.g. "InProgress", "Human"), because
+/// that `.proto`'s `FireResponse` documents `status`/`current_player` the same way;
+/// <see cref="ShotDto.By"/> follows suit for consistency, since it carries the same
+/// <c>Player</c> enum as <see cref="CurrentPlayer"/>. Both casings are deliberate;
+/// neither is an oversight.
+/// </summary>
 public sealed record GameDto(Guid Id, string Status, string CurrentPlayer, OwnBoardDto Own, OpponentBoardDto Opponent);

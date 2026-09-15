@@ -54,12 +54,32 @@ La désynchronisation devient **impossible par construction** plutôt qu'évité
 
 ## Vérification et réexamen
 
-À vérifier lors de l'implémentation, non encore fait :
+- Fin de partie : `GameTests` (tâche 4) contient un test qui coule le dernier navire et
+  vérifie que la partie passe à `Finished`.
 
-- Un test qui coule le dernier navire et vérifie que la partie passe à `Finished`.
-- Un test qui sérialise le DTO du plateau adverse et vérifie qu'aucune coordonnée d'un
-  navire non touché n'y apparaît. Ce test échoue immédiatement si `ToDto()` sérialise
-  `Board.Ships` — c'est son pouvoir discriminant.
+- Règle du secret (tâche 12) : `BattleShip.Tests/Api/SecretTests.cs`.
+  `The_dto_reveals_no_undiscovered_opposing_cell` sérialise `Game.ToDto()` et vérifie que
+  l'intersection entre les cases exposées par `dto.Opponent` (tirs + navires coulés) et les
+  cases non découvertes de la flotte adverse est vide. Son pouvoir discriminant a été mesuré
+  par injection de fuite (retrait du filtre `Where(ship => ship.IsSunk)` dans
+  `ToOpponentBoardDto`) : le test échoue alors en identifiant précisément les coordonnées
+  fuitées.
+  Une première version de ce test cherchait une sous-chaîne `"x":N,"y":N"` dans le JSON du
+  `GameDto` entier plutôt que dans le seul sous-arbre `Opponent` ; une revue a montré qu'elle
+  produisait un faux positif dès que `Own.Ships` porte les vraies coordonnées de la flotte du
+  joueur, les deux plateaux partageant le même espace 0..9 (deux coordonnées communes aux
+  deux flottes sur les graines 1/2 du test, 186 paires de graines sur 200 en partageant au
+  moins une). Le test a été repris pour porter sur le graphe d'objets de `dto.Opponent`
+  uniquement — voir aussi `The_own_board_is_the_player_board_and_not_the_opponent_one`, qui
+  détecte spécifiquement une inversion des deux plateaux dans `ToDto()` (pouvoir discriminant
+  mesuré de la même façon, par inversion temporaire des arguments).
+
+- Décision sur `CellDto.State` : l'énumération est passée de trois à quatre valeurs
+  (`"miss"`, `"hit"`, `"sunk"`, `"ship"`). `"ship"` désigne une case d'un navire du joueur
+  non encore touchée ; elle n'apparaît **jamais** sous `OpponentBoardDto`, puisque
+  `SunkShipDto` ne projette que des navires déjà entièrement coulés. Cette quatrième valeur
+  a été ajoutée après revue, et non de l'initiative unilatérale de l'IA lors de la tâche 12 —
+  voir `BattleShip.API/Contracts/GameDto.cs` (doc XML de `CellDto`).
 
 À réexaminer si une grille de très grande taille apparaissait au backlog, ou si un profilage
 montrait que la recherche linéaire au tir devient mesurable.

@@ -54,11 +54,23 @@ public static class DtoMappings
 
     private static ShipDto ToShipDto(Ship ship)
     {
-        var cells = ship.HitCells
-            .Select(cell => new CellDto(cell.X, cell.Y, ship.IsSunk ? "sunk" : "hit"))
+        // The player's own ship: every cell is projected, hit or not — there is
+        // nothing to hide on your own board. "ship" (an afloat, untouched cell) must
+        // never appear under OpponentBoardDto; ToSunkShipDto never produces it, since
+        // it only ever runs on ships that are already fully hit.
+        var cells = ship.Cells
+            .Select(cell => new CellDto(cell.X, cell.Y, CellState(ship, cell)))
             .ToList();
 
         return new ShipDto(ship.Name, ship.Size, cells, ship.IsSunk);
+    }
+
+    private static string CellState(Ship ship, Coordinate cell)
+    {
+        if (ship.IsSunk)
+            return "sunk";
+
+        return ship.HitCells.Contains(cell) ? "hit" : "ship";
     }
 
     private static SunkShipDto ToSunkShipDto(Ship ship) =>
@@ -68,7 +80,7 @@ public static class DtoMappings
         new(shot.At.X, shot.At.Y, ToState(shot.Result));
 
     private static ShotDto ToShotDto(ShotRecord shot) =>
-        new(shot.At.X, shot.At.Y, shot.Result.ToString(), shot.By.ToString(), shot.SunkShipName);
+        new(shot.At.X, shot.At.Y, ToState(shot.Result), shot.By.ToString(), shot.SunkShipName);
 
     private static string ToState(ShotResult result) => result switch
     {
