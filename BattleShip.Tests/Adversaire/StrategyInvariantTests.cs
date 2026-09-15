@@ -28,8 +28,26 @@ public sealed class StrategyInvariantTests
             var joues = new HashSet<Coordinate>();
             var coups = new List<ShotRecord>();
 
+            // Garde-fou : une partie ne peut pas dépasser GridSize * GridSize coups,
+            // puisque chaque coup consomme une case distincte — c'est précisément ce
+            // que cet invariant garantit. Au-delà, la stratégie ne progresse plus.
+            // xUnit n'impose aucune limite de temps par défaut (aucun Timeout n'est
+            // posé sur ce [Theory]) : sans ce garde-fou, une stratégie qui cesse de
+            // progresser bloquerait la suite entière sans jamais produire d'échec.
+            //
+            // Ce garde-fou ne protège PAS contre une boucle infinie à l'intérieur
+            // d'un seul appel à NextShot : l'assertion ci-dessous ne serait alors
+            // jamais atteinte. La vraie parade contre ce second cas est l'absence de
+            // boucle non bornée dans NextShot, côté implémentation des stratégies.
+            var coupsMax = rules.GridSize * rules.GridSize;
+            var coupsJoues = 0;
+
             while (!cible.AllSunk)
             {
+                Assert.True(++coupsJoues <= coupsMax,
+                    $"{nom} (graine {seed}) n'a pas coulé la flotte en {coupsMax} coups : " +
+                    "la stratégie ne progresse plus.");
+
                 var history = HistoriqueDepuis(rules, cible, coups);
                 var coup = strategy.NextShot(history);
 
