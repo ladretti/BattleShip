@@ -38,7 +38,7 @@ réservées à ce qui ne devrait jamais arriver.
 public enum GameError
 {
     GameNotFound, OutOfBounds, CellAlreadyShot,
-    GameAlreadyFinished, NotYourTurn, InvalidPlacement
+    GameAlreadyFinished, GameNotStarted, NotYourTurn, InvalidPlacement
 }
 ```
 
@@ -76,6 +76,7 @@ Le choix se joue donc sur la lisibilité et sur la traduction vers les façades.
   | `OutOfBounds` | `InvalidArgument` | `400` |
   | `CellAlreadyShot` | `InvalidArgument` | `409` |
   | `GameAlreadyFinished` | `FailedPrecondition` | `409` |
+  | `GameNotStarted` | `FailedPrecondition` | `409` |
   | `NotYourTurn` | `FailedPrecondition` | `409` |
   | `InvalidPlacement` | `InvalidArgument` | `400` |
 

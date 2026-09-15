@@ -375,7 +375,7 @@ public enum Orientation { Horizontal, Vertical }
 // ShipTemplate.cs
 public sealed record ShipTemplate(string Name, int Size);
 
-// GameError.cs
+// GameError.cs — GameNotStarted est ajouté par la tâche 6 (garde fail-closed).
 public enum GameError
 {
     GameNotFound, OutOfBounds, CellAlreadyShot,
@@ -899,6 +899,16 @@ succès : enregistrer dans `History`, passer la main si le coup est manqué ou s
 `OpponentFires` est son symétrique exact : mêmes contrôles avec `CurrentPlayer == Opponent`,
 tir sur `HumanBoard`, `Finished` si `HumanBoard.AllSunk`. Factoriser le corps commun dans une
 méthode privée prenant le plateau cible et le joueur — ne pas dupliquer la logique de tour.
+
+> **La garde d'état doit être fail-closed.** Refuser seulement `Status == Finished` laisse
+> passer tout autre état, `Placing` compris — que la tâche 13 produira bel et bien, puisque la
+> flotte du joueur est posée par un endpoint dédié après la création de la partie. Écrire donc
+> deux contrôles : d'abord `Status == Finished` → `GameAlreadyFinished`, puis
+> `Status != InProgress` → **`GameNotStarted`** (septième membre de `GameError`, ajouté ici).
+> Le second est en négatif sur `InProgress` à dessein : tout membre ajouté plus tard à
+> l'énumération sera refusé par omission plutôt qu'autorisé. `Board` doit par ailleurs faire
+> une **copie défensive** de la liste de navires reçue — sans elle, l'appelant garde prise sur
+> l'invariant central du plateau.
 
 - [ ] **Étape 4 : Lancer les tests et constater le succès**
 

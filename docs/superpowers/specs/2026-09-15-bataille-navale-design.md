@@ -61,7 +61,7 @@ navires d'au plus cinq cases.
 | `GameRules` | `GridSize`, `Fleet`, `ShipsMayTouch = false`, `ExtraTurnOnHit = true` |
 | `Game` | agrégat : `Id`, `Rules`, `HumanBoard`, `OpponentBoard`, `CurrentPlayer`, `Status`, `History` |
 | `ShotRecord` | `(Coordinate At, ShotResult Result, Player By, int Turn)` |
-| `Result<T>` / `GameError` | issues métier normales (voir § 5) |
+| `Result<T>` / `GameError` | issues métier normales (voir § 5) — sept membres |
 | `PlacementRules` | fonctions pures : bornes, chevauchement, adjacence |
 | `FleetPlacer(Random random)` | placement aléatoire par tirage-rejet avec compteur de garde |
 | `IOpponentStrategy` / `ShotHistory` | contrat de l'adversaire (voir § 4) |
@@ -183,6 +183,7 @@ devrait jamais arriver (ADR 0004, qui **renverse** le § Gestion des erreurs de 
 | `OutOfBounds` | `InvalidArgument` | `400` |
 | `CellAlreadyShot` | `InvalidArgument` | `409` |
 | `GameAlreadyFinished` | `FailedPrecondition` | `409` |
+| `GameNotStarted` | `FailedPrecondition` | `409` |
 | `NotYourTurn` | `FailedPrecondition` | `409` |
 | `InvalidPlacement` | `InvalidArgument` | `400` |
 
