@@ -17,8 +17,15 @@ Des constantes en dur sont plus simples, mais rendent les tests de cas limites v
 faut jouer dix-sept coups pour atteindre une fin de partie — et imposeraient un refactor du
 moteur à la première extension.
 
-**Décidé : paramétrables**, avec pour défaut 10×10 et la flotte classique 5-4-3-3-2. Le
+**Décidé : paramétrables**, avec pour défaut 10×10 et la flotte classique 5-4-3-3-2 —
+`Carrier` 5, `Battleship` 4, `Cruiser` 3, `Submarine` 3, `Destroyer` 2 (`GameRules.Default`). Le
 paramétrage est quasi gratuit s'il est fait dès le départ, très coûteux en rétrofit.
+
+Ces noms anglais sont la nomenclature canonique du jeu *Battleship*, **pas une traduction** des
+anciens noms français : `Cruiser` est le navire de taille **3** (et non le « Croiseur », qui
+faisait 4) et `Destroyer` celui de taille **2**. Seuls les noms changent ; les tailles sont
+inchangées. Écrire `new ShipTemplate("Cruiser", 4)` par correspondance littérale produirait une
+flotte invalide.
 
 Le gain principal est **la testabilité** : une grille 3×3 avec un seul navire de taille 2
 rend la saturation, le débordement et la fin de partie atteignables en quelques coups.

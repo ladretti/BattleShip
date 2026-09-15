@@ -176,10 +176,10 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
 
 - **Preuves reproductibles et liens vers les commits** :
   `BattleShip.API/Benchmark/StrategyBenchmark.cs`,
-  `BattleShip.Tests/Adversaire/StrategyBenchmarkTests.cs`,
+  `BattleShip.Tests/Opponent/StrategyBenchmarkTests.cs`,
   `docs/adr/0003-strategie-adversaire.md` (tâche 11). La commande ci-dessus est rejouable
   telle quelle et redonne le même ordre (test
-  `La_mesure_est_reproductible_a_graine_egale` : deux exécutions à graine 1 sur 50 parties
+  `The_measurement_is_reproducible_for_an_equal_seed` : deux exécutions à graine 1 sur 50 parties
   produisent des moyennes strictement égales).
 
 - **Après correction éventuelle : résultat avant / après** : sans objet — aucune correction
@@ -199,8 +199,8 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
 Cette revue a changé de conclusion à deux reprises au fil des mesures. Les trois tentatives
 sont rapportées dans l'ordre où elles ont eu lieu, avec ce que chacune a infirmé.
 
-- **Proposition et référence dans le dépôt** : `BattleShip.Tests/Domaine/InMemoryGameStoreTests.cs`,
-  test `Un_seul_tir_simultane_sur_la_meme_case_reussit` (5 `[InlineData]`), qui vérifie
+- **Proposition et référence dans le dépôt** : `BattleShip.Tests/Domain/InMemoryGameStoreTests.cs`,
+  test `Only_one_concurrent_shot_on_the_same_cell_succeeds` (5 `[InlineData]`), qui vérifie
   qu'un seul de 32 tirs concurrents sur la même case réussit. L'implémentation testée est
   `InMemoryGameStore.Mutate` (`BattleShip.API/Stores/InMemoryGameStore.cs`, commits `883fe0b`
   puis `37f9734`), qui protège chaque partie par un verrou obtenu via
@@ -215,7 +215,7 @@ sont rapportées dans l'ordre où elles ont eu lieu, avec ce que chacune a infir
   `Mutate` (corps conservé, exécuté sans synchronisation), puis lancer trois fois de suite :
 
   ```bash
-  dotnet test --filter "Un_seul_tir_simultane_sur_la_meme_case_reussit"
+  dotnet test --filter "Only_one_concurrent_shot_on_the_same_cell_succeeds"
   ```
 
   répété à chacune des trois versions du mécanisme de départ des 32 tirs concurrents :
@@ -316,7 +316,7 @@ sont rapportées dans l'ordre où elles ont eu lieu, avec ce que chacune a infir
   - `44bd57c` — tentative rejetée : départ synchronisé par `Barrier(32)` sur `Task.Run`.
   - `c604123` — version retenue : `Barrier(32)` sur 32 `Thread` dédiés, assertions inchangées.
   - Commande rejouable telle quelle (avec le `lock` commenté manuellement pour l'expérience) :
-    `dotnet test --filter "Un_seul_tir_simultane_sur_la_meme_case_reussit"`.
+    `dotnet test --filter "Only_one_concurrent_shot_on_the_same_cell_succeeds"`.
 
 - **Après correction éventuelle : résultat avant / après** :
   - *Avant toute mesure* (verrou en place, test original `Task.Run`, commit `883fe0b`) :

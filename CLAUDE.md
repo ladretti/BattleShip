@@ -87,6 +87,10 @@ persistance est une piste de backlog, pas une contrainte du socle.
 
 Le piège principal : la syntaxe ressemble à Java, **les conventions sont différentes**.
 
+**Langue : tout le code est en anglais** — identifiants, commentaires, documentation XML,
+littéraux et texte affiché — tandis que la documentation destinée aux humains (README, ADR,
+`PROMPTS.md`, `REVUE-IA.md`, spec) et les messages de commit restent en français.
+
 ### Nommage
 
 - `PascalCase` : types, méthodes, propriétés publiques, constantes, méthodes async.
@@ -94,7 +98,8 @@ Le piège principal : la syntaxe ressemble à Java, **les conventions sont diff�
 - `_camelCase` : champs privés.
 - `IPascalCase` : interfaces.
 - Suffixe `Async` sur les méthodes retournant `Task` / `Task<T>`.
-- Noms de tests en français descriptif, style `Un_prix_negatif_est_refuse`.
+- Noms de tests en anglais descriptif, mots séparés par des underscores, style
+  `A_shot_outside_the_grid_is_rejected`.
 
 ### Propriétés, pas de getters/setters
 

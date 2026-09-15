@@ -14,12 +14,17 @@ structurante y renvoie vers son ADR, qui en porte la justification détaillée.
 | Règle | Valeur retenue | ADR |
 |---|---|---|
 | Taille de grille | paramétrable, défaut **10×10** | 0006 |
-| Flotte | paramétrable, défaut **5-4-3-3-2** (Porte-avions, Croiseur, Contre-torpilleur, Sous-marin, Torpilleur) | 0006 |
+| Flotte | paramétrable, défaut **5-4-3-3-2** (`Carrier` 5, `Battleship` 4, `Cruiser` 3, `Submarine` 3, `Destroyer` 2) | 0006 |
 | Navires adjacents | **interdits** — deux navires ne peuvent pas se toucher, diagonales comprises | 0006 |
 | Enchaînement des tours | **touche = on rejoue** ; le tour ne change qu'après un coup manqué | 0006 |
 | Placement de la flotte du joueur | **manuel**, dans le navigateur, validé côté serveur | 0006 |
 | Placement de la flotte adverse | automatique (`FleetPlacer` à `Random` injecté) | 0006 |
 | Fin de partie | tous les navires d'un camp coulés | 0006 |
+
+> Les noms de la flotte reprennent la nomenclature canonique du jeu *Battleship* : c'est une
+> redésignation, **pas une traduction** des anciens noms français — `Cruiser` désigne le navire
+> de taille **3** (et non le « Croiseur », qui faisait 4) et `Destroyer` celui de taille **2**.
+> Seuls les noms changent ; les tailles 5-4-3-3-2 sont inchangées.
 
 La grille et la flotte sont des **données** (`GameRules`), pas des constantes. Ce choix sert
 d'abord les tests : une grille 3×3 avec un seul navire de taille 2 rend les cas limites

@@ -31,7 +31,7 @@ Elles s'appliquent implicitement à **toutes** les tâches.
 - **Aucun `Random.Shared` en dur** : la source d'aléa est injectée.
 - **Refus métier → `Result<T>`** ; exceptions réservées aux anomalies (ADR 0004).
 - **Le secret** : ni le front ni l'adversaire ne reçoivent les positions non découvertes.
-- Noms de tests en **français descriptif** : `Un_tir_hors_grille_est_refuse`.
+- Noms de tests en **anglais descriptif** : `A_shot_outside_the_grid_is_rejected`.
 - `dotnet format` avant chaque commit ; messages de commit en français, un sujet par commit.
 - Chaque commit se termine par la ligne de co-auteur en vigueur sur ce dépôt.
 
@@ -187,7 +187,7 @@ public sealed class GrpcHarnessTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     [Fact]
-    public async Task Un_appel_grpc_web_depuis_le_serveur_de_test_repond()
+    public async Task A_grpc_web_call_from_the_test_server_responds()
     {
         var client = new PingService.PingServiceClient(CreateChannel());
 
@@ -200,7 +200,7 @@ public sealed class GrpcHarnessTests : IClassFixture<WebApplicationFactory<Progr
 
 - [ ] **Étape 3 : Lancer le test et constater l'échec**
 
-Exécuter : `dotnet test --filter Un_appel_grpc_web_depuis_le_serveur_de_test_repond`
+Exécuter : `dotnet test --filter A_grpc_web_call_from_the_test_server_responds`
 Attendu : ÉCHEC — le service `PingService` n'existe pas encore.
 
 - [ ] **Étape 4 : Implémenter le service et le câblage**
@@ -229,7 +229,7 @@ Ajouter en fin de `Program.cs` : `public partial class Program;` — nécessaire
 
 - [ ] **Étape 5 : Lancer le test et constater le succès**
 
-Exécuter : `dotnet test --filter Un_appel_grpc_web_depuis_le_serveur_de_test_repond`
+Exécuter : `dotnet test --filter A_grpc_web_call_from_the_test_server_responds`
 Attendu : SUCCÈS.
 
 **Si l'étape échoue encore** : ne pas relancer à l'identique. Lire l'erreur entière, puis
@@ -253,7 +253,7 @@ git commit -m "test: valide le montage gRPC-Web sur WebApplicationFactory"
 - Créer : `BattleShip.Models/Coordinate.cs`, `BattleShip.Models/ShipTemplate.cs`,
   `BattleShip.Models/Ship.cs`, `BattleShip.Models/Orientation.cs`,
   `BattleShip.Models/GameError.cs`, `BattleShip.Models/Result.cs`
-- Tests : `BattleShip.Tests/Domaine/ShipTests.cs`, `BattleShip.Tests/Domaine/ResultTests.cs`
+- Tests : `BattleShip.Tests/Domain/ShipTests.cs`, `BattleShip.Tests/Domain/ResultTests.cs`
 
 **Interfaces**
 - Produit : `Coordinate(int X, int Y)`, `ShipTemplate(string Name, int Size)`,
@@ -266,28 +266,28 @@ git commit -m "test: valide le montage gRPC-Web sur WebApplicationFactory"
 
 - [ ] **Étape 1 : Écrire les tests**
 
-`BattleShip.Tests/Domaine/ShipTests.cs` :
+`BattleShip.Tests/Domain/ShipTests.cs` :
 
 ```csharp
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Domaine;
+namespace BattleShip.Tests.Domain;
 
 public sealed class ShipTests
 {
-    private static Ship Torpilleur() => new("Torpilleur", 2,
+    private static Ship Destroyer() => new("Destroyer", 2,
         [new Coordinate(0, 0), new Coordinate(0, 1)]);
 
     [Fact]
-    public void Un_navire_neuf_n_est_pas_coule()
+    public void A_new_ship_is_not_sunk()
     {
-        Assert.False(Torpilleur().IsSunk);
+        Assert.False(Destroyer().IsSunk);
     }
 
     [Fact]
-    public void Un_navire_touche_sur_toutes_ses_cases_est_coule()
+    public void A_ship_hit_on_all_its_cells_is_sunk()
     {
-        var ship = Torpilleur();
+        var ship = Destroyer();
 
         Assert.True(ship.TryHit(new Coordinate(0, 0)));
         Assert.False(ship.IsSunk);
@@ -296,18 +296,18 @@ public sealed class ShipTests
     }
 
     [Fact]
-    public void Un_tir_a_cote_ne_touche_pas_le_navire()
+    public void A_shot_on_a_cell_outside_the_ship_does_not_hit_it()
     {
-        var ship = Torpilleur();
+        var ship = Destroyer();
 
         Assert.False(ship.TryHit(new Coordinate(5, 5)));
         Assert.False(ship.IsSunk);
     }
 
     [Fact]
-    public void Retirer_sur_une_case_deja_touchee_ne_coule_pas_le_navire()
+    public void Firing_again_on_an_already_hit_cell_does_not_sink_the_ship()
     {
-        var ship = Torpilleur();
+        var ship = Destroyer();
         ship.TryHit(new Coordinate(0, 0));
         ship.TryHit(new Coordinate(0, 0));
 
@@ -319,17 +319,17 @@ public sealed class ShipTests
 > Le dernier test est celui qui discrimine : une implémentation qui incrémenterait un
 > compteur `Hits` au lieu de mémoriser les cases touchées le fait échouer.
 
-`BattleShip.Tests/Domaine/ResultTests.cs` :
+`BattleShip.Tests/Domain/ResultTests.cs` :
 
 ```csharp
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Domaine;
+namespace BattleShip.Tests.Domain;
 
 public sealed class ResultTests
 {
     [Fact]
-    public void Un_resultat_ok_porte_sa_valeur()
+    public void An_ok_result_carries_its_value()
     {
         var result = Result<int>.Ok(42);
 
@@ -338,7 +338,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Un_resultat_en_echec_porte_son_erreur()
+    public void A_failed_result_carries_its_error()
     {
         var result = Result<int>.Fail(GameError.CellAlreadyShot);
 
@@ -347,7 +347,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Lire_la_valeur_d_un_resultat_en_echec_est_une_anomalie()
+    public void Reading_the_value_of_a_failed_result_is_an_anomaly()
     {
         var result = Result<int>.Fail(GameError.OutOfBounds);
 
@@ -358,7 +358,7 @@ public sealed class ResultTests
 
 - [ ] **Étape 2 : Lancer les tests et constater l'échec**
 
-Exécuter : `dotnet test --filter Domaine`
+Exécuter : `dotnet test --filter Tests.Domain`
 Attendu : ÉCHEC de compilation — aucun de ces types n'existe.
 
 - [ ] **Étape 3 : Implémenter**
@@ -375,7 +375,7 @@ public enum Orientation { Horizontal, Vertical }
 // ShipTemplate.cs
 public sealed record ShipTemplate(string Name, int Size);
 
-// GameError.cs — GameNotStarted est ajouté par la tâche 6 (garde fail-closed).
+// GameError.cs — GameNotStarted is added by task 6 (fail-closed guard).
 public enum GameError
 {
     GameNotFound, OutOfBounds, CellAlreadyShot,
@@ -406,7 +406,7 @@ deux fois un effet de bord sur le même dégât.
 
 - [ ] **Étape 4 : Lancer les tests et constater le succès**
 
-Exécuter : `dotnet test --filter Domaine`
+Exécuter : `dotnet test --filter Tests.Domain`
 Attendu : 13 tests, tous au vert (5 sur `Ship`, 8 sur `Result`).
 
 - [ ] **Étape 5 : Commit**
@@ -428,60 +428,69 @@ git commit -m "feat: ajoute les types de base du domaine et Result<T>"
 **Fichiers**
 - Créer : `BattleShip.Models/GameRules.cs`, `BattleShip.Models/PlacementRules.cs`,
   `BattleShip.Models/ShipPlacement.cs`
-- Tests : `BattleShip.Tests/Domaine/PlacementRulesTests.cs`
+- Tests : `BattleShip.Tests/Domain/PlacementRulesTests.cs`
 
 **Interfaces**
 - Consomme : `Coordinate`, `Orientation`, `ShipTemplate`, `GameError` (tâche 3).
 - Produit :
   - `GameRules(int GridSize, IReadOnlyList<ShipTemplate> Fleet, bool ShipsMayTouch, bool ExtraTurnOnHit)`
     avec `GameRules.Default` = grille 10 et la flotte **exactement nommée** :
-    `Porte-avions` 5, `Croiseur` 4, `Contre-torpilleur` 3, `Sous-marin` 3, `Torpilleur` 2 ;
-    `ShipsMayTouch: false`, `ExtraTurnOnHit: true`. Ces noms sont codés en dur dans les tests
-    des tâches 13 et 14 : ne pas les changer.
+    `Carrier` 5, `Battleship` 4, `Cruiser` 3, `Submarine` 3, `Destroyer` 2 ;
+    `ShipsMayTouch: false`, `ExtraTurnOnHit: true`.
+
+    Ces noms sont la **nomenclature anglophone standard** du jeu Battleship, et **non une
+    traduction littérale** des anciens noms français. Suivre la correspondance mot à mot
+    conduirait à une faute silencieuse : `Croiseur` se traduirait par « cruiser », or
+    `Cruiser` désigne ici le navire de **taille 3** ; `Contre-torpilleur` se traduirait par
+    « destroyer », or `Destroyer` désigne ici celui de **taille 2**. Ce sont les **tailles**
+    qui font foi et elles n'ont pas changé : 5, 4, 3, 3, 2. Écrire
+    `new ShipTemplate("Cruiser", 4)` produirait un échec opaque.
+
+    Ces noms sont codés en dur dans les tests des tâches 13 et 14 : ne pas les changer.
   - `ShipPlacement(string Name, Coordinate Origin, Orientation Orientation, int Size)`
     avec `IEnumerable<Coordinate> Cells()`
   - `static Result<IReadOnlyList<Ship>> PlacementRules.Validate(IReadOnlyList<ShipPlacement> placements, GameRules rules)`
 
 - [ ] **Étape 1 : Écrire les tests**
 
-`BattleShip.Tests/Domaine/PlacementRulesTests.cs` :
+`BattleShip.Tests/Domain/PlacementRulesTests.cs` :
 
 ```csharp
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Domaine;
+namespace BattleShip.Tests.Domain;
 
 public sealed class PlacementRulesTests
 {
-    private static readonly GameRules Petite =
-        new(GridSize: 5, Fleet: [new ShipTemplate("Torpilleur", 2)],
+    private static readonly GameRules Small =
+        new(GridSize: 5, Fleet: [new ShipTemplate("Destroyer", 2)],
             ShipsMayTouch: false, ExtraTurnOnHit: true);
 
-    private static ShipPlacement Torpilleur(int x, int y, Orientation o = Orientation.Horizontal)
-        => new("Torpilleur", new Coordinate(x, y), o, 2);
+    private static ShipPlacement Destroyer(int x, int y, Orientation o = Orientation.Horizontal)
+        => new("Destroyer", new Coordinate(x, y), o, 2);
 
     [Fact]
-    public void Un_placement_valide_est_accepte()
+    public void A_valid_placement_is_accepted()
     {
-        var result = PlacementRules.Validate([Torpilleur(0, 0)], Petite);
+        var result = PlacementRules.Validate([Destroyer(0, 0)], Small);
 
         Assert.True(result.IsOk);
         Assert.Single(result.Value);
     }
 
     [Fact]
-    public void Un_navire_qui_deborde_la_grille_est_refuse()
+    public void A_ship_that_overflows_the_grid_is_rejected()
     {
-        var result = PlacementRules.Validate([Torpilleur(4, 0)], Petite);
+        var result = PlacementRules.Validate([Destroyer(4, 0)], Small);
 
         Assert.False(result.IsOk);
         Assert.Equal(GameError.InvalidPlacement, result.Error);
     }
 
     [Fact]
-    public void Deux_navires_qui_se_chevauchent_sont_refuses()
+    public void Two_overlapping_ships_are_rejected()
     {
-        var rules = Petite with
+        var rules = Small with
         {
             Fleet = [new ShipTemplate("A", 2), new ShipTemplate("B", 2)]
         };
@@ -497,12 +506,12 @@ public sealed class PlacementRulesTests
     }
 
     [Theory]
-    [InlineData(0, 1)]   // dessous
-    [InlineData(2, 0)]   // bout à bout
-    [InlineData(2, 1)]   // diagonale
-    public void Deux_navires_qui_se_touchent_sont_refuses(int x, int y)
+    [InlineData(0, 1)]   // below
+    [InlineData(2, 0)]   // end to end
+    [InlineData(2, 1)]   // diagonal
+    public void Two_touching_ships_are_rejected(int x, int y)
     {
-        var rules = Petite with
+        var rules = Small with
         {
             Fleet = [new ShipTemplate("A", 2), new ShipTemplate("B", 2)]
         };
@@ -518,9 +527,9 @@ public sealed class PlacementRulesTests
     }
 
     [Fact]
-    public void Deux_navires_qui_se_touchent_sont_acceptes_si_la_regle_l_autorise()
+    public void Two_touching_ships_are_accepted_if_the_rule_allows_it()
     {
-        var rules = Petite with
+        var rules = Small with
         {
             Fleet = [new ShipTemplate("A", 2), new ShipTemplate("B", 2)],
             ShipsMayTouch = true
@@ -537,9 +546,9 @@ public sealed class PlacementRulesTests
     }
 
     [Fact]
-    public void Une_flotte_incomplete_est_refusee()
+    public void An_incomplete_fleet_is_rejected()
     {
-        var rules = Petite with
+        var rules = Small with
         {
             Fleet = [new ShipTemplate("A", 2), new ShipTemplate("B", 2)]
         };
@@ -597,7 +606,7 @@ git commit -m "feat: ajoute les règles de placement partagées"
 
 **Fichiers**
 - Créer : `BattleShip.Models/FleetPlacer.cs`
-- Tests : `BattleShip.Tests/Domaine/FleetPlacerTests.cs`
+- Tests : `BattleShip.Tests/Domain/FleetPlacerTests.cs`
 
 **Interfaces**
 - Consomme : `PlacementRules.Validate`, `GameRules`, `ShipPlacement` (tâche 4).
@@ -606,16 +615,16 @@ git commit -m "feat: ajoute les règles de placement partagées"
 
 - [ ] **Étape 1 : Écrire les tests**
 
-`BattleShip.Tests/Domaine/FleetPlacerTests.cs` :
+`BattleShip.Tests/Domain/FleetPlacerTests.cs` :
 
 ```csharp
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Domaine;
+namespace BattleShip.Tests.Domain;
 
 public sealed class FleetPlacerTests
 {
-    public static TheoryData<int> Graines()
+    public static TheoryData<int> Seeds()
     {
         var data = new TheoryData<int>();
         for (var seed = 1; seed <= 50; seed++) data.Add(seed);
@@ -623,8 +632,8 @@ public sealed class FleetPlacerTests
     }
 
     [Theory]
-    [MemberData(nameof(Graines))]
-    public void Un_placement_automatique_respecte_toujours_les_regles(int seed)
+    [MemberData(nameof(Seeds))]
+    public void An_automatic_placement_always_respects_the_rules(int seed)
     {
         var placer = new FleetPlacer(new Random(seed));
 
@@ -633,28 +642,28 @@ public sealed class FleetPlacerTests
         Assert.True(result.IsOk);
         var cells = result.Value.SelectMany(s => s.Cells).ToList();
 
-        // Aucune case hors grille.
+        // No cell outside the grid.
         Assert.All(cells, c =>
         {
             Assert.InRange(c.X, 0, GameRules.Default.GridSize - 1);
             Assert.InRange(c.Y, 0, GameRules.Default.GridSize - 1);
         });
 
-        // Aucun chevauchement.
+        // No overlap.
         Assert.Equal(cells.Count, cells.Distinct().Count());
 
-        // Aucune adjacence entre deux navires distincts.
+        // No adjacency between two distinct ships.
         foreach (var a in result.Value)
             foreach (var b in result.Value.Where(x => !ReferenceEquals(x, a)))
                 foreach (var ca in a.Cells)
                     foreach (var cb in b.Cells)
                         Assert.False(
                             Math.Abs(ca.X - cb.X) <= 1 && Math.Abs(ca.Y - cb.Y) <= 1,
-                            $"navires adjacents en {ca} et {cb} (graine {seed})");
+                            $"adjacent ships at {ca} and {cb} (seed {seed})");
     }
 
     [Fact]
-    public void Deux_graines_identiques_produisent_le_meme_placement()
+    public void Two_identical_seeds_produce_the_same_placement()
     {
         var a = new FleetPlacer(new Random(12345)).PlaceAll(GameRules.Default);
         var b = new FleetPlacer(new Random(12345)).PlaceAll(GameRules.Default);
@@ -665,7 +674,7 @@ public sealed class FleetPlacerTests
     }
 
     [Fact]
-    public void Une_flotte_qui_ne_tient_pas_dans_la_grille_est_refusee_sans_boucler()
+    public void A_fleet_that_does_not_fit_in_the_grid_is_rejected_without_looping()
     {
         var impossible = new GameRules(
             GridSize: 3,
@@ -719,7 +728,7 @@ git commit -m "feat: ajoute le placement automatique à aléa injecté"
 - Créer : `BattleShip.Models/Board.cs`, `BattleShip.Models/ShotRecord.cs`,
   `BattleShip.Models/Game.cs`, `BattleShip.Models/Player.cs`,
   `BattleShip.Models/GameStatus.cs`, `BattleShip.Models/ShotResult.cs`
-- Tests : `BattleShip.Tests/Domaine/GameTests.cs`
+- Tests : `BattleShip.Tests/Domain/GameTests.cs`
 
 **Interfaces**
 - Consomme : tâches 3 à 5.
@@ -738,30 +747,30 @@ git commit -m "feat: ajoute le placement automatique à aléa injecté"
 
 - [ ] **Étape 1 : Écrire les tests**
 
-`BattleShip.Tests/Domaine/GameTests.cs` :
+`BattleShip.Tests/Domain/GameTests.cs` :
 
 ```csharp
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Domaine;
+namespace BattleShip.Tests.Domain;
 
 public sealed class GameTests
 {
-    // Grille 3x3 avec un seul torpilleur horizontal en (0,0)-(1,0).
-    private static Game PartieMinuscule()
+    // 3x3 grid with a single horizontal destroyer at (0,0)-(1,0).
+    private static Game TinyGame()
     {
-        var rules = new GameRules(3, [new ShipTemplate("Torpilleur", 2)], false, true);
-        var flotte = () => new List<Ship>
+        var rules = new GameRules(3, [new ShipTemplate("Destroyer", 2)], false, true);
+        var fleet = () => new List<Ship>
         {
-            new("Torpilleur", 2, [new Coordinate(0, 0), new Coordinate(1, 0)])
+            new("Destroyer", 2, [new Coordinate(0, 0), new Coordinate(1, 0)])
         };
-        return Game.Start(Guid.NewGuid(), rules, flotte(), flotte());
+        return Game.Start(Guid.NewGuid(), rules, fleet(), fleet());
     }
 
     [Fact]
-    public void Un_tir_hors_grille_est_refuse()
+    public void A_shot_outside_the_grid_is_rejected()
     {
-        var game = PartieMinuscule();
+        var game = TinyGame();
 
         var result = game.PlayerFires(new Coordinate(3, 0));
 
@@ -770,11 +779,11 @@ public sealed class GameTests
     }
 
     [Fact]
-    public void Un_tir_sur_une_case_deja_jouee_est_refuse()
+    public void A_shot_on_an_already_shot_cell_is_rejected()
     {
-        // (0,0) TOUCHE, donc la main reste au joueur (ExtraTurnOnHit).
-        // Sur un coup manqué le refus attendu serait NotYourTurn, pas CellAlreadyShot.
-        var game = PartieMinuscule();
+        // (0,0) is a HIT, so the turn stays with the player (ExtraTurnOnHit).
+        // On a missed shot the expected rejection would be NotYourTurn, not CellAlreadyShot.
+        var game = TinyGame();
         game.PlayerFires(new Coordinate(0, 0));
 
         var result = game.PlayerFires(new Coordinate(0, 0));
@@ -784,9 +793,9 @@ public sealed class GameTests
     }
 
     [Fact]
-    public void L_adversaire_ne_peut_pas_tirer_quand_c_est_au_joueur()
+    public void The_opponent_cannot_fire_when_it_is_the_player_s_turn()
     {
-        var game = PartieMinuscule();
+        var game = TinyGame();
 
         var result = game.OpponentFires(new Coordinate(0, 0));
 
@@ -795,10 +804,10 @@ public sealed class GameTests
     }
 
     [Fact]
-    public void Un_coup_manque_de_l_adversaire_rend_la_main_au_joueur()
+    public void A_missed_shot_by_the_opponent_gives_the_turn_back_to_the_player()
     {
-        var game = PartieMinuscule();
-        game.PlayerFires(new Coordinate(2, 2));   // manqué : la main passe
+        var game = TinyGame();
+        game.PlayerFires(new Coordinate(2, 2));   // missed: the turn passes
 
         var result = game.OpponentFires(new Coordinate(2, 2));
 
@@ -808,21 +817,21 @@ public sealed class GameTests
     }
 
     [Fact]
-    public void Un_tir_sur_la_derniere_case_d_un_navire_le_coule()
+    public void A_shot_on_the_last_cell_of_a_ship_sinks_it()
     {
-        var game = PartieMinuscule();
+        var game = TinyGame();
         game.PlayerFires(new Coordinate(0, 0));
 
         var result = game.PlayerFires(new Coordinate(1, 0));
 
         Assert.Equal(ShotResult.Sunk, result.Value.Result);
-        Assert.Equal("Torpilleur", result.Value.SunkShipName);
+        Assert.Equal("Destroyer", result.Value.SunkShipName);
     }
 
     [Fact]
-    public void Couler_le_dernier_navire_termine_la_partie()
+    public void Sinking_the_last_ship_finishes_the_game()
     {
-        var game = PartieMinuscule();
+        var game = TinyGame();
         game.PlayerFires(new Coordinate(0, 0));
         game.PlayerFires(new Coordinate(1, 0));
 
@@ -830,9 +839,9 @@ public sealed class GameTests
     }
 
     [Fact]
-    public void Un_tir_apres_la_fin_de_partie_est_refuse()
+    public void A_shot_after_the_end_of_the_game_is_rejected()
     {
-        var game = PartieMinuscule();
+        var game = TinyGame();
         game.PlayerFires(new Coordinate(0, 0));
         game.PlayerFires(new Coordinate(1, 0));
 
@@ -843,9 +852,9 @@ public sealed class GameTests
     }
 
     [Fact]
-    public void Une_touche_laisse_la_main_au_joueur()
+    public void A_hit_leaves_the_turn_to_the_player()
     {
-        var game = PartieMinuscule();
+        var game = TinyGame();
 
         game.PlayerFires(new Coordinate(0, 0));
 
@@ -853,9 +862,9 @@ public sealed class GameTests
     }
 
     [Fact]
-    public void Un_coup_manque_passe_la_main_a_l_adversaire()
+    public void A_missed_shot_passes_the_turn_to_the_opponent()
     {
-        var game = PartieMinuscule();
+        var game = TinyGame();
 
         game.PlayerFires(new Coordinate(2, 2));
 
@@ -863,10 +872,10 @@ public sealed class GameTests
     }
 
     [Fact]
-    public void Un_tir_du_joueur_quand_ce_n_est_pas_son_tour_est_refuse()
+    public void A_player_shot_when_it_is_not_their_turn_is_rejected()
     {
-        var game = PartieMinuscule();
-        game.PlayerFires(new Coordinate(2, 2));   // manqué : la main passe
+        var game = TinyGame();
+        game.PlayerFires(new Coordinate(2, 2));   // missed: the turn passes
 
         var result = game.PlayerFires(new Coordinate(2, 1));
 
@@ -929,7 +938,7 @@ git commit -m "feat: ajoute le moteur de tir et la machine à états de partie"
 
 **Fichiers**
 - Créer : `BattleShip.Models/IGameStore.cs`, `BattleShip.API/Stores/InMemoryGameStore.cs`
-- Tests : `BattleShip.Tests/Domaine/InMemoryGameStoreTests.cs`
+- Tests : `BattleShip.Tests/Domain/InMemoryGameStoreTests.cs`
 
 **Interfaces**
 - Produit : `IGameStore` avec `Find`, `Save`, `Remove`, et
@@ -937,25 +946,25 @@ git commit -m "feat: ajoute le moteur de tir et la machine à états de partie"
 
 - [ ] **Étape 1 : Écrire le test de concurrence**
 
-`BattleShip.Tests/Domaine/InMemoryGameStoreTests.cs` :
+`BattleShip.Tests/Domain/InMemoryGameStoreTests.cs` :
 
 ```csharp
 using BattleShip.API.Stores;
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Domaine;
+namespace BattleShip.Tests.Domain;
 
 public sealed class InMemoryGameStoreTests
 {
-    private static Game PartieSurGrandeGrille()
+    private static Game GameOnDefaultGrid()
     {
         var rules = GameRules.Default;
-        var flotte = () => new FleetPlacer(new Random(7)).PlaceAll(rules).Value;
-        return Game.Start(Guid.NewGuid(), rules, flotte(), flotte());
+        var fleet = () => new FleetPlacer(new Random(7)).PlaceAll(rules).Value;
+        return Game.Start(Guid.NewGuid(), rules, fleet(), fleet());
     }
 
     [Fact]
-    public void Une_partie_absente_renvoie_GameNotFound()
+    public void A_missing_game_returns_GameNotFound()
     {
         var store = new InMemoryGameStore();
 
@@ -971,21 +980,21 @@ public sealed class InMemoryGameStoreTests
     [InlineData(3)]
     [InlineData(4)]
     [InlineData(5)]
-    public async Task Un_seul_tir_simultane_sur_la_meme_case_reussit(int execution)
+    public async Task Only_one_concurrent_shot_on_the_same_cell_succeeds(int execution)
     {
-        _ = execution;   // le cas est rejoué : une course qui passe une fois ne prouve rien
+        _ = execution;   // the case is replayed: a race that passes once proves nothing
         var store = new InMemoryGameStore();
-        var game = PartieSurGrandeGrille();
+        var game = GameOnDefaultGrid();
         store.Save(game);
 
-        var cible = new Coordinate(0, 0);
-        var tirs = Enumerable.Range(0, 32).Select(_ => Task.Run(() =>
-            store.Mutate(game.Id, g => g.PlayerFires(cible))));
+        var target = new Coordinate(0, 0);
+        var shots = Enumerable.Range(0, 32).Select(_ => Task.Run(() =>
+            store.Mutate(game.Id, g => g.PlayerFires(target))));
 
-        var resultats = await Task.WhenAll(tirs);
+        var results = await Task.WhenAll(shots);
 
-        Assert.Equal(1, resultats.Count(r => r.IsOk));
-        Assert.All(resultats.Where(r => !r.IsOk), r =>
+        Assert.Equal(1, results.Count(r => r.IsOk));
+        Assert.All(results.Where(r => !r.IsOk), r =>
             Assert.Contains(r.Error, new[]
             {
                 GameError.CellAlreadyShot, GameError.NotYourTurn,
@@ -994,11 +1003,11 @@ public sealed class InMemoryGameStoreTests
     }
 
     [Fact]
-    public void Deux_parties_distinctes_ne_se_bloquent_pas()
+    public void Two_distinct_games_do_not_block_each_other()
     {
         var store = new InMemoryGameStore();
-        var a = PartieSurGrandeGrille();
-        var b = PartieSurGrandeGrille();
+        var a = GameOnDefaultGrid();
+        var b = GameOnDefaultGrid();
         store.Save(a);
         store.Save(b);
 
@@ -1062,7 +1071,7 @@ git commit -m "feat: ajoute le store en mémoire avec verrou par partie"
 **Fichiers**
 - Créer : `BattleShip.Models/ShotHistory.cs`, `BattleShip.Models/IOpponentStrategy.cs`,
   `BattleShip.API/Strategies/RandomStrategy.cs`
-- Tests : `BattleShip.Tests/Adversaire/StrategyInvariantTests.cs`
+- Tests : `BattleShip.Tests/Opponent/StrategyInvariantTests.cs`
 
 **Interfaces**
 - Produit :
@@ -1072,67 +1081,67 @@ git commit -m "feat: ajoute le store en mémoire avec verrou par partie"
 
 - [ ] **Étape 1 : Écrire le test d'invariant**
 
-`BattleShip.Tests/Adversaire/StrategyInvariantTests.cs` :
+`BattleShip.Tests/Opponent/StrategyInvariantTests.cs` :
 
 ```csharp
 using BattleShip.API.Strategies;
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Adversaire;
+namespace BattleShip.Tests.Opponent;
 
 public sealed class StrategyInvariantTests
 {
     public static TheoryData<string, Func<Random, IOpponentStrategy>> Strategies() => new()
     {
         { "Random", r => new RandomStrategy(r) },
-        // Tâche 9  : { "HuntTarget", r => new HuntTargetStrategy(r) },
-        // Tâche 10 : { "Density",    r => new DensityStrategy(r) },
+        // Task 9  : { "HuntTarget", r => new HuntTargetStrategy(r) },
+        // Task 10 : { "Density",    r => new DensityStrategy(r) },
     };
 
     [Theory]
     [MemberData(nameof(Strategies))]
-    public void Une_strategie_ne_propose_jamais_un_coup_invalide(
-        string nom, Func<Random, IOpponentStrategy> fabrique)
+    public void A_strategy_never_proposes_an_invalid_shot(
+        string name, Func<Random, IOpponentStrategy> factory)
     {
         var rules = GameRules.Default;
 
         for (var seed = 1; seed <= 20; seed++)
         {
-            var strategy = fabrique(new Random(seed));
-            var cible = new Board(rules.GridSize,
+            var strategy = factory(new Random(seed));
+            var targetBoard = new Board(rules.GridSize,
                 new FleetPlacer(new Random(seed * 31)).PlaceAll(rules).Value);
 
-            var joues = new HashSet<Coordinate>();
-            var coups = new List<ShotRecord>();
+            var alreadyShot = new HashSet<Coordinate>();
+            var shots = new List<ShotRecord>();
 
-            while (!cible.AllSunk)
+            while (!targetBoard.AllSunk)
             {
-                var history = HistoriqueDepuis(rules, cible, coups);
-                var coup = strategy.NextShot(history);
+                var history = HistoryFrom(rules, targetBoard, shots);
+                var shot = strategy.NextShot(history);
 
-                Assert.InRange(coup.X, 0, rules.GridSize - 1);
-                Assert.InRange(coup.Y, 0, rules.GridSize - 1);
-                Assert.True(joues.Add(coup),
-                    $"{nom} (graine {seed}) a rejoué la case {coup}");
+                Assert.InRange(shot.X, 0, rules.GridSize - 1);
+                Assert.InRange(shot.Y, 0, rules.GridSize - 1);
+                Assert.True(alreadyShot.Add(shot),
+                    $"{name} (seed {seed}) replayed cell {shot}");
 
-                var tir = cible.Fire(coup, Player.Opponent);
-                Assert.True(tir.IsOk);
-                coups.Add(tir.Value);
+                var fired = targetBoard.Fire(shot, Player.Opponent);
+                Assert.True(fired.IsOk);
+                shots.Add(fired.Value);
             }
 
-            Assert.True(joues.Count <= rules.GridSize * rules.GridSize);
+            Assert.True(alreadyShot.Count <= rules.GridSize * rules.GridSize);
         }
     }
 
-    internal static ShotHistory HistoriqueDepuis(
-        GameRules rules, Board cible, IReadOnlyList<ShotRecord> coups)
+    internal static ShotHistory HistoryFrom(
+        GameRules rules, Board targetBoard, IReadOnlyList<ShotRecord> shots)
     {
-        var coules = cible.Ships.Where(s => s.IsSunk).ToList();
-        var restants = rules.Fleet
-            .Where(t => coules.All(s => s.Name != t.Name))
+        var sunk = targetBoard.Ships.Where(s => s.IsSunk).ToList();
+        var remaining = rules.Fleet
+            .Where(t => sunk.All(s => s.Name != t.Name))
             .ToList();
 
-        return new ShotHistory(rules.GridSize, coups, restants, coules, rules.ShipsMayTouch);
+        return new ShotHistory(rules.GridSize, shots, remaining, sunk, rules.ShipsMayTouch);
     }
 }
 ```
@@ -1151,7 +1160,7 @@ public sealed class StrategyInvariantTests
 
 - [ ] **Étape 2 : Lancer le test et constater l'échec**
 
-Exécuter : `dotnet test --filter Adversaire`
+Exécuter : `dotnet test --filter Tests.Opponent`
 Attendu : ÉCHEC de compilation.
 
 - [ ] **Étape 3 : Implémenter**
@@ -1164,7 +1173,7 @@ Exposer `Board.Ships` en lecture seule (nécessaire au test, pas au front).
 
 - [ ] **Étape 4 : Lancer le test et constater le succès**
 
-Exécuter : `dotnet test --filter Adversaire`
+Exécuter : `dotnet test --filter Tests.Opponent`
 Attendu : 1 cas au vert.
 
 - [ ] **Étape 5 : Commit**
@@ -1181,8 +1190,8 @@ git commit -m "feat: ajoute le contrat de stratégie et l'adversaire aléatoire"
 
 **Fichiers**
 - Créer : `BattleShip.API/Strategies/HuntTargetStrategy.cs`
-- Tests : `BattleShip.Tests/Adversaire/HuntTargetStrategyTests.cs`
-- Modifier : `BattleShip.Tests/Adversaire/StrategyInvariantTests.cs` (décommenter la ligne)
+- Tests : `BattleShip.Tests/Opponent/HuntTargetStrategyTests.cs`
+- Modifier : `BattleShip.Tests/Opponent/StrategyInvariantTests.cs` (décommenter la ligne)
 
 **Interfaces**
 - Consomme : `ShotHistory`, `IOpponentStrategy` (tâche 8).
@@ -1190,72 +1199,72 @@ git commit -m "feat: ajoute le contrat de stratégie et l'adversaire aléatoire"
 
 - [ ] **Étape 1 : Écrire les tests de comportement**
 
-`BattleShip.Tests/Adversaire/HuntTargetStrategyTests.cs` :
+`BattleShip.Tests/Opponent/HuntTargetStrategyTests.cs` :
 
 ```csharp
 using BattleShip.API.Strategies;
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Adversaire;
+namespace BattleShip.Tests.Opponent;
 
 public sealed class HuntTargetStrategyTests
 {
-    private static ShotHistory Historique(params ShotRecord[] coups) =>
-        new(10, coups, [new ShipTemplate("Torpilleur", 2)], [], ShipsMayTouch: false);
+    private static ShotHistory History(params ShotRecord[] shots) =>
+        new(10, shots, [new ShipTemplate("Destroyer", 2)], [], ShipsMayTouch: false);
 
     [Fact]
-    public void En_phase_de_chasse_elle_ne_vise_que_les_cases_de_parite_paire()
+    public void In_the_hunt_phase_it_only_aims_at_even_parity_cells()
     {
         var strategy = new HuntTargetStrategy(new Random(1));
 
         for (var i = 0; i < 40; i++)
         {
-            var coup = strategy.NextShot(Historique());
-            Assert.Equal(0, (coup.X + coup.Y) % 2);
+            var shot = strategy.NextShot(History());
+            Assert.Equal(0, (shot.X + shot.Y) % 2);
         }
     }
 
     [Fact]
-    public void Apres_une_touche_elle_vise_une_case_adjacente()
+    public void After_a_hit_it_aims_at_an_adjacent_cell()
     {
         var strategy = new HuntTargetStrategy(new Random(1));
-        var touche = new ShotRecord(new Coordinate(4, 4), ShotResult.Hit,
+        var hit = new ShotRecord(new Coordinate(4, 4), ShotResult.Hit,
             Player.Opponent, null);
 
-        var coup = strategy.NextShot(Historique(touche));
+        var shot = strategy.NextShot(History(hit));
 
-        var distance = Math.Abs(coup.X - 4) + Math.Abs(coup.Y - 4);
+        var distance = Math.Abs(shot.X - 4) + Math.Abs(shot.Y - 4);
         Assert.Equal(1, distance);
     }
 
     [Fact]
-    public void Apres_une_touche_dans_un_coin_elle_ne_sort_pas_de_la_grille()
+    public void After_a_hit_in_a_corner_it_does_not_leave_the_grid()
     {
         var strategy = new HuntTargetStrategy(new Random(1));
-        var touche = new ShotRecord(new Coordinate(0, 0), ShotResult.Hit,
+        var hit = new ShotRecord(new Coordinate(0, 0), ShotResult.Hit,
             Player.Opponent, null);
 
-        var coup = strategy.NextShot(Historique(touche));
+        var shot = strategy.NextShot(History(hit));
 
-        Assert.InRange(coup.X, 0, 9);
-        Assert.InRange(coup.Y, 0, 9);
+        Assert.InRange(shot.X, 0, 9);
+        Assert.InRange(shot.Y, 0, 9);
     }
 
     [Fact]
-    public void Un_navire_coule_ne_declenche_plus_de_ratissage()
+    public void A_sunk_ship_no_longer_triggers_the_target_phase()
     {
         var strategy = new HuntTargetStrategy(new Random(1));
         var history = new ShotHistory(
             10,
             [new ShotRecord(new Coordinate(4, 4), ShotResult.Hit, Player.Opponent, null),
-             new ShotRecord(new Coordinate(4, 5), ShotResult.Sunk, Player.Opponent, "Torpilleur")],
+             new ShotRecord(new Coordinate(4, 5), ShotResult.Sunk, Player.Opponent, "Destroyer")],
             [],
-            [new Ship("Torpilleur", 2, [new Coordinate(4, 4), new Coordinate(4, 5)])],
+            [new Ship("Destroyer", 2, [new Coordinate(4, 4), new Coordinate(4, 5)])],
             ShipsMayTouch: false);
 
-        var coup = strategy.NextShot(history);
+        var shot = strategy.NextShot(history);
 
-        Assert.Equal(0, (coup.X + coup.Y) % 2);   // retour en phase de chasse
+        Assert.Equal(0, (shot.X + shot.Y) % 2);   // back to the hunt phase
     }
 }
 ```
@@ -1293,7 +1302,7 @@ Décommenter dans `StrategyInvariantTests.Strategies()` :
 
 - [ ] **Étape 5 : Lancer tous les tests d'adversaire**
 
-Exécuter : `dotnet test --filter Adversaire`
+Exécuter : `dotnet test --filter Tests.Opponent`
 Attendu : les 4 tests de comportement **et** les 2 cas d'invariant au vert.
 
 - [ ] **Étape 6 : Commit**
@@ -1310,70 +1319,70 @@ git commit -m "feat: ajoute l'adversaire chasse-cible avec parité"
 
 **Fichiers**
 - Créer : `BattleShip.API/Strategies/DensityStrategy.cs`
-- Tests : `BattleShip.Tests/Adversaire/DensityStrategyTests.cs`
-- Modifier : `BattleShip.Tests/Adversaire/StrategyInvariantTests.cs`
+- Tests : `BattleShip.Tests/Opponent/DensityStrategyTests.cs`
+- Modifier : `BattleShip.Tests/Opponent/StrategyInvariantTests.cs`
 
 **Interfaces**
 - Produit : `DensityStrategy(Random random)`.
 
 - [ ] **Étape 1 : Écrire les tests de comportement**
 
-`BattleShip.Tests/Adversaire/DensityStrategyTests.cs` :
+`BattleShip.Tests/Opponent/DensityStrategyTests.cs` :
 
 ```csharp
 using BattleShip.API.Strategies;
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Adversaire;
+namespace BattleShip.Tests.Opponent;
 
 public sealed class DensityStrategyTests
 {
     [Fact]
-    public void Sur_une_grille_vierge_elle_vise_le_centre_plutot_qu_un_coin()
+    public void On_an_empty_grid_it_aims_at_the_center_rather_than_a_corner()
     {
         var strategy = new DensityStrategy(new Random(1));
-        var history = new ShotHistory(10, [], [new ShipTemplate("Croiseur", 4)], [], false);
+        var history = new ShotHistory(10, [], [new ShipTemplate("Battleship", 4)], [], false);
 
-        var coup = strategy.NextShot(history);
+        var shot = strategy.NextShot(history);
 
-        Assert.InRange(coup.X, 2, 7);
-        Assert.InRange(coup.Y, 2, 7);
+        Assert.InRange(shot.X, 2, 7);
+        Assert.InRange(shot.Y, 2, 7);
     }
 
     [Fact]
-    public void Elle_prolonge_une_touche_isolee()
+    public void It_extends_an_isolated_hit()
     {
         var strategy = new DensityStrategy(new Random(1));
         var history = new ShotHistory(
             10,
             [new ShotRecord(new Coordinate(4, 4), ShotResult.Hit, Player.Opponent, null)],
-            [new ShipTemplate("Croiseur", 4)], [], false);
+            [new ShipTemplate("Battleship", 4)], [], false);
 
-        var coup = strategy.NextShot(history);
+        var shot = strategy.NextShot(history);
 
-        Assert.Equal(1, Math.Abs(coup.X - 4) + Math.Abs(coup.Y - 4));
+        Assert.Equal(1, Math.Abs(shot.X - 4) + Math.Abs(shot.Y - 4));
     }
 
     [Fact]
-    public void Sous_la_regle_de_non_adjacence_elle_evite_la_couronne_d_un_navire_coule()
+    public void Under_the_non_adjacency_rule_it_avoids_the_halo_of_a_sunk_ship()
     {
-        var coule = new Ship("Torpilleur", 2,
+        var sunk = new Ship("Destroyer", 2,
             [new Coordinate(4, 4), new Coordinate(4, 5)]);
         var strategy = new DensityStrategy(new Random(1));
         var history = new ShotHistory(
             10,
             [new ShotRecord(new Coordinate(4, 4), ShotResult.Hit, Player.Opponent, null),
-             new ShotRecord(new Coordinate(4, 5), ShotResult.Sunk, Player.Opponent, "Torpilleur")],
-            [new ShipTemplate("Croiseur", 4)],
-            [coule],
+             new ShotRecord(new Coordinate(4, 5), ShotResult.Sunk, Player.Opponent, "Destroyer")],
+            [new ShipTemplate("Battleship", 4)],
+            [sunk],
             ShipsMayTouch: false);
 
         for (var i = 0; i < 20; i++)
         {
-            var coup = new DensityStrategy(new Random(i + 1)).NextShot(history);
-            var dansLaCouronne = coule.Cells.Any(c =>
-                Math.Abs(c.X - coup.X) <= 1 && Math.Abs(c.Y - coup.Y) <= 1);
-            Assert.False(dansLaCouronne, $"coup {coup} dans la couronne du navire coulé");
+            var shot = new DensityStrategy(new Random(i + 1)).NextShot(history);
+            var inTheHalo = sunk.Cells.Any(c =>
+                Math.Abs(c.X - shot.X) <= 1 && Math.Abs(c.Y - shot.Y) <= 1);
+            Assert.False(inTheHalo, $"shot {shot} inside the halo of the sunk ship");
         }
         _ = strategy;
     }
@@ -1416,7 +1425,7 @@ rabattre sur une case non jouée tirée au hasard.
 
 - [ ] **Étape 5 : Lancer tous les tests d'adversaire**
 
-Exécuter : `dotnet test --filter Adversaire`
+Exécuter : `dotnet test --filter Tests.Opponent`
 Attendu : tout au vert, y compris les 3 cas d'invariant.
 
 - [ ] **Étape 6 : Commit**
@@ -1437,7 +1446,7 @@ git commit -m "feat: ajoute l'adversaire à densité probabiliste"
 
 **Fichiers**
 - Créer : `BattleShip.API/Benchmark/StrategyBenchmark.cs`
-- Tests : `BattleShip.Tests/Adversaire/StrategyBenchmarkTests.cs`
+- Tests : `BattleShip.Tests/Opponent/StrategyBenchmarkTests.cs`
 - Modifier : `REVUE-IA.md`, `docs/adr/0003-strategie-adversaire.md`, `README.md`
 
 **Interfaces**
@@ -1448,36 +1457,36 @@ git commit -m "feat: ajoute l'adversaire à densité probabiliste"
 
 - [ ] **Étape 1 : Écrire le test de mesure**
 
-`BattleShip.Tests/Adversaire/StrategyBenchmarkTests.cs` :
+`BattleShip.Tests/Opponent/StrategyBenchmarkTests.cs` :
 
 ```csharp
 using BattleShip.API.Benchmark;
 using BattleShip.Models;
 
-namespace BattleShip.Tests.Adversaire;
+namespace BattleShip.Tests.Opponent;
 
 public sealed class StrategyBenchmarkTests
 {
     [Fact]
-    public void Les_trois_niveaux_sont_ordonnes_par_efficacite()
+    public void The_three_levels_are_ordered_by_efficiency()
     {
         var results = StrategyBenchmark.Run(GameRules.Default, games: 200, seed: 20260915)
             .ToDictionary(r => r.StrategyName);
 
-        var aleatoire = results["Random"].AverageShots;
-        var chasse = results["HuntTarget"].AverageShots;
-        var densite = results["Density"].AverageShots;
+        var random = results["Random"].AverageShots;
+        var huntTarget = results["HuntTarget"].AverageShots;
+        var density = results["Density"].AverageShots;
 
-        Assert.True(aleatoire > chasse,
-            $"aléatoire {aleatoire:F1} devrait être pire que chasse/cible {chasse:F1}");
-        Assert.True(chasse > densite,
-            $"chasse/cible {chasse:F1} devrait être pire que densité {densite:F1}");
-        Assert.True(densite < 55,
-            $"densité mesurée à {densite:F1} coups, attendue sous 55");
+        Assert.True(random > huntTarget,
+            $"random {random:F1} should be worse than hunt/target {huntTarget:F1}");
+        Assert.True(huntTarget > density,
+            $"hunt/target {huntTarget:F1} should be worse than density {density:F1}");
+        Assert.True(density < 55,
+            $"density measured at {density:F1} shots, expected under 55");
     }
 
     [Fact]
-    public void La_mesure_est_reproductible_a_graine_egale()
+    public void The_measurement_is_reproducible_for_an_equal_seed()
     {
         var a = StrategyBenchmark.Run(GameRules.Default, 50, 1);
         var b = StrategyBenchmark.Run(GameRules.Default, 50, 1);
@@ -1574,36 +1583,36 @@ namespace BattleShip.Tests.Api;
 public sealed class SecretTests
 {
     [Fact]
-    public void Le_dto_ne_revele_aucune_case_adverse_non_decouverte()
+    public void The_dto_reveals_no_undiscovered_opposing_cell()
     {
         var rules = GameRules.Default;
-        var flotteJoueur = new FleetPlacer(new Random(1)).PlaceAll(rules).Value;
-        var flotteAdverse = new FleetPlacer(new Random(2)).PlaceAll(rules).Value;
-        var game = Game.Start(Guid.NewGuid(), rules, flotteJoueur, flotteAdverse);
+        var playerFleet = new FleetPlacer(new Random(1)).PlaceAll(rules).Value;
+        var opponentFleet = new FleetPlacer(new Random(2)).PlaceAll(rules).Value;
+        var game = Game.Start(Guid.NewGuid(), rules, playerFleet, opponentFleet);
 
         game.PlayerFires(new Coordinate(0, 0));
 
         var json = JsonSerializer.Serialize(game.ToDto());
 
-        var revelees = game.OpponentBoard.ReceivedShots;
-        var secretes = flotteAdverse
+        var revealed = game.OpponentBoard.ReceivedShots;
+        var secretCells = opponentFleet
             .SelectMany(s => s.Cells)
-            .Where(c => !revelees.Contains(c))
+            .Where(c => !revealed.Contains(c))
             .ToList();
 
-        Assert.NotEmpty(secretes);   // sinon le test ne prouverait rien
+        Assert.NotEmpty(secretCells);   // otherwise the test would prove nothing
 
-        foreach (var c in secretes)
+        foreach (var c in secretCells)
             Assert.DoesNotContain($"\"x\":{c.X},\"y\":{c.Y}",
                 json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Le_dto_expose_la_flotte_du_joueur()
+    public void The_dto_exposes_the_player_s_fleet()
     {
         var rules = GameRules.Default;
-        var flotteJoueur = new FleetPlacer(new Random(1)).PlaceAll(rules).Value;
-        var game = Game.Start(Guid.NewGuid(), rules, flotteJoueur,
+        var playerFleet = new FleetPlacer(new Random(1)).PlaceAll(rules).Value;
+        var game = Game.Start(Guid.NewGuid(), rules, playerFleet,
             new FleetPlacer(new Random(2)).PlaceAll(rules).Value);
 
         var dto = game.ToDto();
@@ -1613,7 +1622,7 @@ public sealed class SecretTests
 }
 ```
 
-> L'assertion `Assert.NotEmpty(secretes)` est là pour que le test ne puisse pas passer
+> L'assertion `Assert.NotEmpty(secretCells)` est là pour que le test ne puisse pas passer
 > **vide** : sans elle, une boucle sur une liste vide prouverait la règle sans rien vérifier.
 
 - [ ] **Étape 2 : Lancer les tests et constater l'échec**
@@ -1664,8 +1673,8 @@ git commit -m "feat: ajoute les DTO et fait respecter le secret du jeu"
   - `record ShipPlacementInput(string Name, int X, int Y, string Orientation)`
   - `interface IOpponentStrategyFactory { IOpponentStrategy ForDifficulty(string difficulty); }`
     et son implémentation `OpponentStrategyFactory(Random random)`, qui mappe
-    `"Facile"` → `RandomStrategy`, `"Normal"` → `HuntTargetStrategy`,
-    `"Difficile"` → `DensityStrategy`, et lève `ArgumentOutOfRangeException` sinon
+    `"Easy"` → `RandomStrategy`, `"Normal"` → `HuntTargetStrategy`,
+    `"Hard"` → `DensityStrategy`, et lève `ArgumentOutOfRangeException` sinon
     (le validateur a déjà écarté les valeurs inconnues : arriver ici est une anomalie)
   - Routes : `POST /games`, `GET /games/{id:guid}`, `POST /games/{id:guid}/placement`,
     `GET /games/{id:guid}/history`
@@ -1690,7 +1699,7 @@ public sealed class HttpEndpointsTests : IClassFixture<WebApplicationFactory<Pro
         => _client = factory.CreateClient();
 
     [Fact]
-    public async Task Creer_une_partie_renvoie_201_et_son_identifiant()
+    public async Task Creating_a_game_returns_201_and_its_identifier()
     {
         var response = await _client.PostAsJsonAsync("/games",
             new CreateGameInput(10, "Normal"));
@@ -1701,7 +1710,7 @@ public sealed class HttpEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     }
 
     [Fact]
-    public async Task Une_partie_inconnue_renvoie_404()
+    public async Task An_unknown_game_returns_404()
     {
         var response = await _client.GetAsync($"/games/{Guid.NewGuid()}");
 
@@ -1709,7 +1718,7 @@ public sealed class HttpEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     }
 
     [Fact]
-    public async Task Une_grille_hors_bornes_est_refusee_en_400()
+    public async Task An_out_of_range_grid_is_rejected_with_400()
     {
         var response = await _client.PostAsJsonAsync("/games",
             new CreateGameInput(2, "Normal"));
@@ -1718,7 +1727,7 @@ public sealed class HttpEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     }
 
     [Fact]
-    public async Task Un_niveau_de_difficulte_inconnu_est_refuse_en_400()
+    public async Task An_unknown_difficulty_level_is_rejected_with_400()
     {
         var response = await _client.PostAsJsonAsync("/games",
             new CreateGameInput(10, "Impossible"));
@@ -1727,19 +1736,19 @@ public sealed class HttpEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     }
 
     [Fact]
-    public async Task Un_placement_avec_navires_adjacents_est_refuse_en_400()
+    public async Task A_placement_with_adjacent_ships_is_rejected_with_400()
     {
         var create = await _client.PostAsJsonAsync("/games", new CreateGameInput(10, "Normal"));
         var game = await create.Content.ReadFromJsonAsync<GameDto>();
 
-        // Porte-avions en (0,0) horizontal, Croiseur collé juste en dessous.
+        // Carrier at (0,0) horizontal, Battleship stuck right below it.
         var placement = new PlacementInput(
         [
-            new ShipPlacementInput("Porte-avions", 0, 0, "Horizontal"),
-            new ShipPlacementInput("Croiseur", 0, 1, "Horizontal"),
-            new ShipPlacementInput("Contre-torpilleur", 0, 5, "Horizontal"),
-            new ShipPlacementInput("Sous-marin", 0, 7, "Horizontal"),
-            new ShipPlacementInput("Torpilleur", 0, 9, "Horizontal")
+            new ShipPlacementInput("Carrier", 0, 0, "Horizontal"),
+            new ShipPlacementInput("Battleship", 0, 1, "Horizontal"),
+            new ShipPlacementInput("Cruiser", 0, 5, "Horizontal"),
+            new ShipPlacementInput("Submarine", 0, 7, "Horizontal"),
+            new ShipPlacementInput("Destroyer", 0, 9, "Horizontal")
         ]);
 
         var response = await _client.PostAsJsonAsync(
@@ -1751,18 +1760,18 @@ public sealed class HttpEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     }
 
     [Fact]
-    public async Task Un_placement_valide_est_accepte_en_204()
+    public async Task A_valid_placement_is_accepted_with_204()
     {
         var create = await _client.PostAsJsonAsync("/games", new CreateGameInput(10, "Normal"));
         var game = await create.Content.ReadFromJsonAsync<GameDto>();
 
         var placement = new PlacementInput(
         [
-            new ShipPlacementInput("Porte-avions", 0, 0, "Horizontal"),
-            new ShipPlacementInput("Croiseur", 0, 2, "Horizontal"),
-            new ShipPlacementInput("Contre-torpilleur", 0, 4, "Horizontal"),
-            new ShipPlacementInput("Sous-marin", 0, 6, "Horizontal"),
-            new ShipPlacementInput("Torpilleur", 0, 8, "Horizontal")
+            new ShipPlacementInput("Carrier", 0, 0, "Horizontal"),
+            new ShipPlacementInput("Battleship", 0, 2, "Horizontal"),
+            new ShipPlacementInput("Cruiser", 0, 4, "Horizontal"),
+            new ShipPlacementInput("Submarine", 0, 6, "Horizontal"),
+            new ShipPlacementInput("Destroyer", 0, 8, "Horizontal")
         ]);
 
         var response = await _client.PostAsJsonAsync(
@@ -1799,10 +1808,10 @@ app.MapPost("/games", async Task<IResult> (
 ```
 
 `CreateGameInputValidator` : `GridSize` entre 5 et 20, `Difficulty` dans
-`{ "Facile", "Normal", "Difficile" }`. `PlacementInputValidator` : un navire par
+`{ "Easy", "Normal", "Hard" }`. `PlacementInputValidator` : un navire par
 `ShipTemplate` de la flotte, `Orientation` analysable, coordonnées dans la grille ; la règle
 d'adjacence vient de `PlacementRules.Validate`, **jamais réécrite dans le validateur**. Le
-message d'erreur mentionne explicitement le mot « adjacents » (le test le vérifie).
+message d'erreur mentionne explicitement le mot « adjacent » (le test le vérifie).
 
 Mettre à jour `api.http` avec un appel par route, en notant que **le tir n'y figure pas**
 (ADR 0005).
@@ -1903,28 +1912,28 @@ public sealed class FireGrpcTests : IClassFixture<WebApplicationFactory<Program>
                 new GrpcChannelOptions { HttpHandler = handler }));
     }
 
-    private async Task<Guid> PartiePrete()
+    private async Task<Guid> ReadyGame()
     {
         var http = _factory.CreateClient();
-        var create = await http.PostAsJsonAsync("/games", new CreateGameInput(10, "Facile"));
+        var create = await http.PostAsJsonAsync("/games", new CreateGameInput(10, "Easy"));
         var game = await create.Content.ReadFromJsonAsync<GameDto>();
 
         var placement = new PlacementInput(
         [
-            new ShipPlacementInput("Porte-avions", 0, 0, "Horizontal"),
-            new ShipPlacementInput("Croiseur", 0, 2, "Horizontal"),
-            new ShipPlacementInput("Contre-torpilleur", 0, 4, "Horizontal"),
-            new ShipPlacementInput("Sous-marin", 0, 6, "Horizontal"),
-            new ShipPlacementInput("Torpilleur", 0, 8, "Horizontal")
+            new ShipPlacementInput("Carrier", 0, 0, "Horizontal"),
+            new ShipPlacementInput("Battleship", 0, 2, "Horizontal"),
+            new ShipPlacementInput("Cruiser", 0, 4, "Horizontal"),
+            new ShipPlacementInput("Submarine", 0, 6, "Horizontal"),
+            new ShipPlacementInput("Destroyer", 0, 8, "Horizontal")
         ]);
         await http.PostAsJsonAsync($"/games/{game!.Id}/placement", placement);
         return game.Id;
     }
 
     [Fact]
-    public async Task Un_tir_valide_renvoie_un_resultat()
+    public async Task A_valid_shot_returns_a_result()
     {
-        var id = await PartiePrete();
+        var id = await ReadyGame();
 
         var reply = await Client().FireAsync(new FireRequest
         {
@@ -1935,16 +1944,16 @@ public sealed class FireGrpcTests : IClassFixture<WebApplicationFactory<Program>
     }
 
     [Fact]
-    public async Task Rejouer_la_meme_case_renvoie_InvalidArgument()
+    public async Task Replaying_the_same_cell_returns_InvalidArgument()
     {
-        var id = await PartiePrete();
+        var id = await ReadyGame();
         var client = Client();
-        var premier = await client.FireAsync(new FireRequest
+        var first = await client.FireAsync(new FireRequest
         {
             GameId = id.ToString(), X = 5, Y = 5
         });
 
-        // Si le premier coup a touché, le joueur rejoue : la case reste refusée.
+        // If the first shot was a hit, the player fires again: the cell is still rejected.
         var ex = await Assert.ThrowsAsync<RpcException>(() =>
             client.FireAsync(new FireRequest
             {
@@ -1952,13 +1961,13 @@ public sealed class FireGrpcTests : IClassFixture<WebApplicationFactory<Program>
             }).ResponseAsync);
 
         Assert.Equal(StatusCode.InvalidArgument, ex.StatusCode);
-        _ = premier;
+        _ = first;
     }
 
     [Fact]
-    public async Task Un_tir_hors_grille_renvoie_InvalidArgument()
+    public async Task A_shot_outside_the_grid_returns_InvalidArgument()
     {
-        var id = await PartiePrete();
+        var id = await ReadyGame();
 
         var ex = await Assert.ThrowsAsync<RpcException>(() =>
             Client().FireAsync(new FireRequest
@@ -1970,7 +1979,7 @@ public sealed class FireGrpcTests : IClassFixture<WebApplicationFactory<Program>
     }
 
     [Fact]
-    public async Task Un_tir_sur_une_partie_inconnue_renvoie_NotFound()
+    public async Task A_shot_on_an_unknown_game_returns_NotFound()
     {
         var ex = await Assert.ThrowsAsync<RpcException>(() =>
             Client().FireAsync(new FireRequest
@@ -1982,9 +1991,9 @@ public sealed class FireGrpcTests : IClassFixture<WebApplicationFactory<Program>
     }
 
     [Fact]
-    public async Task Un_coup_manque_declenche_la_riposte_de_l_adversaire()
+    public async Task A_missed_shot_triggers_the_opponent_s_counterattack()
     {
-        var id = await PartiePrete();
+        var id = await ReadyGame();
         var client = Client();
 
         FireResponse reply;
@@ -2105,7 +2114,7 @@ git commit -m "feat: configure CORS pour le front et gRPC-Web"
 
 **Fichiers**
 - Créer : `BattleShip.App/Services/GameState.cs`, `BattleShip.App/Services/BattleApiClient.cs`,
-  `BattleShip.App/Pages/NouvellePartie.razor`
+  `BattleShip.App/Pages/NewGame.razor`
 - Modifier : `BattleShip.App/Program.cs`, `BattleShip.App/Layout/NavMenu.razor`
 
 **Interfaces**
@@ -2137,7 +2146,7 @@ builder.Services.AddScoped<BattleApiClient>();
 
 - [ ] **Étape 3 : Écrire la page**
 
-`NouvellePartie.razor` en `@page "/"` : choix de la taille de grille et du niveau de
+`NewGame.razor` en `@page "/"` : choix de la taille de grille et du niveau de
 difficulté, bouton de création, puis redirection vers `/placement`. Les trois états sont
 rendus — un indicateur pendant le chargement, un message d'erreur exploitable en cas d'échec.
 
@@ -2162,12 +2171,12 @@ git commit -m "feat: ajoute l'état partagé et la page de création de partie"
 
 **Fichiers**
 - Créer : `BattleShip.App/Pages/Placement.razor`,
-  `BattleShip.App/Components/GrilleDePlacement.razor`
+  `BattleShip.App/Components/PlacementGrid.razor`
 - Modifier : `BattleShip.App/Services/GameState.cs`
 
 - [ ] **Étape 1 : Écrire le composant de grille**
 
-`GrilleDePlacement.razor` reçoit en paramètres la taille de grille, la liste des navires à
+`PlacementGrid.razor` reçoit en paramètres la taille de grille, la liste des navires à
 poser et les placements déjà effectués. Il émet un `EventCallback<Coordinate>` au clic et un
 `EventCallback` de rotation.
 
@@ -2178,7 +2187,7 @@ orientation courante (bascule par bouton ou touche `R`), prévisualisation de la
 survolée en vert si elle semble valide, en rouge sinon.
 
 **La prévisualisation est un confort, pas une garantie** : la règle fait foi côté serveur
-(ADR 0007). Le bouton « Valider la flotte » envoie `POST /games/{id}/placement`, et un `400`
+(ADR 0007). Le bouton « Validate fleet » envoie `POST /games/{id}/placement`, et un `400`
 est affiché tel quel, avec le motif renvoyé par le serveur.
 
 - [ ] **Étape 3 : S'abonner et se désabonner**
@@ -2188,9 +2197,9 @@ Oublier ce désabonnement provoque une fuite et des rendus sur des composants d�
 
 - [ ] **Étape 4 : Vérifier dans le navigateur**
 
-Poser une flotte valide → redirection vers `/jeu`.
+Poser une flotte valide → redirection vers `/play`.
 Poser deux navires **collés** et valider → le serveur répond `400`, la page affiche le motif
-contenant « adjacents ». C'est la démonstration de la validation serveur.
+contenant « adjacent ». C'est la démonstration de la validation serveur.
 Faire plusieurs allers-retours entre les pages et vérifier dans la console F12 qu'aucun
 avertissement de rendu sur composant détruit n'apparaît.
 
@@ -2207,7 +2216,7 @@ git commit -m "feat: ajoute la page de placement manuel de la flotte"
 ### Tâche 18 : Page de jeu et client gRPC-Web
 
 **Fichiers**
-- Créer : `BattleShip.App/Pages/Jeu.razor`, `BattleShip.App/Components/GrilleDeTir.razor`,
+- Créer : `BattleShip.App/Pages/Play.razor`, `BattleShip.App/Components/FiringGrid.razor`,
   `BattleShip.App/Services/BattleGrpcClient.cs`
 - Modifier : `BattleShip.App/BattleShip.App.csproj`, `BattleShip.App/Program.cs`
 
@@ -2233,12 +2242,12 @@ en message affichable, en distinguant `InvalidArgument`, `FailedPrecondition` et
 
 - [ ] **Étape 3 : Écrire la page**
 
-`Jeu.razor` en `@page "/jeu"` : deux grilles côte à côte — la flotte du joueur avec les tirs
+`Play.razor` en `@page "/play"` : deux grilles côte à côte — la flotte du joueur avec les tirs
 reçus, la grille adverse avec les tirs émis. Un clic sur une case adverse déclenche `Fire`.
 
 La réponse porte une **séquence** : afficher le coup du joueur, puis dérouler les coups de
 l'adversaire (une courte temporisation entre chacun les rend lisibles). Quand `status` vaut
-`Finished`, afficher le résultat et un bouton « Nouvelle partie ».
+`Finished`, afficher le résultat et un bouton « New game ».
 
 - [ ] **Étape 4 : Vérifier dans le navigateur**
 
@@ -2314,8 +2323,8 @@ git commit -m "docs: ajoute les preuves de démonstration gRPC-Web"
 ### Tâche 20 : Historique des coups et rejeu
 
 **Fichiers**
-- Créer : `BattleShip.App/Components/PanneauHistorique.razor`
-- Modifier : `BattleShip.App/Pages/Jeu.razor`
+- Créer : `BattleShip.App/Components/HistoryPanel.razor`
+- Modifier : `BattleShip.App/Pages/Play.razor`
 
 > La route `GET /games/{id:guid}/history` est **déjà implémentée par la tâche 13**. Cette
 > tâche n'ajoute que son test et le panneau d'interface.
@@ -2323,7 +2332,7 @@ git commit -m "docs: ajoute les preuves de démonstration gRPC-Web"
 
 **Interfaces**
 - Consomme : `ShotDto` et `DtoMappings.ToDto(IReadOnlyList<ShotRecord>)` (tâche 12), le
-  montage `WebApplicationFactory<Program>` et les aides `Client()` / `PartiePrete()` de
+  montage `WebApplicationFactory<Program>` et les aides `Client()` / `ReadyGame()` de
   `FireGrpcTests` (tâche 14) — les recopier dans la nouvelle classe de test, qui est
   autonome.
 - Produit : `GET /games/{id:guid}/history` → `200` avec la liste ordonnée, `404` si la partie
@@ -2333,9 +2342,9 @@ git commit -m "docs: ajoute les preuves de démonstration gRPC-Web"
 
 ```csharp
 [Fact]
-public async Task L_historique_reflete_les_coups_joues_dans_l_ordre()
+public async Task The_history_reflects_the_shots_played_in_order()
 {
-    var id = await PartiePrete();
+    var id = await ReadyGame();
     await Client().FireAsync(new FireRequest { GameId = id.ToString(), X = 5, Y = 5 });
 
     var history = await _factory.CreateClient()
@@ -2370,14 +2379,14 @@ git commit -m "feat: ajoute l'historique des coups et le rejeu"
 ### Tâche 21 : Accessibilité
 
 **Fichiers**
-- Modifier : `BattleShip.App/Components/GrilleDeTir.razor`,
-  `BattleShip.App/Components/GrilleDePlacement.razor`,
+- Modifier : `BattleShip.App/Components/FiringGrid.razor`,
+  `BattleShip.App/Components/PlacementGrid.razor`,
   `BattleShip.App/wwwroot/css/app.css`
 
 - [ ] **Étape 1 : Rendre les grilles navigables au clavier**
 
 Chaque case est un `<button>` avec un `aria-label` explicite
-(« case B4, non jouée » / « case B4, touché »). Les flèches déplacent le focus,
+(« cell B4, not played » / « cell B4, hit »). Les flèches déplacent le focus,
 `Entrée` tire.
 
 - [ ] **Étape 2 : Annoncer les résultats**

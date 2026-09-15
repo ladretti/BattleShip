@@ -2,10 +2,14 @@
 
 TP d'autonomie — Cours C# ASP.NET (HTS Learning, Christophe MOMMER).
 
-> **État au 2026-09-15 : conception arrêtée, implémentation non commencée.**
-> La solution est échafaudée et les décisions structurantes sont prises et documentées
-> (`docs/adr/`, `docs/superpowers/specs/`). Aucune fonctionnalité de jeu n'est encore écrite.
-> Les sections « Fonctionnalités livrées » et « Démonstration gRPC-Web » ci-dessous décrivent
+> **État au 2026-09-15 : implémentation en cours.**
+> Les décisions structurantes sont prises et documentées (`docs/adr/`,
+> `docs/superpowers/specs/`). Le moteur de jeu (`BattleShip.Models`), le store en mémoire et les
+> trois niveaux d'adversaire sont écrits et couverts par des tests, et le duel d'IA est mesuré
+> (voir « Limites connues »). En revanche, les endpoints de partie et le `Fire` gRPC-Web ne sont
+> **pas encore écrits** — seul un harnais gRPC-Web (`Ping`) est en place — et l'interface Blazor
+> reste le gabarit par défaut.
+> Les sections « Fonctionnalités visées » et « Démonstration gRPC-Web » ci-dessous décrivent
 > le **périmètre visé** et seront reprises au fur et à mesure des livraisons réelles.
 
 ## Binôme
@@ -59,11 +63,15 @@ Essais manuels des endpoints HTTP : `api.http` à la racine.
 | Règle | Valeur |
 |---|---|
 | Grille | paramétrable, défaut **10×10** |
-| Flotte | paramétrable, défaut **5-4-3-3-2** |
+| Flotte | paramétrable, défaut **5-4-3-3-2** : `Carrier` 5, `Battleship` 4, `Cruiser` 3, `Submarine` 3, `Destroyer` 2 |
 | Navires adjacents | **interdits**, diagonales comprises |
 | Enchaînement des tours | **touche = on rejoue** |
 | Placement du joueur | **manuel**, validé côté serveur |
 | Placement de l'adversaire | automatique |
+
+Les noms de la flotte suivent la nomenclature canonique du jeu *Battleship* ; ce n'est **pas une
+traduction** des noms français (`Cruiser` fait 3 cases, pas 4 comme le « Croiseur » ; `Destroyer`
+en fait 2). Seuls les noms changent : les tailles restent 5-4-3-3-2.
 
 Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible avec parité),
 **Difficile** (densité probabiliste).
@@ -94,8 +102,9 @@ Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible a
 
 **Retenu**, par ordre d'attaque :
 
-1. **Duel d'IA + mesure** — N parties d'une stratégie contre une autre à graine fixe, nombre
-   moyen de coups. C'est la preuve chiffrée que les trois niveaux diffèrent réellement.
+1. **Duel d'IA + mesure** — **livré et mesuré** : N parties par stratégie à graine fixe, nombre
+   moyen de coups (`BattleShip.API/Benchmark/StrategyBenchmark.cs`). C'est la preuve chiffrée que
+   les trois niveaux diffèrent réellement ; les chiffres sont en « Limites connues ».
 2. **Historique des coups + rejeu** — la liste ordonnée des tirs est déjà dans le modèle.
 3. **Accessibilité** — grille navigable au clavier, annonces pour lecteur d'écran, contrastes.
 

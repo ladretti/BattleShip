@@ -97,7 +97,7 @@ conditions réellement retenues par ce dépôt, pas celles de la littérature :
 | `DensityStrategy`    | 41,22 coups | 26 | 58  |
 
 Reproductible : `dotnet test --filter "FullyQualifiedName~StrategyBenchmark"` (voir
-`BattleShip.Tests/Adversaire/StrategyBenchmarkTests.cs` — `La_mesure_est_reproductible_a_graine_egale`
+`BattleShip.Tests/Opponent/StrategyBenchmarkTests.cs` — `The_measurement_is_reproducible_for_an_equal_seed`
 compare deux exécutions à graine identique et exige des moyennes strictement égales).
 
 L'ordre attendu (`Random` > `HuntTarget` > `Density`) est confirmé, et `DensityStrategy`
