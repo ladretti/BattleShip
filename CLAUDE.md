@@ -51,42 +51,32 @@ historique, statistiques, accessibilité, déploiement…) plutôt que s'en teni
 
 ---
 
-## 1 bis. État actuel du dépôt et amorçage
+## 1 bis. État actuel du dépôt
 
-Au 2026-09-15, **rien n'est encore échafaudé** : aucun `.slnx`, aucun `.csproj`, aucun
-fichier source. Le dépôt contient uniquement `csharp-school/`, qui est un **clone du
-dépôt amont du cours** (`github.com/christophe-mommer/csharp-school`) — ce sont les
-ressources pédagogiques, pas le projet.
+Au 2026-09-15, **l'échafaudage est fait et la conception est arrêtée**. Le dépôt Git est
+`BattleShip/` ; `csharp-school/` est un répertoire **frère**, hors du dépôt rendu — le
+conflit de `.git/` évoqué dans les versions précédentes de ce fichier **n'existe pas** et
+n'appelle aucun ADR (voir `REVUE-IA.md`, revue 1).
 
-Deux points à traiter avant d'écrire du code :
+Présent : `BattleShip.slnx` et les quatre projets, avec les références inter-projets posées.
 
-- La racine `/home/luca/git/9-2-2-Env-aspnet` **n'est pas un dépôt Git**. Elle doit le
-  devenir (l'historique est noté). Le `.git/` interne de `csharp-school/` entrera en
-  conflit : l'exclure via `.gitignore`, le déplacer hors du dépôt rendu, ou en faire un
-  sous-module — décision à consigner en ADR.
-- SDK installé sur cette machine : **10.0.401** (conforme à `global.json`, qui épingle
-  `10.0.100` en `rollForward: latestFeature`).
+Reste à faire avant d'écrire du code métier :
 
-Amorçage (diapo 28) — copier d'abord `global.json` à la racine :
+- **Copier `global.json` à la racine.** Il est resté dans
+  `csharp-school/Ressources Bataille Navale/` ; le SDK utilisé est donc 10.0.401 **sans
+  épinglage**.
+- **Purger les pages modèle** `Counter.razor` et `Weather.razor` de `BattleShip.App`.
+- **Vérifier le montage gRPC de test** (`WebApplicationFactory` + `GrpcChannel`) avant toute
+  logique de tir : c'est le risque technique principal du projet (ADR 0005).
 
 ```bash
-cp "csharp-school/Ressources Bataille Navale/global.json" .
+cp "../csharp-school/Ressources Bataille Navale/global.json" .
 dotnet --version                                  # doit afficher 10.x
-dotnet new gitignore
-dotnet new sln -n BattleShip
-dotnet new webapi     -n BattleShip.API           # Minimal API par défaut
-dotnet new blazorwasm -n BattleShip.App
-dotnet new classlib   -n BattleShip.Models
-dotnet new xunit      -n BattleShip.Tests
-dotnet sln add BattleShip.API BattleShip.App BattleShip.Models BattleShip.Tests
-dotnet add BattleShip.API   reference BattleShip.Models
-dotnet add BattleShip.App   reference BattleShip.Models
-dotnet add BattleShip.Tests reference BattleShip.API
 dotnet build && dotnet test
 ```
 
-Copier ensuite les gabarits de livrables à la racine (`PROMPTS.md`, `REVUE-IA.md`,
-`docs/adr/0001-modele.md`, `api.http`) et compléter `CONTEXTE-IA.md`.
+Conception et décisions : `docs/superpowers/specs/2026-09-15-bataille-navale-design.md` et
+`docs/adr/0001` à `0007`. Découpage des tâches : `docs/superpowers/plans/`.
 
 Pas de base de données imposée : l'état de partie est en mémoire par défaut. La
 persistance est une piste de backlog, pas une contrainte du socle.
@@ -185,12 +175,17 @@ Mot-clé `field`, affectation null-conditionnelle `x?.Prop = v`, membres d'exten
 
 ### Gestion des erreurs
 
-Lever des exceptions explicites et typées côté domaine (`ArgumentOutOfRangeException`,
-`InvalidOperationException`, `KeyNotFoundException`) ; les traduire en statuts HTTP ou
-en `RpcException` à la frontière. Ne jamais avaler une exception silencieusement.
+**Deux registres, jamais mélangés** (ADR 0004) :
 
-Règle en vigueur tant que l'ADR 0004 n'a pas tranché l'alternative `Result<T>` pour les
-refus métier (§ 3 bis).
+- **Refus métier** — case déjà jouée, coup hors grille, coup après la fin, placement
+  invalide. Ce sont des cas normaux et fréquents : ils passent par `Result<T>` et un
+  `GameError`. Le compilateur force alors l'appelant à les traiter.
+- **Anomalies** — ce qui ne devrait jamais arriver. Exceptions explicites et typées
+  (`ArgumentOutOfRangeException`, `InvalidOperationException`). Ne jamais avaler une
+  exception silencieusement.
+
+La traduction `GameError` → `400` / `404` / `409` et → `RpcException` vit **en un seul
+endroit par façade**. Les endpoints ne contiennent pas de `catch` par type.
 
 ---
 
@@ -328,16 +323,17 @@ public interface IGameStore
     Game? Find(Guid id);
     void Save(Game game);
     bool Remove(Guid id);
+
+    // Mutation atomique : ConcurrentDictionary protège le dictionnaire,
+    // pas les Game qu'il contient (ADR 0002).
+    Result<T> Mutate<T>(Guid id, Func<Game, Result<T>> change);
 }
 
 // BattleShip.API — implémentation Singleton, donc concurrente.
+// Mutate prend un verrou indexé par Guid : les parties ne se bloquent pas entre elles.
 public sealed class InMemoryGameStore : IGameStore
 {
     private readonly ConcurrentDictionary<Guid, Game> _games = new();
-
-    public Game? Find(Guid id) => _games.TryGetValue(id, out var game) ? game : null;
-    public void Save(Game game) => _games[game.Id] = game;
-    public bool Remove(Guid id) => _games.TryRemove(id, out _);
 }
 
 // Program.cs, avant builder.Build().
@@ -365,6 +361,15 @@ de la diapo 38 (« définissez sa stratégie ») et de la diapo 60 (la difficult
   n'est pas mesurable.
 
 ```csharp
+// ShotHistory ne référence PAS le Board adverse : l'invariant « l'adversaire ne triche
+// pas » tient dans le type, pas dans la relecture (ADR 0003).
+public sealed record ShotHistory(
+    int GridSize,
+    IReadOnlyList<ShotRecord> Shots,
+    IReadOnlyList<ShipTemplate> RemainingShips,
+    IReadOnlyList<Ship> SunkShips,
+    bool ShipsMayTouch);
+
 public interface IOpponentStrategy
 {
     string Name { get; }
@@ -406,17 +411,18 @@ public sealed class FleetPlacer(Random random)
   suffisent et se lisent sans indirection.
 - **MediatR / CQRS** — hors périmètre pour un domaine à un seul agrégat.
 
-### Décision en suspens — ADR 0004
+### Décision tranchée — ADR 0004
 
-Le traitement des **refus métier** (case déjà jouée, coup hors grille, coup après fin de partie)
-n'est pas tranché. Ces refus sont des cas *normaux et fréquents*, ce qui plaide pour un type
-`Result<T>` ; le § Gestion des erreurs prescrit aujourd'hui des exceptions typées. Les deux se
-défendent — ce qu'il ne faut pas faire, c'est les mélanger.
+Le traitement des **refus métier** est tranché : `Result<T>` pour les refus, exceptions pour
+les anomalies. Le § Gestion des erreurs ci-dessus a été mis à jour en conséquence.
 
-Tant que l'ADR 0004 n'est pas écrit, **la règle en vigueur reste les exceptions typées**. Le
-passage à `Result<T>` se décide d'abord, se consigne en ADR, puis se répercute ici et dans tout
-le moteur. Argument à instruire si la question est ouverte : le coût des exceptions en boucle
-serrée quand l'adversaire probabiliste évalue beaucoup de coups — à **mesurer**, pas à supposer.
+L'argument de performance envisagé dans les versions précédentes — le coût des exceptions en
+boucle serrée quand l'adversaire probabiliste évalue beaucoup de coups — a été **examiné et
+écarté** : `DensityStrategy` énumère des placements dans sa propre structure de travail et
+n'appelle jamais le moteur pour tester un coup ; l'invariant de l'ADR 0003 garantit qu'elle ne
+propose jamais un coup invalide. Aucune exception n'est levée par tour d'adversaire, et un
+micro-benchmark mesurerait un scénario qui n'existe pas. Détail dans
+`docs/adr/0004-result-refus-metier.md`.
 
 ---
 
