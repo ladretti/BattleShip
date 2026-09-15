@@ -32,6 +32,24 @@ public sealed class CorsTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(FrontOrigin, Assert.Single(allowed!));
     }
 
+    // Guards against the "fix" someone reaches for the day CORS gets in the way:
+    // AllowAnyOrigin(). Without WithOrigins() pinned to the two declared front origins,
+    // this would start passing silently.
+    [Fact]
+    public async Task An_untrusted_origin_does_not_receive_the_allow_origin_header()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Options, "/games");
+        request.Headers.Add("Origin", "http://evil.example");
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+        request.Headers.Add("Access-Control-Request-Headers", "content-type");
+
+        var response = await _client.SendAsync(request);
+
+        Assert.False(
+            response.Headers.Contains("Access-Control-Allow-Origin"),
+            "an untrusted origin must not receive Access-Control-Allow-Origin");
+    }
+
     [Fact]
     public async Task The_grpc_web_headers_are_exposed_to_the_front_origin()
     {

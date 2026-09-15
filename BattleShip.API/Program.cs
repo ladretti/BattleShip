@@ -17,9 +17,10 @@ builder.Services.AddOpenApi();
 builder.Services.AddGrpc();
 
 // The front runs on two origins depending on its launch profile (BattleShip.App's
-// launchSettings.json, http and https). Origins are read from configuration, never
-// AllowAnyOrigin(): the exposed headers are the grpc-web trailers — without them the
-// browser client cannot read a failed call's status (ADR 0005's InvalidArgument demo).
+// launchSettings.json, http and https). Origins are read from configuration and pinned
+// with WithOrigins(), never AllowAnyOrigin() (guarded by CorsTests.An_untrusted_origin_...).
+// The exposed headers are the grpc-web trailers — without them the browser client cannot
+// read a failed call's status (ADR 0005's InvalidArgument demo).
 builder.Services.AddCors(options => options.AddPolicy("front", policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])
     .AllowAnyMethod()
@@ -48,8 +49,14 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Must precede UseGrpcWeb(): an API that only passes integration tests (they never go
-// through CORS) but breaks in the browser is exactly the failure this order avoids.
+// Placed before UseGrpcWeb(), as the ASP.NET Core CORS docs recommend. What is actually
+// established: with this order, both the preflight OPTIONS on the grpc-web route and an
+// actual grpc-web POST carry the expected Access-Control-* headers (CorsTests.cs). What is
+// NOT established: swapping the two, tried deliberately (task 15's discriminating-power
+// check, including a preflight with an explicit grpc-web Content-Type as a positive
+// control), produced the exact same responses — GrpcWebMiddleware never short-circuits or
+// alters an OPTIONS request here, so this test suite cannot show the two orders differing.
+// Kept in the documented order on the strength of the docs, not of a passing test.
 app.UseCors("front");
 
 app.UseGrpcWeb();
