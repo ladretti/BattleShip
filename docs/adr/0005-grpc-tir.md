@@ -79,16 +79,19 @@ Vérifié à l'implémentation (tâche 14) :
   temporairement remappé vers `StatusCode.Unknown` — le test `A_shot_on_an_unknown_game_returns_NotFound`
   échoue alors avec `Expected: NotFound / Actual: Unknown`, confirmant que le test mesure
   bien ce qu'il prétend mesurer (rapport de la tâche 14).
-- **Non concluant** : un test de course `IGameStore.Read` (lecture HTTP) contre
-  `IGameStore.Mutate` (tir gRPC) a été écrit et renforcé à plusieurs reprises (grille et
-  historique agrandis, salve de tirs simultanés, mesure instrumentée confirmant un
-  chevauchement réel des fenêtres d'écriture et de lecture) sans parvenir à observer
-  l'exception `InvalidOperationException: Collection was modified` lorsque la lecture est
-  délibérément ramenée à `Find`. Le mécanisme sous-jacent a été vérifié séparément, en
-  dehors d'ASP.NET Core/gRPC, où il se reproduit de façon fiable. Voir `REVUE-IA.md`,
-  revue 5, pour le détail chiffré et les limites de ce constat — la garantie contre une
-  régression `Find` repose donc, pour l'instant, sur la revue de code de `Mutate`/`Read`
-  plutôt que sur un test automatisé au pouvoir discriminant démontré.
+- **Course `IGameStore.Read` vs `Mutate` : concluant, au niveau du store.** Une première
+  version au niveau HTTP/gRPC (lecture `GET`, tir `Fire`) n'a jamais observé de corruption
+  malgré un chevauchement horloge confirmé par instrumentation, et coûtait 4-6 s par exécution
+  (suite complète portée à ~10 s) — supprimée sur retour du coordinateur : un test lent qui ne
+  discrimine rien vaut moins que pas de test. Remplacée par
+  `InMemoryGameStoreTests.Concurrent_fires_and_reads_never_throw_and_return_consistent_snapshots`,
+  qui appelle `IGameStore.Mutate`/`Read` directement (sans HTTP ni gRPC) : verrou de `Read`
+  retiré temporairement, **5 exécutions sur 5 en échec** avec une `ArgumentException:
+  Destination array is not long enough...` reproductible (le symptôme d'un
+  `HashSet<Coordinate>.ToList()` — `Board.ReceivedShots` — qui course une écriture
+  concurrente ; pas l'`InvalidOperationException` d'un `List<T>`, annoncée mais non observée
+  à ce volume). Verrou rétabli : 5/5 au vert, ~400 ms chacune ; suite complète 133/133 en
+  ~4 s. Voir `REVUE-IA.md`, revue 5, pour le détail chiffré des deux tentatives.
 - Non encore fait : la capture de la console réseau du navigateur montrant l'appel et
   l'erreur (nécessite l'interface Blazor, hors périmètre de la tâche 14).
 

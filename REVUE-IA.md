@@ -341,10 +341,16 @@ sont rapportées dans l'ordre où elles ont eu lieu, avec ce que chacune a infir
 
 ## Revue 5 — Le pouvoir discriminant du test de course `Read` vs `Mutate` (tâche 14)
 
-Cette revue documente une tentative qui n'a **pas** atteint son objectif, rapportée
-fidèlement plutôt que passée sous silence (CLAUDE.md § 6, règle 6).
+Cette revue raconte une hypothèse **corrigée par une mesure, deux fois de suite** : un premier
+essai (au niveau HTTP/gRPC) a échoué à démontrer un pouvoir discriminant malgré un
+chevauchement horloge confirmé ; relocalisé au niveau du store sur la suggestion du
+coordinateur, le même test discrimine de façon fiable, mais pas via l'exception exactement
+annoncée. Les deux résultats sont rapportés tels quels (CLAUDE.md § 6, règle 6).
 
-- **Proposition et référence dans le dépôt** : `BattleShip.Tests/Api/FireGrpcTests.cs`, test
+### Première tentative (niveau HTTP/gRPC) — négative
+
+- **Proposition et référence dans le dépôt (au moment de cette tentative)** :
+  `BattleShip.Tests/Api/FireGrpcTests.cs`, test
   `Concurrent_fires_and_reads_on_the_same_game_never_return_500_or_corrupt_state` — un test
   additionnel, au-delà des cinq tests donnés par le brief de tâche 14, demandé pour vérifier
   la première occasion du projet où une mutation concurrente réelle (`Fire` gRPC, via
@@ -412,35 +418,111 @@ fidèlement plutôt que passée sous silence (CLAUDE.md § 6, règle 6).
     tentative pour ne pas capter la fenêtre exacte requise par l'énumérateur de `List<T>`,
     dans un budget de temps raisonnable pour un test automatisé.
 
-- **Décision et justification** : le test est **conservé**, mais avec sa portée revue à la
-  baisse et documentée explicitement dans son propre commentaire : il vérifie qu'aucune
-  requête ne répond 500 et qu'aucune exception de corruption ne survient sous une charge
-  concurrente réelle et vérifiée-chevauchante — une vérification de non-régression légitime
-  en elle-même — mais il n'est **pas** présenté comme la garantie contre un retour à `Find`.
-  Cette garantie reste portée par la revue de code de `IGameStore.Mutate`/`Read` (même verrou,
-  obtenu par la même clé `Guid`, voir les commentaires de `IGameStore.cs` et
-  `InMemoryGameStore.cs`), pas par ce test. Corriger l'implémentation plutôt que l'assertion
-  aurait ici signifié fabriquer artificiellement la course (par exemple un délai injecté dans
-  le code de production) — ce qui aurait faussé le test plutôt que le renforcer ; ce chemin a
-  été explicitement écarté.
+- **Décision (à ce stade de l'investigation)** : le test HTTP/gRPC est **conservé mais
+  suspect** — sa portée est revue à la baisse dans son propre commentaire (il vérifie
+  l'absence de 500/corruption sous charge réelle, pas le pouvoir discriminant contre `Find`)
+  et la revue s'arrête là, en l'état. C'est cette décision que le coordinateur a corrigée :
+  un test qui coûte 4-6 s (la suite est passée de 5 s à 10 s, mesuré) et ne discrimine rien
+  est pire qu'aucun test — il ralentit chaque vérification des tâches restantes tout en
+  donnant une fausse assurance. Voir la suite ci-dessous.
 
-- **Preuves reproductibles et liens vers les commits** : commande ci-dessus ; le détail des
-  quatre conceptions et les deux répliques isolées sont conservés dans le rapport de la
-  tâche 14 (`.superpowers/sdd/2026-09-15-bataille-navale/task-14-report.md`), pas dans le
-  dépôt de code (fichiers d'instrumentation jetables, jamais commités).
+### Seconde tentative (niveau store, directe) — positive, avec une réserve sur le message exact
 
-- **Après correction éventuelle : résultat avant / après** : sans objet — aucune correction
-  n'a été apportée à l'implémentation (`IGameStore.Read`/`Mutate` n'ont pas changé, hors
-  l'expérimentation temporaire décrite ci-dessus, intégralement annulée avant ce commit) ; la
-  correction porterait sur le test, pas sur le produit, et reste à faire.
+Le rapport de la première tentative contenait déjà sa propre solution : le mécanisme se
+reproduit *de façon fiable en isolation* (8/8, puis 4069/11357). Ce n'est pas le bug qui
+manquait, c'est la pile réseau qui absorbait la fenêtre. Le test a donc été redescendu au
+niveau où il discrimine : `BattleShip.Tests/Domain/InMemoryGameStoreTests.cs`, test
+`Concurrent_fires_and_reads_never_throw_and_return_consistent_snapshots`, qui appelle
+`IGameStore.Mutate`/`Read` directement — aucun HTTP, aucun gRPC.
 
-- **Limites et points non vérifiés** : la cause exacte de l'écart entre les répliques isolées
-  (fiables) et le test de bout en bout (jamais observé en échec) n'a pas été élucidée avec
-  certitude — l'hypothèse retenue est la dilution du taux de tentative par la pile réseau/RPC,
-  mais des pauses GC et l'ordonnancement du système d'exploitation ont été envisagés et
-  partiellement écartés (mode `SustainedLowLatency` + `GC.Collect` forcé avant la salve : sans
-  effet observé) sans être formellement exclus. Une piste non tentée : un test **au niveau du
-  store seul** (`IGameStore.Mutate`/`Find` appelés directement, sans HTTP ni gRPC), qui
-  removerait la dilution réseau tout en gardant `Game`/`DtoMappings` réels — ébauché puis
-  invalidé par un bug de conception du test lui-même (tour non rejoué correctement lors d'une
-  touche adverse), non corrigé faute de temps disponible dans cette session.
+- **Proposition et référence dans le dépôt** :
+  `InMemoryGameStoreTests.Concurrent_fires_and_reads_never_throw_and_return_consistent_snapshots`.
+  Une partie est construite directement via `Game.Start` sur une grille 100×100, avec les deux
+  flottes placées par `FleetPlacer` ; chaque tir concurrent est fait sur une case pré-filtrée
+  pour éviter les cellules des DEUX flottes, de sorte que chaque coup est un manqué garanti
+  (la partie ne se termine donc jamais et le tour continue d'alterner). Chaque `Mutate` tire
+  pour **le joueur dont c'est effectivement le tour**, décidé à l'intérieur même du lambda
+  (`g.CurrentPlayer == Player.Human ? g.PlayerFires(at) : g.OpponentFires(at)`) — un
+  correctif direct du bug qui avait fait échouer l'ébauche précédente de cette même piste
+  (un tour non rejoué correctement après une touche adverse, mentionné dans la première
+  version de cette revue). Chaque `Read` énumère exactement ce que `DtoMappings` énumère en
+  production : `Game.History` filtré par tireur (deux fois), plus les deux `ReceivedShots`
+  (`HashSet<Coordinate>`) des deux plateaux.
+
+- **Hypothèse à vérifier** : inchangée — que le test **puisse échouer** si `IGameStore.Read`
+  perdait son verrou, avec une reproductibilité mesurée sur plusieurs exécutions, pas une
+  fois par hasard.
+
+- **Scénario, données ou commande** : le verrou de `InMemoryGameStore.Read` a été retiré
+  temporairement (bloc `lock` supprimé, le reste du corps inchangé), puis :
+
+  ```bash
+  dotnet test --filter "Concurrent_fires_and_reads_never_throw_and_return_consistent_snapshots"
+  ```
+
+  relancé 5 fois de suite. Volumes : 8 fils de tir × 100 tirs chacun (800 tirs), 8 fils de
+  lecture tournant en continu tant qu'un tir est en cours.
+
+- **Résultat attendu, énoncé avant exécution** (par le coordinateur) : une
+  `InvalidOperationException` « Collection was modified » devait apparaître, de façon
+  reproductible sur plusieurs exécutions.
+
+- **Résultat réellement observé** :
+  - **5 exécutions sur 5 en échec**, chacune avec plusieurs exceptions (5, 10, 14, 9 puis 8
+    occurrences selon l'exécution) au message identique :
+    ```
+    ArgumentException: Destination array is not long enough to copy all the items in the
+    collection. Check array index and length.
+    ```
+    accompagné, sur une des cinq exécutions, d'une `NullReferenceException` supplémentaire.
+  - **Ce n'est pas le message annoncé.** Le message attendu, `InvalidOperationException:
+    Collection was modified`, vient de l'énumérateur de `List<T>` (donc du côté
+    `Game.History`) ; le message réellement obtenu vient de `HashSet<Coordinate>.ToList()`
+    (donc du côté `Board.ReceivedShots`) qui course la même `_receivedShots.Add` que
+    `Board.Fire` exécute sous verrou. Un contrôle isolant les deux moitiés de la projection l'a
+    confirmé : à ce même volume (800 tirs), la moitié `History` seule (les deux
+    `Where(...).Select(...).ToList()`, sans les deux lignes `ReceivedShots`) reste **verte
+    3 fois sur 3** même avec le verrou retiré ; en la faisant grossir sensiblement (16 fils ×
+    300 tirs = 4800), elle reste verte encore 3 fois sur 3. La course sur `List<T>` reste donc,
+    même isolée du réseau, plus difficile à déclencher que celle sur `HashSet<T>` — cohérent
+    avec la première tentative, où seule la piste `List<T>` avait été testée.
+  - Le verrou de `Read` a été rétabli ; les 5 exécutions suivantes (implémentation correcte)
+    sont toutes passées, 380-460 ms chacune.
+  - Suite complète après remplacement : **133/133, ~4 s** (contre ~10 s avec l'ancien test
+    HTTP/gRPC, et ~5 s avant la tâche 14) — l'objectif du coordinateur (« autour de 5 s ») est
+    tenu.
+
+- **Erreur que ce contrôle pourrait détecter** : un retour accidentel de `IGameStore.Read` à
+  une lecture non verrouillée (`Find` ou équivalent) dans n'importe quel appelant qui énumère
+  `Game.History` et/ou `Board.ReceivedShots` — les deux collections que le commentaire de
+  `IGameStore.cs` nomme explicitement comme à risque.
+
+- **Décision et justification** : le test HTTP/gRPC est **supprimé** (il ne prouvait rien et
+  coûtait cher) et remplacé par celui-ci. La projection combinée (`History` + `ReceivedShots`)
+  est **conservée telle quelle**, plutôt que réduite à `History` seul pour coller au message
+  d'exception annoncé : `IGameStore.cs` documente les deux collections comme à risque, et le
+  test qui les exerce toutes les deux discrimine réellement, vite (< 0,5 s), et de façon
+  reproductible — un test qui échoue avec le bon type d'exception sur une collection voisine
+  vaut mieux qu'un test plus étroit qui ne discrimine pas du tout à un volume raisonnable.
+  Fabriquer artificiellement la course sur `List<T>` seule (volume démesuré, délai injecté
+  dans le code de production) a été explicitement écarté, pour la même raison que dans la
+  première tentative.
+
+- **Preuves reproductibles et liens vers les commits** : commandes ci-dessus, rejouables
+  telles quelles avec le verrou de `Read` commenté manuellement pour l'expérience ; détail
+  complet (les quatre conceptions de la première tentative, les deux répliques isolées hors
+  ASP.NET Core/gRPC, et cette seconde tentative) dans le rapport de la tâche 14.
+
+- **Après correction éventuelle : résultat avant / après** :
+  - *Avant* (verrou de `Read` retiré) : 5/5 exécutions en échec, `ArgumentException`
+    (+ `NullReferenceException` une fois), 5 à 14 occurrences par exécution.
+  - *Après* (verrou rétabli, état livré) : 5/5 exécutions au vert, 380-460 ms chacune ; suite
+    complète 133/133 en ~4 s.
+
+- **Limites et points non vérifiés** : le mécanisme exact par lequel `HashSet<T>.ToList()`
+  produit `ArgumentException`/`NullReferenceException` sous course (plutôt que l'
+  `InvalidOperationException` propre d'un `List<T>`) n'a pas été tracé dans le code source de
+  `HashSet<T>` — seule l'observation empirique, reproductible, est établie. La course sur
+  `List<T>` seule reste, à ce volume, non démontrée en isolation du réseau (verte 3/3 à 800
+  tirs et encore 3/3 à 4800) ; un volume plus grand la ferait peut-être basculer, mais cela n'a
+  plus d'intérêt pratique une fois la projection combinée reconnue comme suffisante et rapide.

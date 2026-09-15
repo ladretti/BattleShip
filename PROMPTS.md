@@ -137,3 +137,51 @@ Une entrée par échange qui a compté. Les échanges de pure exécution ne sont
   pas, à ce jour, une garantie automatisée contre une régression `Find` — cette garantie repose
   sur la revue de code de `IGameStore.Mutate`/`Read` (même verrou, même clé) plutôt que sur ce
   test. Voir `REVUE-IA.md`, revue 5, pour l'analyse complète.
+
+---
+
+## 2026-09-15 — Correction du coordinateur : redescendre le test de course au niveau du store
+
+- **Outil / modèle** : Claude Code (Claude Opus 5, contexte 1M).
+- **Contexte** : suite à l'échange précédent (tâche 14), le coordinateur a relevé que le test
+  de course HTTP/gRPC coûtait 4-6 s pour un pouvoir discriminant non démontré, et faisait
+  passer la suite complète de ~5 s à ~10 s.
+- **Prompt réellement utilisé** : remplacer le test par un test direct sur `IGameStore`
+  (`Mutate`/`Read`, sans HTTP ni gRPC), avec des `Thread` dédiés et une `Barrier` exacte,
+  la moitié tirant, l'autre moitié lisant avec une projection qui énumère l'historique et les
+  tirs reçus ; contrôler le pouvoir discriminant en retirant le verrou de `Read` ; si le test
+  ne discrimine toujours pas, le supprimer plutôt que le fabriquer.
+- **Réponse et hypothèses résumées** : la proposition supposait que retirer le réseau
+  suffirait à retrouver le pouvoir discriminant déjà démontré en isolation (répliques
+  `dotnet run --file` du rapport précédent). Réalisée : `game.CurrentPlayer` doit être lu
+  **à l'intérieur** du verrou pour décider qui tire, sinon le tour se bloque après le premier
+  coup (bug qui avait fait échouer une ébauche antérieure de cette même piste).
+- **Décision et justification** : **acceptée, avec une réserve signalée plutôt que masquée** :
+  le test discrimine bien, de façon fiable et rapide, mais via une `ArgumentException` issue
+  de `HashSet<Coordinate>.ToList()` (`Board.ReceivedShots`), pas via l'`InvalidOperationException`
+  « Collection was modified » d'un `List<T>` (`Game.History`) qu'on attendait. La moitié
+  `History` seule de la projection, isolée pour vérifier, reste verte même sans verrou à un
+  volume testé jusqu'à 4800 tirs. La projection combinée est conservée : les deux collections
+  sont documentées comme à risque dans `IGameStore.cs`, et celle qui casse en premier suffit à
+  prouver que `Read` protège l'ensemble.
+- **Scénario ou commande de vérification** :
+
+  ```bash
+  dotnet test --filter "Concurrent_fires_and_reads_never_throw_and_return_consistent_snapshots"
+  dotnet test    # suite complète
+  ```
+
+- **Résultat attendu, puis résultat observé** : attendu, énoncé par le coordinateur avant
+  exécution : une `InvalidOperationException: Collection was modified`, reproductible sur
+  plusieurs exécutions. **Observé** : 5 exécutions sur 5 en échec, verrou retiré, mais avec
+  `ArgumentException: Destination array is not long enough to copy all the items in the
+  collection.` (une fois accompagnée d'une `NullReferenceException`) — un symptôme différent
+  du mécanisme annoncé, sur une collection différente. Verrou rétabli : 5/5 au vert
+  (380-460 ms). Suite complète : 133/133 en ~4 s (objectif « autour de 5 s » tenu).
+- **Erreur que ce contrôle pourrait détecter** : un retour de `IGameStore.Read` à une lecture
+  non verrouillée, sur `Game.History` comme sur `Board.ReceivedShots`.
+- **Preuves reproductibles et limites** : commandes ci-dessus. Limite assumée : la course sur
+  `List<T>` (`Game.History`) seule n'a pas été démontrée en isolation du réseau à un volume
+  raisonnable (verte 3/3 à 800 tirs, encore 3/3 à 4800) — seule la course combinée avec
+  `HashSet<T>` (`Board.ReceivedShots`) l'a été. Détail complet dans `REVUE-IA.md`, revue 5, et
+  `.superpowers/sdd/2026-09-15-bataille-navale/task-14-report.md` (addendum).
