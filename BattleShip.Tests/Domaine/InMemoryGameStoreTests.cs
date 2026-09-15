@@ -29,7 +29,7 @@ public sealed class InMemoryGameStoreTests
     [InlineData(3)]
     [InlineData(4)]
     [InlineData(5)]
-    public async Task Un_seul_tir_simultane_sur_la_meme_case_reussit(int execution)
+    public void Un_seul_tir_simultane_sur_la_meme_case_reussit(int execution)
     {
         _ = execution;   // le cas est rejoué : une course qui passe une fois ne prouve rien
         var store = new InMemoryGameStore();
@@ -38,20 +38,33 @@ public sealed class InMemoryGameStoreTests
 
         var cible = new Coordinate(0, 0);
         const int nombreDeTirs = 32;
-        // Task.Run seul ne garantit pas la collision : l'ordonnanceur peut démarrer
-        // et terminer les premières tâches avant même de lancer les dernières. La
-        // barrière force les 32 tâches à attendre un point de rendez-vous commun
-        // avant de tirer, pour qu'elles entrent réellement dans Mutate en même
-        // temps. Le nombre de participants DOIT correspondre exactement au nombre
-        // de tâches : sinon SignalAndWait bloque indéfiniment au lieu d'échouer.
+        // Task.Run passe par le pool de threads, qui n'injecte de nouveaux threads
+        // qu'au compte-gouttes (environ un toutes les 500 ms au-delà du seuil
+        // initial) : une Barrier posée dessus a été mesurée à 15-18 s par exécution
+        // pour un taux de détection inchangé (voir REVUE-IA.md, Revue 4). Des Thread
+        // dédiés démarrent immédiatement, sans cette injection progressive : la
+        // barrière se relâche en quelques millisecondes et les 32 tirs entrent
+        // réellement ensemble dans Mutate. Le nombre de participants DOIT
+        // correspondre exactement au nombre de threads : sinon SignalAndWait bloque
+        // indéfiniment au lieu de faire échouer le test.
         using var depart = new Barrier(nombreDeTirs);
-        var tirs = Enumerable.Range(0, nombreDeTirs).Select(_ => Task.Run(() =>
-        {
-            depart.SignalAndWait();
-            return store.Mutate(game.Id, g => g.PlayerFires(cible));
-        }));
+        var resultats = new Result<ShotRecord>[nombreDeTirs];
+        var threads = new Thread[nombreDeTirs];
 
-        var resultats = await Task.WhenAll(tirs);
+        for (var i = 0; i < nombreDeTirs; i++)
+        {
+            var index = i;
+            threads[index] = new Thread(() =>
+            {
+                depart.SignalAndWait();
+                resultats[index] = store.Mutate(game.Id, g => g.PlayerFires(cible));
+            });
+        }
+
+        foreach (var thread in threads)
+            thread.Start();
+        foreach (var thread in threads)
+            thread.Join();
 
         Assert.Equal(1, resultats.Count(r => r.IsOk));
         Assert.All(resultats.Where(r => !r.IsOk), r =>
