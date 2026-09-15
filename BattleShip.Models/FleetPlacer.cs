@@ -30,13 +30,9 @@ public sealed class FleetPlacer(Random random)
     {
         var placements = new List<ShipPlacement>(rules.Fleet.Count);
 
-        for (var i = 0; i < rules.Fleet.Count; i++)
+        foreach (var template in rules.Fleet)
         {
-            // PlacementRules.Validate exige que la flotte fournie corresponde exactement
-            // à rules.Fleet : on la restreint donc aux navires déjà posés (0..i) pour
-            // pouvoir soumettre chaque candidat sans réimplémenter la règle d'adjacence.
-            var partialRules = rules with { Fleet = [.. rules.Fleet.Take(i + 1)] };
-            var placement = TryPlaceShip(rules.Fleet[i], placements, partialRules);
+            var placement = TryPlaceShip(template, placements, rules);
             if (placement is null)
                 return null;
 
@@ -47,13 +43,22 @@ public sealed class FleetPlacer(Random random)
     }
 
     private ShipPlacement? TryPlaceShip(
-        ShipTemplate template, List<ShipPlacement> alreadyPlaced, GameRules partialRules)
+        ShipTemplate template, List<ShipPlacement> alreadyPlaced, GameRules rules)
     {
+        // PlacementRules.Validate exige une flotte complète : on lui décrit donc la
+        // flotte partielle (navires déjà posés + candidat) qu'on est en train de valider.
+        List<ShipTemplate> partialFleet =
+        [
+            .. alreadyPlaced.Select(p => new ShipTemplate(p.Name, p.Size)),
+            new ShipTemplate(template.Name, template.Size)
+        ];
+        var partialRules = rules with { Fleet = partialFleet };
+
         for (var tentative = 0; tentative < MaxTentativesParNavire; tentative++)
         {
             var origin = new Coordinate(
-                random.Next(partialRules.GridSize),
-                random.Next(partialRules.GridSize));
+                random.Next(rules.GridSize),
+                random.Next(rules.GridSize));
             var orientation = random.Next(2) == 0 ? Orientation.Horizontal : Orientation.Vertical;
             var candidate = new ShipPlacement(template.Name, origin, orientation, template.Size);
 
