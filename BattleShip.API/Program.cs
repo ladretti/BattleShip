@@ -15,6 +15,17 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddGrpc();
+
+// The front runs on two origins depending on its launch profile (BattleShip.App's
+// launchSettings.json, http and https). Origins are read from configuration, never
+// AllowAnyOrigin(): the exposed headers are the grpc-web trailers — without them the
+// browser client cannot read a failed call's status (ADR 0005's InvalidArgument demo).
+builder.Services.AddCors(options => options.AddPolicy("front", policy => policy
+    .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .WithExposedHeaders("grpc-status", "grpc-message", "grpc-encoding",
+                        "grpc-accept-encoding")));
 builder.Services.AddScoped<IValidator<BenchmarkInput>, BenchmarkInputValidator>();
 
 // IGameStore (ADR 0002): Singleton, so ConcurrentDictionary-backed concurrent access.
@@ -36,6 +47,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Must precede UseGrpcWeb(): an API that only passes integration tests (they never go
+// through CORS) but breaks in the browser is exactly the failure this order avoids.
+app.UseCors("front");
 
 app.UseGrpcWeb();
 app.MapGrpcService<BattleGrpcService>().EnableGrpcWeb();
