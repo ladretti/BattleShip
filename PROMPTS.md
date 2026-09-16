@@ -185,3 +185,71 @@ Une entrée par échange qui a compté. Les échanges de pure exécution ne sont
   raisonnable (verte 3/3 à 800 tirs, encore 3/3 à 4800) — seule la course combinée avec
   `HashSet<T>` (`Board.ReceivedShots`) l'a été. Détail complet dans `REVUE-IA.md`, revue 5, et
   `.superpowers/sdd/2026-09-15-bataille-navale/task-14-report.md` (addendum).
+
+---
+
+## 2026-09-16 — Tâche 16 : état partagé Blazor, page de création, et où vit le contrat
+
+- **Outil / modèle** : Claude Code (claude-opus-5, 1M context)
+
+- **Contexte** : les tâches 1 à 15 sont livrées (API, gRPC-Web, validation, CORS). La tâche
+  16 ouvre le front : `GameState`, `BattleApiClient`, `NewGame.razor`. Contrainte de
+  structure : `BattleShip.App` ne référence que `BattleShip.Models`, alors que les DTO du
+  contrat vivent dans `BattleShip.API`.
+
+- **Prompt réellement utilisé** : « /superpowers:executing-plans
+  @docs/superpowers/plans/2026-09-15-bataille-navale.md — reprends le plan à partir de la
+  tâche 16 ».
+
+- **Réponse et hypothèses résumées** : l'IA a relevé avant d'écrire la moindre ligne que le
+  plan ne dit pas d'où le front tire `GameDto`, et a posé la question au binôme au lieu de
+  trancher seule. Deux options présentées : recopier les records côté front (zéro churn,
+  dérive silencieuse possible) ou les déplacer dans `BattleShip.Models` (définition unique,
+  refactor des fichiers déjà commités). Hypothèse sous-jacente à l'option retenue : des
+  records nus n'introduisent aucune dépendance JSON dans le domaine, et `CLAUDE.md` décrit
+  bien `BattleShip.Models` comme « Modèles partagés + moteur de jeu ».
+
+- **Décision et justification** : **déplacement accepté** (ADR 0008). `DtoMappings` reste
+  dans l'API : le domaine porte la forme du contrat, jamais la projection vers lui.
+  `DifficultyLevels` a suivi le même chemin, sa documentation le désignant déjà comme « un
+  contrat avec le front ».
+
+  Deux propositions du plan ont par ailleurs été **adaptées** :
+  - les durées de vie DI de l'étape 2 (`GameState` en `Singleton` dépendant d'un client
+    `Scoped`) — dépendance captive, voir `REVUE-IA.md` revue 6 ;
+  - `Adopt(GameDto)` avait été écrit dans `GameState` « pour les tâches 17-18 » puis
+    **retiré** avant commit : aucune des deux n'en a l'usage (le placement répond `204`, le
+    tir répond un `FireResponse`), et le plan proscrit la cérémonie sans contrepartie.
+
+- **Scénario ou commande de vérification** : quatre expériences, toutes avec un attendu
+  énoncé *avant* exécution.
+  1. Relecture du corps réel de `POST /games` dans `GameDto` (`dotnet run --file roundtrip.cs`).
+  2. Renommage d'une propriété du contrat, puis `dotnet build BattleShip.App`.
+  3. `BuildServiceProvider(validateScopes: true)` sur les deux jeux de durées de vie.
+  4. **Vrai navigateur** : Chrome piloté par le protocole DevTools (Node 24, sans
+     dépendance), API et front lancés, onglet Réseau et console observés — d'abord API
+     démarrée, puis API arrêtée.
+
+- **Résultat attendu, puis résultat observé** :
+  - Attendu (4) : rendu de `<h1>New game</h1>`, clic → préflight `OPTIONS` puis
+    `POST /games` en `201`, URL devenue `/placement`, aucune erreur console. API arrêtée :
+    message d'échec, page toujours utilisable.
+  - Observé (4) : `OPTIONS` → `204`, `POST` → `201`, `location = /placement`, console vide ;
+    le menu affiche « Opponent: Normal · Grid: 10 × 10 » **après** la navigation, ce qui
+    constitue la preuve directe de la raison d'être de `GameState` (ADR 0007). API arrêtée :
+    alerte « Could not reach the server… », `location` reste `/`, bouton et listes déroulantes
+    toujours actifs. Les quatre expériences conformes à leur attendu ; détail en revues 6 et 7.
+
+- **Erreur que ce contrôle pourrait détecter** : l'expérience 2 distingue les deux options
+  de placement des DTO (la copie compilerait) ; l'expérience 3 distingue « ces durées de vie
+  sont correctes » de « elles ne sont inoffensives que grâce à l'hébergeur » ; l'expérience 4
+  distingue une page qui gère l'échec d'une page qui se fige — c'est le seul des quatre
+  contrôles qui exerce réellement CORS, le préflight et le cycle de vie Blazor.
+
+- **Preuves reproductibles et limites** : commits `fe16e5b` (contrat partagé) et `d037bcf`
+  (tâche 16) ; scripts dans le scratchpad de session (`roundtrip.cs`, `lifetimes.cs`,
+  `drive.mjs`). Limites : Chrome a été lancé avec `--ignore-certificate-errors`, donc la
+  confiance faite au certificat de développement n'est **pas** établie par cette
+  vérification ; la redirection mène pour l'instant à la page « Not Found », `/placement`
+  n'existant qu'à la tâche 17 ; le comportement de la sérialisation sous publication trimmée
+  n'a pas été éprouvé.

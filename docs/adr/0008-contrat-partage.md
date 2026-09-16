@@ -92,7 +92,7 @@ Deux garde-fous délimitent ce que ce déplacement autorise :
   dédiée — renommer `GameDto.OpponentDifficulty` en `GameDto.Level` sans toucher au front
   fait échouer la compilation de `BattleShip.App` (`NavMenu.razor(27,29): error CS1061`), là
   où l'option A aurait compilé et affiché un niveau vide à l'exécution. Voir `REVUE-IA.md`,
-  revue 4.
+  revue 7.
 - **Reste à vérifier** : rien dans la compilation n'empêche un futur attribut JSON sur ces
   records. Aucun test ne garde cette frontière ; seule la revue le fait.
 - À réexaminer si un client hors solution apparaissait (application mobile, service tiers) :

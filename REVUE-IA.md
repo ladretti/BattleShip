@@ -526,3 +526,169 @@ niveau où il discrimine : `BattleShip.Tests/Domain/InMemoryGameStoreTests.cs`, 
   `List<T>` seule reste, à ce volume, non démontrée en isolation du réseau (verte 3/3 à 800
   tirs et encore 3/3 à 4800) ; un volume plus grand la ferait peut-être basculer, mais cela n'a
   plus d'intérêt pratique une fois la projection combinée reconnue comme suffisante et rapide.
+
+---
+
+## Revue 6 — Les durées de vie du plan pour `GameState` (tâche 16)
+
+- **Proposition et référence dans le dépôt** : le plan, tâche 16, étape 2, dicte
+  l'enregistrement suivant dans `BattleShip.App/Program.cs` :
+
+  ```csharp
+  builder.Services.AddScoped(_ => new HttpClient { ... });
+  builder.Services.AddSingleton<GameState>();
+  builder.Services.AddScoped<BattleApiClient>();
+  ```
+
+  L'ADR 0007 va dans le même sens : « `GameState` est enregistré en singleton ».
+  Proposition **adaptée** — voir `BattleShip.App/Program.cs:22-31`, commit `d037bcf`.
+
+- **Hypothèse à vérifier** : pour que ces durées de vie soient acceptables, il faut qu'un
+  service `Singleton` puisse dépendre d'un service `Scoped` sans que cela constitue un
+  défaut. `GameState` (Singleton) dépend de `BattleApiClient` (Scoped), lui-même dépendant
+  du `HttpClient` (Scoped) du gabarit : c'est la définition d'une **dépendance captive**, le
+  singleton capturant pour toute la vie de l'application une instance censée vivre le temps
+  d'une portée.
+
+  L'ADR 0007 avance une raison de ne pas s'en soucier : en Blazor WebAssembly, `Scoped` et
+  `Singleton` se confondent, il n'y a qu'une portée. C'est exact. La question posée ici est
+  différente : le code est-il correct *par construction*, ou seulement *parce que
+  l'hébergeur le rend inoffensif* ?
+
+- **Scénario, données ou commande** : construire le conteneur avec `validateScopes: true` —
+  ce qu'ASP.NET Core active en Développement et que Blazor WebAssembly n'active jamais — sur
+  les **vrais types du projet**, et comparer les deux enregistrements.
+
+  ```bash
+  # scratchpad/lifetimes.cs, référençant BattleShip.App par #:project
+  dotnet run --file lifetimes.cs
+  ```
+
+- **Résultat attendu avant exécution** : les durées de vie du plan lèvent une
+  `InvalidOperationException` mentionnant « Cannot consume scoped service » ; les trois
+  services au même cycle de vie (`Scoped`), résolus dans une portée, se résolvent sans
+  erreur.
+
+- **Erreur que ce contrôle pourrait détecter** : il discrimine exactement les deux lectures
+  concurrentes. Si la dépendance captive n'en était pas une, les deux enregistrements
+  passeraient la validation ; si elle en est une, seul le second passe. Le contrôle ne peut
+  pas « réussir des deux côtés ».
+
+- **Résultat réellement observé** :
+
+  ```
+  THROW plan's lifetimes (GameState Singleton, client Scoped): Cannot consume scoped service
+        'System.Net.Http.HttpClient' from singleton 'BattleShip.App.Services.GameState'.
+  OK    shipped lifetimes (all Scoped): resolved GameState
+  ```
+
+  Conforme à l'attendu. À noter : le message nomme `HttpClient` et non `BattleApiClient`,
+  parce que la validation remonte la chaîne jusqu'au premier service `Scoped` rencontré —
+  la nature du défaut est la même.
+
+- **Décision et justification** : **adaptée**. Les trois services sont enregistrés en
+  `Scoped`. Le comportement livré est rigoureusement identique à celui qu'aurait produit le
+  plan — en WebAssembly la portée racine est la seule — mais il cesse de dépendre de cette
+  particularité. Ce n'est pas une correction de bug : c'est retirer d'un code correct la
+  seule raison pour laquelle il l'était par accident.
+
+  L'ADR 0007 n'est pas renversé : sa décision porte sur « un service partagé qui survit à la
+  navigation et notifie par `OnChange` », et cela reste vrai. Seule la durée de vie nominale
+  change, et `Program.cs:22-31` porte le commentaire qui l'explique.
+
+- **Preuves reproductibles et liens vers les commits** : `scratchpad/lifetimes.cs`, commande
+  ci-dessus ; commit `d037bcf`.
+
+- **Après correction éventuelle : résultat avant / après** : *avant* (durées de vie du
+  plan), `InvalidOperationException` sous `validateScopes: true` ; *après* (état livré),
+  résolution réussie. Suite complète 136/136 dans les deux cas — ce qui est précisément le
+  point : **la suite de tests ne détecte pas ce défaut**, seule la validation de portée le
+  fait.
+
+- **Limites et points non vérifiés** : l'expérience établit que le conteneur *refuserait*
+  ces durées de vie s'il les validait. Elle n'établit pas qu'un bug observable existe dans
+  l'application Blazor WebAssembly telle qu'elle est livrée — il n'en existe pas, et c'est
+  admis. Le bénéfice est la portabilité du raisonnement, pas la correction d'une panne.
+
+---
+
+## Revue 7 — Où placer les DTO pour que le front les lise (ADR 0008, tâche 16)
+
+- **Proposition et référence dans le dépôt** : le plan ouvre la tâche 16 sans dire d'où
+  `BattleShip.App` tire `GameDto` : les DTO de la tâche 12 sont dans `BattleShip.API`, que
+  le front ne référence pas et ne peut pas référencer. La proposition spontanée dans ce
+  contexte — celle que retiennent la plupart des projets client/serveur — est de **recopier**
+  les records côté front. Proposition **rejetée** au profit du partage par
+  `BattleShip.Models/Contracts/` : commit `fe16e5b`, ADR 0008.
+
+- **Hypothèse à vérifier** : pour que la copie soit acceptable, il faut qu'une divergence
+  entre les deux définitions se manifeste **tôt et bruyamment**. Si au contraire elle passe
+  la compilation et ne se voit qu'à l'affichage, l'option coûte un mode de panne silencieux
+  que le partage supprime par construction.
+
+- **Scénario, données ou commande** : deux expériences.
+
+  1. *Le contrat réel se relit-il sans attribut ?* Créer une partie sur l'API lancée, puis
+     relire le corps exact renvoyé avec les options `JsonSerializerDefaults.Web` — celles
+     qu'emploie `System.Net.Http.Json` dans le navigateur.
+
+     ```bash
+     dotnet run --project BattleShip.API --launch-profile http
+     curl -s -X POST http://localhost:5184/games -H 'Content-Type: application/json' \
+          -d '{"gridSize":10,"difficulty":"Normal"}' -o game.json
+     dotnet run --file roundtrip.cs game.json   # scratchpad
+     ```
+
+  2. *Le partage discrimine-t-il une dérive ?* Renommer une propriété du contrat sans
+     toucher au front, puis compiler le front seul.
+
+     ```bash
+     sed -i 's/string OpponentDifficulty, /string Level, /' BattleShip.Models/Contracts/GameDto.cs
+     dotnet build BattleShip.App/BattleShip.App.csproj
+     ```
+
+- **Résultat attendu avant exécution** : (1) `201`, et les 13 propriétés vérifiées une à une
+  conformes — `Status="Placing"`, `Fleet.Count=5`, `Own.GridSize=10`, listes imbriquées
+  vides mais non nulles. (2) La compilation de `BattleShip.App` **échoue**.
+
+- **Erreur que ce contrôle pourrait détecter** : la seconde expérience est le cœur de la
+  décision. Sous l'option recopiée, ce même renommage compilerait des deux côtés et
+  produirait un niveau vide à l'écran, sans message. Le contrôle distingue donc bien les deux
+  options : il ne peut échouer que sous l'une d'elles.
+
+  La première expérience discrimine autre chose : une casse ou un type de collection non pris
+  en charge laisserait des propriétés nulles ou des listes vides — panne silencieuse elle
+  aussi, puisqu'un `IReadOnlyList<T>` non rempli ne lève rien.
+
+- **Résultat réellement observé** :
+
+  1. `HTTP/1.1 201 Created`, corps en camelCase, puis **13 contrôles sur 13 au vert**, y
+     compris `Fleet[0] = Carrier/5` et les quatre listes imbriquées. Aucun attribut de
+     sérialisation n'a été nécessaire.
+  2. ```
+     BattleShip.App/Layout/NavMenu.razor(27,29): error CS1061: 'GameDto' ne contient pas de
+     définition pour 'OpponentDifficulty'
+     ```
+     Conforme à l'attendu dans les deux cas. Le contrat a ensuite été restauré à l'identique
+     (`git diff` vide) et la solution recompile sans avertissement.
+
+- **Décision et justification** : proposition de copie **rejetée**. Les DTO et les entrées
+  passent dans `BattleShip.Models/Contracts/`, `DtoMappings` reste dans `BattleShip.API`.
+  L'argument décisif n'est pas l'élégance mais le mode de panne : ici le client et le serveur
+  sont compilés ensemble, par le même binôme, et le découplage n'achèterait aucune
+  indépendance de déploiement en échange du risque. Détail des options et des garde-fous dans
+  l'ADR 0008.
+
+- **Preuves reproductibles et liens vers les commits** : `scratchpad/roundtrip.cs`, commandes
+  ci-dessus ; commits `fe16e5b` (déplacement) et `d037bcf` (premier usage côté front).
+
+- **Après correction éventuelle : résultat avant / après** : 136/136 avant le déplacement,
+  136/136 après, sans avertissement de compilation — le déplacement n'a modifié aucun
+  comportement observable côté serveur.
+
+- **Limites et points non vérifiés** : rien dans la compilation n'interdit d'ajouter demain
+  un attribut `System.Text.Json` sur ces records, ce qui ferait entrer JSON dans le projet du
+  domaine. Aucun test ne garde cette frontière ; seule la revue le fait, et l'absence de tout
+  paquet dans `BattleShip.Models.csproj` rend le geste visible en diff. Par ailleurs la
+  sérialisation a été vérifiée avec le moteur par réflexion : le comportement sous
+  publication *trimmée* de Blazor WebAssembly n'a pas été éprouvé.
