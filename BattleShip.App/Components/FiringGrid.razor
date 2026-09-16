@@ -5,8 +5,7 @@
    server, and letting the click through is what makes it demonstrable (ADR 0005). *@
 
 <div class="board-frame">
-    <div class="board" role="group" aria-label="@Label"
-         style="grid-template-columns: auto repeat(@GridSize, var(--cell-size, 2.15rem));">
+    <div class="board" role="group" aria-label="@Label" style="@Template">
 
         @* Coordinate rulers. Not decoration: naming a cell out loud is how the game has
            always been played, and the aria-labels below use the same names. *@
@@ -36,7 +35,7 @@
                        steps over the whole board in one press instead of walking GridSize² cells,
                        and the arrow keys move within it. This is the standard keyboard pattern
                        for a grid, and it is what makes the game playable without a mouse. *@
-                    <button type="button" class="cell @state @(struck ? "is-struck" : null)"
+                    <button type="button" class="cell @state @(struck ? "is-struck" : null) @(OverHull(cell) ? "over-hull" : null)"
                             aria-label="@LabelFor(cell, state)"
                             @ref="_cellRefs[index]"
                             tabindex="@(index == _focused ? 0 : -1)"
@@ -49,7 +48,7 @@
                 }
                 else
                 {
-                    <div class="cell @state @(struck ? "is-struck" : null)" role="img"
+                    <div class="cell @state @(struck ? "is-struck" : null) @(OverHull(cell) ? "over-hull" : null)" role="img"
                          aria-label="@LabelFor(cell, state)">
                         <span aria-hidden="true">@Glyph(state)</span>
                         @if (struck) { @Burst(Impact!) }
@@ -58,6 +57,32 @@
             }
         }
 
+    </div>
+
+    @* The hulls, on their own grid stacked exactly over the board. Same template, same gap,
+       same padding — so a ship spanning n columns covers n cells AND the n-1 gutters between
+       them, which is what makes it read as one object instead of n squares.
+
+       It is a SEPARATE grid, never items added to the board: an explicitly placed item makes
+       the board's auto-placement route around it and pushes every following cell one square
+       out of line. That defect shipped once already; this is the shape that cannot have it. *@
+    <div class="board-overlay" aria-hidden="true" style="@Template">
+        @foreach (var ship in Ships)
+        {
+            <span class="hull-slot" style="@Slot(ship)">
+                <Hull Size="ship.Size" Vertical="ship.Vertical" Compact="Compact"
+                      Class="@(ship.IsSunk ? "hull--sunk" : null)" />
+            </span>
+        }
+
+        @* Damage is per cell, placed per cell. Putting it inside the hull's viewBox would
+           make it drift by up to a tenth of a cell, because the gutter it has to account for
+           changes with the skin. *@
+        @foreach (var (at, state) in Ships.SelectMany(ship => ship.Damage))
+        {
+            <span class="scar scar--@state"
+                  style="grid-column: @(at.X + 2); grid-row: @(at.Y + 2)"></span>
+        }
     </div>
 
     @if (Impact is { Kind: "sunk" } sinking)
@@ -107,6 +132,16 @@
 
     [Parameter] public bool Interactive { get; set; }
 
+    /// <summary>
+    /// The ships to draw a hull for. On the player's own board that is the whole fleet; on
+    /// the opponent's it is only what has been sunk, because that is the only thing the
+    /// server sends cells for (ADR 0001, the secrecy rule).
+    /// </summary>
+    [Parameter] public IReadOnlyList<ShipOutline> Ships { get; set; } = [];
+
+    /// <summary>Drops the deck furniture, for a board too small to read it.</summary>
+    [Parameter] public bool Compact { get; set; }
+
     [Parameter] public ImpactMark? Impact { get; set; }
 
     /// <summary>The name stamped across the board when a hull goes down.</summary>
@@ -115,14 +150,37 @@
     [Parameter] public EventCallback<Coordinate> OnCellClick { get; set; }
 
     private Dictionary<Coordinate, string> _states = [];
+    private HashSet<Coordinate> _hullCells = [];
     private ElementReference[] _cellRefs = [];
     private int _focused;
+
+    /// <summary>
+    /// Both grids are declared with the SAME explicit template. The ruler track used to be
+    /// <c>auto</c>, which sized itself from its text — fine alone, but the overlay has no
+    /// text, so its <c>auto</c> track collapsed to nothing and every hull sat one track off.
+    /// </summary>
+    private string Template =>
+        $"grid-template-columns: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));" +
+        $"grid-template-rows: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));";
+
+    private static string Slot(ShipOutline ship) => ship.Vertical
+        ? $"grid-column: {ship.Origin.X + 2}; grid-row: {ship.Origin.Y + 2} / span {ship.Size}"
+        : $"grid-column: {ship.Origin.X + 2} / span {ship.Size}; grid-row: {ship.Origin.Y + 2}";
+
+    /// <summary>
+    /// A cell with a hull under it paints no background of its own — otherwise it would hide
+    /// the ship it is sitting on. It keeps its glyph, which is what makes the state readable
+    /// without colour, and rises above the overlay so the glyph stays on top.
+    /// </summary>
+    private bool OverHull(Coordinate cell) => _hullCells.Contains(cell);
 
     protected override void OnParametersSet()
     {
         _states = [];
         foreach (var cell in Cells)
             _states[new Coordinate(cell.X, cell.Y)] = cell.State;
+
+        _hullCells = [.. Ships.SelectMany(ship => ship.Footprint)];
 
         if (_cellRefs.Length != GridSize * GridSize)
             _cellRefs = new ElementReference[GridSize * GridSize];

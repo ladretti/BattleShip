@@ -87,6 +87,14 @@ button, input, select { font: inherit; color: inherit; }
     --cell-sunk: #14212B;      --on-sunk: #F4E3D6;
     --cell-ship: #35566E;      --on-ship: #E1E8E6;
 
+    --hull-bed: #DCE3E0;
+    --pip: #8FA9BC;
+    --hull: #35566E;
+    --hull-deck: #4A6A82;
+    --hull-line: #16212B;
+    --hull-sunk: #14212B;
+    --ruler-size: 1.35rem;
+
     --focus: #D8A62B;
     --danger: #C8322A;
 
@@ -137,7 +145,15 @@ button, input, select { font: inherit; color: inherit; }
     --cell-miss: #7C858F;      --on-miss: #11151A;
     --cell-hit: #D8501F;       --on-hit: #1C0A02;
     --cell-sunk: #6E1C11;      --on-sunk: #FBE3DA;
-    --cell-ship: #2F353C;      --on-ship: #C6CDD5;
+    --cell-ship: #2F353C;      --on-ship: #171B20;  /* dark glyph, the hull is light */
+
+    --hull-bed: #464D56;
+    --pip: #99A2AC;
+    --hull: #99A2AC;      /* haze grey — 3.31:1 on the plate; darker cannot reach 3:1 */
+    --hull-deck: #7E8894;
+    --hull-line: #262C33;
+    --hull-sunk: #6E1C11;
+    --ruler-size: 1.4rem;
 
     --focus: #DFA425;
     --danger: #D8501F;
@@ -190,6 +206,14 @@ button, input, select { font: inherit; color: inherit; }
     --cell-hit: #C2261F;       --on-hit: #FFF4F2;
     --cell-sunk: #8A1C17;      --on-sunk: #FFE6E2;
     --cell-ship: #BFC6CE;      --on-ship: #22303F;
+
+    --hull-bed: #1B57A2;
+    --pip: #BFC6CE;
+    --hull: #BFC6CE;
+    --hull-deck: #D7DCE2;
+    --hull-line: #22303F;
+    --hull-sunk: #8A1C17;
+    --ruler-size: 1.5rem;
 
     --focus: #FFD34D;
     --danger: #C2261F;
@@ -437,8 +461,12 @@ button.cell:hover:not(.miss):not(.hit):not(.sunk) {
 .cell.empty { background: var(--cell-unknown); }
 .cell.occupied { background: var(--cell-ship); color: var(--on-ship); box-shadow: var(--cell-relief); }
 
-.cell.preview-valid   { background: #176B33; color: #fff; }
-.cell.preview-invalid { background: #C22F2F; color: #fff; }
+/* The preview cells sit ON the ghost hull, so they paint no background of their own — the
+   hull is the ship you are about to drop. What tells valid from refused without colour is
+   the outline (solid vs dashed) plus these glyphs, whose contrast is the one already
+   measured against the hull fill. */
+.cell.preview-valid,
+.cell.preview-invalid { background: transparent; color: var(--on-ship); }
 
 button.cell:focus-visible {
     outline: 3px solid var(--focus);
@@ -542,7 +570,7 @@ button.cell:focus-visible {
 .sunk-stamp span {
     font-family: var(--font-display);
     font-variation-settings: var(--display-axes);
-    font-size: clamp(1.6rem, 4vw, 2.6rem);
+    font-size: calc(var(--cell-size, 2.15rem) * 0.85);
     letter-spacing: 0.06em;
     color: var(--danger);
     border: 3px solid var(--danger);
@@ -570,7 +598,7 @@ button.cell:focus-visible {
     .impact__flash { opacity: 0; }
     .impact__ring { opacity: 0; }
     .impact__shard { opacity: 0; }
-    .sunk-stamp span { opacity: 1; transform: rotate(-7deg); }
+    .sunk-stamp { display: none; }
 }
 
 [data-motion="calm"] .impact__flash,
@@ -585,7 +613,10 @@ button.cell:focus-visible {
 [data-motion="calm"] .impact__ring,
 [data-motion="calm"] .impact__shard { opacity: 0; }
 
-[data-motion="calm"] .sunk-stamp span { opacity: 1; transform: rotate(-7deg); }
+/* The stamp is pure theatre: with no animation to take it away it would sit on the board
+   until the next shot, covering it. Calm mode drops it entirely — the live region announces
+   the sinking either way, and the wreck itself stays on the board. */
+[data-motion="calm"] .sunk-stamp { display: none; }
 
 /* ---------- 7. Fleet readout ----------------------------------------------- */
 
@@ -614,7 +645,7 @@ button.cell:focus-visible {
     flex: 1 1 0;
     height: 6px;
     border-radius: var(--radius-cell);
-    background: var(--cell-ship);
+    background: var(--pip);
 }
 
 .hull__pip[data-state="hit"] { background: var(--cell-hit); }
@@ -819,3 +850,115 @@ kbd {
 @media (max-width: 960px) {
     .stage { grid-template-columns: minmax(0, 1fr); }
 }
+
+
+/* ---------- 13. Hulls ------------------------------------------------------ */
+
+/* The overlay is a SECOND grid, stacked exactly over the board: same template, same gap,
+   same padding. A ship spanning n columns therefore covers n cells and the n-1 gutters
+   between them, which is what makes a hull one object rather than n squares. It is never
+   items added to the board itself — an explicitly placed item makes the board's
+   auto-placement route around it and pushes every following cell out of line. */
+.board-overlay {
+    position: absolute;
+    inset: var(--board-frame);
+    display: grid;
+    gap: var(--gap);
+    padding: var(--gap);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* The bed under a ship. A cell sitting on a hull paints nothing, so without this it would
+   reveal the BOARD's background — which is the ruling colour seen through the gutters, and
+   that drew a grey halo around every ship. Painting the slot also erases the ruling inside
+   the ship's own footprint, which is what a single continuous hull should do. */
+.hull-slot {
+    display: block;
+    min-width: 0;
+    min-height: 0;
+    background: var(--hull-bed);
+    border-radius: var(--radius-panel);
+}
+
+.hull {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.hull__body {
+    fill: var(--hull);
+    stroke: var(--hull-line);
+    stroke-width: 4;
+    vector-effect: non-scaling-stroke;
+}
+
+.hull__deck {
+    fill: none;
+    stroke: var(--hull-line);
+    stroke-width: 1.5;
+    opacity: 0.55;
+    vector-effect: non-scaling-stroke;
+}
+
+.hull__block { fill: var(--hull-deck); }
+.hull__turret { fill: var(--hull-deck); stroke: var(--hull-line); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+
+.hull--sunk .hull__body {
+    fill: var(--hull-sunk);
+    stroke: var(--hull);
+    stroke-width: 4;
+}
+.hull--sunk .hull__block,
+.hull--sunk .hull__turret { fill: var(--hull-sunk); opacity: 0.8; }
+
+/* The ship about to be dropped. Solid when the rule accepts it, dashed when it does not —
+   the hint must not rest on colour alone, and the cells underneath keep their ✓ / ✕. */
+.hull--ghost .hull__body {
+    stroke: #176B33;
+    stroke-width: 5;
+}
+
+.hull--refused .hull__body {
+    stroke: #C22F2F;
+    stroke-dasharray: 9 6;
+}
+
+/* A cell sitting on a hull paints no background — it would hide the ship underneath. It
+   keeps its glyph, which is what makes the state readable without colour, and rises above
+   the overlay so the glyph stays on top of the hull. */
+.cell.over-hull {
+    background: transparent;
+    box-shadow: none;
+    position: relative;
+    z-index: 2;
+}
+
+/* Damage, one element per damaged cell, placed by the grid rather than inside the hull's
+   viewBox — the gutter it would have to account for changes with the skin, so a mark drawn
+   in hull space would drift by up to a tenth of a cell. The blot covers the centre of the
+   cell generously on purpose: the glyph sits there, and its contrast was measured against
+   this fill. */
+.scar {
+    /* Centred and deliberately smaller than the cell: at full bleed the marks lined up into
+       a row of stars and swallowed the hull they are supposed to be damaging. Still wide
+       enough that the cell's glyph always lands on the mark, which is what keeps the glyph's
+       measured contrast true. */
+    place-self: center;
+    width: 70%;
+    height: 70%;
+    background: var(--cell-hit);
+    clip-path: polygon(
+        50% 2%, 61% 24%, 82% 16%, 76% 38%, 98% 48%, 78% 60%,
+        86% 84%, 62% 74%, 50% 98%, 38% 74%, 14% 84%, 22% 60%,
+        2% 48%, 24% 38%, 18% 16%, 39% 24%);
+}
+
+.scar--sunk { background: var(--cell-sunk); width: 80%; height: 80%; }
+
+/* Deck furniture is the first thing to become mud at the side panel's scale, so the small
+   board keeps the silhouette and drops the rest. */
+.own-board { --ruler-size: 0.75rem; }
+.own-board .hull__deck { display: none; }

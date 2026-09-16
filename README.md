@@ -128,6 +128,11 @@ Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible a
   (le jeu en plastique, les coups sont des pions). Plus un réglage **Impacts : complet ou
   calme**. Les deux sont mémorisés entre deux visites. Une apparence change la matière,
   jamais la structure ni les glyphes (ADR 0009).
+- **Coques dessinées**, pas des carrés : chaque navire est une silhouette continue qui
+  franchit les gouttières entre ses cases, générée par géométrie plutôt que par des images
+  (une fonction au lieu de trente fichiers). Les dégâts se marquent sur la coque, une épave
+  garde sa silhouette. Le placement montre la coque qu'on pose, avec un fantôme à contour
+  plein si la règle l'accepte et pointillé sinon (ADR 0010).
 - **Chorégraphie d'impact** : anneaux de choc, débris projetés, le plateau qui tressaille sur
   une touche ou un coulé — jamais sur un manqué — et un tampon quand une coque descend.
 - **Accessibilité** : les deux grilles se jouent au clavier seul (tabindex roving, flèches,
@@ -235,7 +240,7 @@ Le scénario a été déroulé et capturé dans `docs/demo/` :
 | `docs/superpowers/specs/2026-09-15-bataille-navale-design.md` | conception d'ensemble |
 | `docs/superpowers/plans/` | plan d'implémentation découpé en tâches |
 | `docs/demo/` | preuves de la démonstration gRPC-Web (captures + trace réseau) |
-| `docs/adr/` | décisions d'architecture (0001 à 0009) |
+| `docs/adr/` | décisions d'architecture (0001 à 0010) |
 | `PROMPTS.md` | échanges décisifs avec l'IA |
 | `REVUE-IA.md` | revues argumentées des propositions de l'IA |
 | `CONTEXTE-IA.md` | contexte du projet |

@@ -54,6 +54,7 @@ else
             <FiringGrid @ref="_opponentGrid"
                         GridSize="game.Opponent.GridSize"
                         Cells="OpponentCells(game)"
+                        Ships="OpponentHulls(game)"
                         Label="Opponent board — choose a square to fire at"
                         Interactive="@(!finished && !_firing && _replayCursor is null)"
                         Impact="_opponentImpact"
@@ -74,6 +75,8 @@ else
             <div class="own-board">
                 <FiringGrid GridSize="game.Own.GridSize"
                             Cells="OwnCells(game)"
+                            Ships="OwnHulls(game)"
+                            Compact="true"
                             Label="Your board"
                             Impact="_ownImpact"
                             Interactive="false" />
@@ -260,6 +263,51 @@ else
     }
 
     private static CellDto ToCell(ShotDto shot) => new(shot.X, shot.Y, shot.Result);
+
+    /// <summary>
+    /// Your fleet as hulls. Each ship's cells are re-read from what the board is CURRENTLY
+    /// showing — which during a replay is the replayed state, not the live one — so the
+    /// scars on a hull always agree with the cells around it.
+    /// </summary>
+    private IReadOnlyList<ShipOutline> OwnHulls(GameDto game)
+    {
+        var shown = new Dictionary<Coordinate, string>();
+        foreach (var cell in OwnCells(game))
+            shown[new Coordinate(cell.X, cell.Y)] = cell.State;
+
+        return
+        [
+            .. game.Own.Ships
+                .Select(ship =>
+                {
+                    IReadOnlyList<CellDto> cells =
+                    [
+                        .. ship.Cells.Select(c => c with
+                        {
+                            State = shown.GetValueOrDefault(new Coordinate(c.X, c.Y), c.State)
+                        })
+                    ];
+
+                    // Derived, not taken from the live DTO: during a replay the ship may not
+                    // have been sunk yet at the cursor's position.
+                    var sunk = cells.All(c => c.State is "hit" or "sunk");
+                    return ShipOutline.FromCells(ship.Name, cells, sunk);
+                })
+                .OfType<ShipOutline>()
+        ];
+    }
+
+    /// <summary>
+    /// The opponent's hulls: only the wrecks, because only a sunk ship has cells on the wire
+    /// at all (ADR 0001). An afloat opposing ship has nothing to draw, which is the secrecy
+    /// rule holding by construction rather than by care.
+    /// </summary>
+    private static IReadOnlyList<ShipOutline> OpponentHulls(GameDto game) =>
+    [
+        .. game.Opponent.SunkShips
+            .Select(ship => ShipOutline.FromCells(ship.Name, ship.Cells, isSunk: true))
+            .OfType<ShipOutline>()
+    ];
 
     private void SetReplayCursor(int? cursor) => _replayCursor = cursor;
 

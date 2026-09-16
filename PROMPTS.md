@@ -456,3 +456,69 @@ Une entrée par échange qui a compté. Les échanges de pure exécution ne sont
   réseau les trois skins se ressemblent davantage ; et la refonte n'est couverte par **aucun
   test automatisé** — seules l'exécution dans le navigateur et la mesure des contrastes
   l'étayent.
+
+---
+
+## 2026-09-16 — Des coques dessinées plutôt que des carrés
+
+- **Outil / modèle** : Claude Code (claude-opus-5, 1M context)
+
+- **Contexte** : après la refonte en trois apparences, un navire restait n carrés colorés.
+  Le binôme : « ça serait intéressant de mettre des skins de bateaux, un truc beau et
+  seamless, pas juste des triangles — que proposerais-tu comme solution technique ? »
+
+- **Prompt réellement utilisé** : la question ci-dessus, puis « coques + dégât sur la coque +
+  placement repensé » en réponse aux trois périmètres proposés.
+
+- **Réponse et hypothèses résumées** : l'IA a d'abord nommé l'obstacle réel, qui n'est pas le
+  dessin : **le navire est un objet unique alors que tout le reste du système est par case**.
+  Fusionner cinq cases en un élément détruirait le clavier et l'accessibilité vérifiées à la
+  tâche 21. La proposition sépare donc ce qui se dessine de ce qui s'utilise : une seconde
+  grille superposée, au gabarit identique, portant un SVG paramétrique par navire. Sprites
+  matriciels (30 fichiers), canvas et découpage par case ont été écartés avec leurs raisons.
+
+- **Décision et justification** : acceptée (ADR 0010). Deux points non évidents s'en sont
+  déduits et méritent d'être signalés :
+  - **Les dégâts ne peuvent pas vivre dans le SVG de la coque.** La coque couvre n cases *et*
+    les n−1 gouttières, dont la largeur est une décision de thème ; une marque placée dans son
+    `viewBox` dériverait jusqu'à un dixième de case selon l'apparence. Chaque dégât est donc
+    son propre élément, placé par la grille.
+  - **En acier, la coque a dû devenir plus claire que la tôle.** La tôle est déjà sombre :
+    même le noir pur ne dépasse pas 2,02:1 contre elle. Le gris haze est d'ailleurs la couleur
+    réelle d'un navire de guerre.
+
+- **Scénario ou commande de vérification** : 53 contrôles de géométrie **hors navigateur**
+  (`dotnet run --file hull.cs`), mesure des nouvelles paires de contraste, puis pilotage du
+  navigateur : alignement des deux grilles, coques dans les trois apparences et les deux
+  orientations, dégâts, épaves, fantôme de placement, clavier.
+
+- **Résultat attendu, puis résultat observé** :
+  - Géométrie — attendu : `viewBox` correct, tous les points dans la boîte, culture invariante.
+    Observé : 53/53. Le contrôle de culture est prouvé discriminant — sous `fr-FR`, un `double`
+    brut rend `"1,5"`, ce qui ajouterait une paire de coordonnées à chaque tracé.
+  - Alignement — attendu : les deux grilles à la même taille. Observé : 490×490 des deux côtés,
+    11×11 pistes. Il a fallu pour cela **cesser de dimensionner la piste des règles en `auto`** :
+    la couche n'a pas de texte, donc son `auto` s'effondrait et décalait chaque coque.
+
+- **Erreur que ce contrôle pourrait détecter, et ce qu'il a réellement trouvé** : trois
+  défauts qu'aucun test du dépôt ne pouvait voir.
+  1. Un **halo gris** autour de chaque navire — la case posée sur une coque ne peint rien, et
+     révélait donc le fond du plateau, qui est la couleur de filet. Corrigé par un lit sous la
+     coque, qui efface au passage le filet à l'intérieur de l'empreinte du navire.
+  2. Le **tampon « coulé » restait indéfiniment** en mode calme, faute d'animation pour
+     l'effacer, couvrant le plateau. Supprimé dans ce mode.
+  3. **Le plus important, trouvé par accident** : la prévisualisation validait la flotte
+     *entière*. Deux navires déjà posés qui se touchent — ce que cette page autorise
+     délibérément — et *toute* case répondait « le navire ne tient pas ici », y compris en eau
+     libre. La prévisualisation accusait le navire qu'on pose d'un problème situé ailleurs.
+     Diagnostiqué en interrogeant le domaine directement (`dotnet run --file preview2.cs`), qui
+     a nommé la paire fautive. Corrigé : le candidat est désormais évalué **par paires** contre
+     chaque navire déjà posé, ce qui reste la règle du domaine et non une réimplémentation, et
+     une alerte dédiée signale une flotte déjà en conflit. Contrôle du pouvoir discriminant :
+     adjacence, chevauchement et débordement sont toujours refusés, l'eau libre acceptée.
+
+- **Preuves reproductibles et limites** : ADR 0010 ; scripts `hull.cs`, `preview.cs`,
+  `preview2.cs`, `contrast.mjs` dans le scratchpad de session. Limites : rien n'est couvert par
+  un test automatisé du dépôt — la géométrie l'est par un script hors solution, le reste par
+  l'exécution dans le navigateur ; le rendu sur écran à très haute densité et le comportement
+  des coques sur une grille de 20 n'ont pas été regardés.

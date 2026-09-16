@@ -98,6 +98,17 @@ else
         }
     </p>
 
+    @if (PlacedFleetClashes(game))
+    {
+        <div class="alert alert--note" role="status">
+            <span class="alert__title">Two of your ships are touching.</span>
+            <p>
+                Click one to take it back and put it somewhere else. You can still confirm as
+                it is — the server will refuse it and tell you why.
+            </p>
+        </div>
+    }
+
     @if (!IsBusy && State.State == LoadState.Failed)
     {
         <div class="alert alert--error" role="alert">
@@ -200,19 +211,69 @@ else
         }
 
         _preview = candidate;
+        _previewIsValid = CandidateFits(game, candidate);
+    }
 
-        List<ShipTemplate> partialFleet =
-        [
-            .. _placed.Select(p => new ShipTemplate(p.Name, p.Size)),
-            new ShipTemplate(candidate.Name, candidate.Size)
-        ];
+    /// <summary>
+    /// Whether the ship being placed would be accepted where it is pointing.
+    ///
+    /// <para>It asks the domain — <see cref="PlacementRules.Validate"/>, the very rule the
+    /// server runs — but asks it about the candidate ALONE and then about the candidate
+    /// PAIRED with each ship already down, never about the whole fleet at once.</para>
+    ///
+    /// <para>That is not a refinement, it is a correction. Validating the whole fleet made
+    /// the preview blame the candidate for a problem it had nothing to do with: drop two
+    /// ships touching each other — which this page deliberately allows, since the server is
+    /// the authority — and from then on every square on the board answered "the ship would
+    /// not fit here", including squares that were perfectly free. Pair by pair, the answer
+    /// is about the candidate and only the candidate.</para>
+    ///
+    /// <para>ExtraTurnOnHit is irrelevant throughout: PlacementRules reads only GridSize,
+    /// Fleet and ShipsMayTouch, which is also why it is not on the wire.</para>
+    /// </summary>
+    private bool CandidateFits(GameDto game, ShipPlacement candidate)
+    {
+        var alone = new GameRules(
+            game.Own.GridSize,
+            [new ShipTemplate(candidate.Name, candidate.Size)],
+            game.ShipsMayTouch,
+            ExtraTurnOnHit: true);
 
-        // ExtraTurnOnHit is irrelevant here — PlacementRules reads only GridSize, Fleet and
-        // ShipsMayTouch — and it is not part of the DTO precisely because placement does not
-        // depend on it. It is not a rule being decided in the front.
-        var rules = new GameRules(game.Own.GridSize, partialFleet, game.ShipsMayTouch, ExtraTurnOnHit: true);
+        if (!PlacementRules.Validate([candidate], alone).IsOk)
+            return false;
 
-        _previewIsValid = PlacementRules.Validate([.. _placed, candidate], rules).IsOk;
+        foreach (var placed in _placed)
+        {
+            var pair = new GameRules(
+                game.Own.GridSize,
+                [new ShipTemplate(placed.Name, placed.Size), new ShipTemplate(candidate.Name, candidate.Size)],
+                game.ShipsMayTouch,
+                ExtraTurnOnHit: true);
+
+            if (!PlacementRules.Validate([placed, candidate], pair).IsOk)
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the ships already laid down are legal among themselves. The page lets the
+    /// player create this situation on purpose, so it has to be able to say so — otherwise
+    /// the only feedback is a refusal from the server after pressing Confirm.
+    /// </summary>
+    private bool PlacedFleetClashes(GameDto game)
+    {
+        if (_placed.Count < 2)
+            return false;
+
+        var rules = new GameRules(
+            game.Own.GridSize,
+            [.. _placed.Select(p => new ShipTemplate(p.Name, p.Size))],
+            game.ShipsMayTouch,
+            ExtraTurnOnHit: true);
+
+        return !PlacementRules.Validate([.. _placed], rules).IsOk;
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);

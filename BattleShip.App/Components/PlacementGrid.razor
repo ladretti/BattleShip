@@ -2,8 +2,7 @@
    what the player pointed at, and lets the page own the placement state. *@
 
 <div class="board-frame">
-    <div class="placement-grid" role="group" aria-label="Placement grid"
-         style="grid-template-columns: auto repeat(@GridSize, var(--cell-size, 2.15rem));">
+    <div class="placement-grid" role="group" aria-label="Placement grid" style="@Template">
 
         <span class="ruler" aria-hidden="true"></span>
         @for (var x = 0; x < GridSize; x++)
@@ -27,7 +26,7 @@
                    move inside it. Focus also previews, so a keyboard player sees the same green
                    or red hint a mouse player gets on hover. *@
                 <button type="button"
-                        class="cell @state"
+                        class="cell @state @(OverHull(cell) ? "over-hull" : null)"
                         aria-label="@LabelFor(cell)"
                         @ref="_cellRefs[index]"
                         tabindex="@(index == _focused ? 0 : -1)"
@@ -38,6 +37,28 @@
                     <span aria-hidden="true">@Glyph(state)</span>
                 </button>
             }
+        }
+    </div>
+
+    @* Same overlay as the firing board: the fleet you are laying out is drawn as hulls, not
+       as squares. The ghost is the ship you are about to drop — solid when the rule accepts
+       it, dashed when it does not. The dash is the point: the hint must not depend on colour
+       alone, and the cells underneath keep their ✓ / ✕ glyph for the same reason. *@
+    <div class="board-overlay" aria-hidden="true" style="@Template">
+        @foreach (var ship in _outlines)
+        {
+            <span class="hull-slot" style="@Slot(ship.Origin, ship.Vertical, ship.Size)">
+                <Hull Size="ship.Size" Vertical="ship.Vertical" />
+            </span>
+        }
+
+        @if (Preview is { } ghost)
+        {
+            <span class="hull-slot" style="@Slot(ghost.Origin, ghost.Orientation == Orientation.Vertical, ghost.Size)">
+                <Hull Size="ghost.Size"
+                      Vertical="@(ghost.Orientation == Orientation.Vertical)"
+                      Class="@(PreviewIsValid ? "hull--ghost" : "hull--ghost hull--refused")" />
+            </span>
         }
     </div>
 </div>
@@ -68,8 +89,25 @@
     private HashSet<Coordinate> _occupied = [];
     private Dictionary<Coordinate, string> _shipNames = [];
     private HashSet<Coordinate> _previewCells = [];
+    private HashSet<Coordinate> _hullCells = [];
+    private List<(Coordinate Origin, bool Vertical, int Size)> _outlines = [];
     private ElementReference[] _cellRefs = [];
     private int _focused;
+
+    /// <summary>Both grids share one explicit template — see FiringGrid for why it is not auto.</summary>
+    private string Template =>
+        $"grid-template-columns: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));" +
+        $"grid-template-rows: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));";
+
+    /// <summary>
+    /// A cell is over a hull when a ship is laid down there, and also while the ghost hovers
+    /// it: both draw a hull underneath, and a cell painting its own background would hide it.
+    /// </summary>
+    private bool OverHull(Coordinate cell) => _hullCells.Contains(cell) || _previewCells.Contains(cell);
+
+    private static string Slot(Coordinate origin, bool vertical, int size) => vertical
+        ? $"grid-column: {origin.X + 2}; grid-row: {origin.Y + 2} / span {size}"
+        : $"grid-column: {origin.X + 2} / span {size}; grid-row: {origin.Y + 2}";
 
     // Recomputed whenever the page hands down new parameters, so the lookups below stay
     // O(1) per cell instead of rescanning every ship for each of the GridSize² buttons.
@@ -88,6 +126,10 @@
         }
 
         _previewCells = Preview is null ? [] : [.. Preview.Cells()];
+
+        _outlines = [.. Placed.Select(p =>
+            (p.Origin, p.Orientation == Orientation.Vertical, p.Size))];
+        _hullCells = [.. Placed.SelectMany(p => p.Cells())];
 
         if (_cellRefs.Length != GridSize * GridSize)
             _cellRefs = new ElementReference[GridSize * GridSize];
