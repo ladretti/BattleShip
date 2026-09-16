@@ -3,10 +3,10 @@
 Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusion doit être
 étayée.
 
-> **État au 2026-09-15** : trois revues (1, 3 et 4) sont complètes et étayées par une
-> exécution. La revue 2 reste **ouverte** : l'hypothèse et le résultat attendu y sont énoncés
-> *avant* exécution, comme le demande la discipline de vérification, mais l'exécution n'a pas
-> encore eu lieu. Elle doit être close avant la remise.
+> **État au 2026-09-16** : **les sept revues sont closes**, chacune étayée par une exécution
+> dont le résultat attendu avait été énoncé avant de lancer la commande. La revue 2, laissée
+> ouverte jusqu'à la tâche 19 faute de mesure, l'est désormais : 37 903 tirs d'adversaire
+> mesurés, zéro refus métier, et le compteur a été prouvé capable d'échouer.
 
 ---
 
@@ -69,7 +69,7 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
 
 ---
 
-## Revue 2 — *(ouverte)* L'argument de performance des exceptions (ADR 0004)
+## Revue 2 — *(close)* L'argument de performance des exceptions (ADR 0004)
 
 - **Proposition et référence dans le dépôt** : `CLAUDE.md` § 3 bis, décision en suspens :
   « Argument à instruire si la question est ouverte : le coût des exceptions en boucle serrée
@@ -82,34 +82,86 @@ Trois revues argumentées minimum. Aucune erreur n'est exigée ; chaque conclusi
   c'est-à-dire qu'elle n'appelle jamais le moteur pour évaluer un coup candidat, et qu'elle ne
   propose jamais un coup invalide.
 
-- **Scénario, données ou commande** : une fois `DensityStrategy` écrite, jouer N parties
-  complètes contre elle avec un compteur d'exceptions de domaine levées, ou un point d'arrêt
-  sur le constructeur de `GameError`. À compléter avec la commande exacte.
+  L'hypothèse se scinde en deux, et les deux moitiés ne se vérifient pas de la même façon :
+  **(a)** la stratégie ne propose jamais un coup que le moteur refuse — c'est mesurable ;
+  **(b)** la stratégie n'a aucun moyen d'interroger le moteur — c'est structurel, et vérifiable
+  sur les types plutôt que par échantillonnage.
 
-- **Résultat attendu avant exécution** : **zéro** refus métier émis pendant les tours de
-  l'adversaire, quel que soit le niveau. Les seuls refus observés doivent provenir de coups
-  du joueur.
+- **Scénario, données ou commande** : `scratchpad/refusals.cs`, exécuté par
+  `dotnet run --file refusals.cs` en référençant `BattleShip.API`.
 
-- **Erreur que ce contrôle pourrait détecter** : une implémentation de `DensityStrategy` qui
-  aurait été écrite en « essayant » des coups contre le moteur — auquel cas l'argument de
-  l'ADR 0004 s'effondre et la question de la performance redevient réelle.
+  - **(a)** 200 parties par stratégie (graine 20260915, `GameRules.Default`), les trois
+    niveaux, avec un compteur de `Result` en échec sur `Board.Fire` pendant les tours de
+    l'adversaire. Les refus sont **comptés, jamais levés** : l'objet de la mesure est de savoir
+    si cette branche est atteinte, pas de s'arrêter dessus.
+  - **(b)** parcours par réflexion du graphe de propriétés de `ShotHistory` — le seul argument
+    que reçoit `IOpponentStrategy.NextShot` — à la recherche d'un chemin vers `Board` ou
+    `Game`.
 
-- **Résultat réellement observé** : **non exécuté à ce jour.** L'argument repose pour l'instant
-  sur une analyse de la structure prévue du code, pas sur une mesure. L'ADR 0004 le dit
-  explicitement.
+- **Résultat attendu avant exécution** : **(a) zéro** refus métier émis pendant les tours de
+  l'adversaire, quel que soit le niveau ; **(b)** aucun chemin de `ShotHistory` vers `Board`
+  ni `Game`.
 
-- **Décision et justification** : provisoirement **acceptée**, sur la base que le choix de
-  `Result<T>` se justifie de toute façon par la lisibilité et par la traduction vers les
-  façades — la performance n'est pas le critère décisif. À confirmer ou infirmer par le
-  contrôle ci-dessus.
+- **Erreur que ce contrôle pourrait détecter** : une implémentation écrite en « essayant » des
+  coups contre le moteur, ou qui proposerait une case déjà tirée ou hors grille — auquel cas
+  l'argument de l'ADR 0004 s'effondre et la question de la performance redevient réelle.
 
-- **Preuves reproductibles et liens vers les commits** : `docs/adr/0004-result-refus-metier.md`
-  (commit `f379852`).
+  **Ce pouvoir discriminant a été établi, pas supposé.** Une quatrième stratégie délibérément
+  fautive (`AlwaysSameCell`, qui vise toujours (0,0)) a été injectée dans le même harnais :
 
-- **Après correction éventuelle : résultat avant / après** : sans objet à ce stade.
+  ```
+  OK   Random     :  19139 opponent shots, refusals: none
+  OK   HuntTarget :  10520 opponent shots, refusals: none
+  OK   Density    :   8244 opponent shots, refusals: none
+  FAIL BrokenAlways00:    400 opponent shots, refusals: CellAlreadyShot x200
+  ```
 
-- **Limites et points non vérifiés** : tout. Une analyse structurelle n'est pas une mesure ;
-  cette revue n'est pas close.
+  Le compteur remonte bien 200 refus sur la stratégie fautive et zéro sur les trois vraies :
+  il sait échouer.
+
+- **Résultat réellement observé** :
+
+  ```
+  --- Check 1: refusals emitted during opponent turns (200 games per strategy) ---
+  OK   Random     :  19139 opponent shots, refusals: none
+  OK   HuntTarget :  10520 opponent shots, refusals: none
+  OK   Density    :   8244 opponent shots, refusals: none
+       TOTAL      : 37903 opponent shots, 0 refusals
+
+  --- Check 2: can a strategy reach the board it is shooting at? ---
+       types visited from ShotHistory: 9
+  OK   no path from ShotHistory reaches Board or Game
+  ```
+
+  **37 903 tirs d'adversaire, zéro refus métier.** Conforme à l'attendu sur les deux moitiés.
+
+  Contrôle croisé non planifié mais utile : 19139/200 = 95,7, 10520/200 = 52,6,
+  8244/200 = 41,2 — exactement les moyennes publiées par la revue 3 et le README, obtenues ici
+  par un harnais écrit séparément. Les deux mesures se confirment l'une l'autre.
+
+- **Décision et justification** : proposition de l'IA **acceptée**, et la revue est **close**.
+  L'ADR 0004 peut affirmer qu'aucune exception n'est levée par tour d'adversaire : ce n'est
+  plus une analyse structurelle, c'est une mesure. Le micro-benchmark que `CLAUDE.md`
+  envisageait mesurerait bien un scénario qui n'existe pas.
+
+  Le choix de `Result<T>` ne reposait de toute façon pas sur la performance mais sur la
+  lisibilité et sur la traduction vers les façades ; ce contrôle retire simplement la seule
+  réserve qui restait.
+
+- **Preuves reproductibles et liens vers les commits** : `scratchpad/refusals.cs` et
+  `scratchpad/refusals-broken.cs`, commande ci-dessus ;
+  `docs/adr/0004-result-refus-metier.md` (commit `f379852`).
+
+- **Après correction éventuelle : résultat avant / après** : sans objet — aucune correction
+  n'a été nécessaire, la mesure a confirmé la conception existante. C'est le résultat qu'on
+  espérait, pas celui qu'on a fabriqué : le contrôle a été construit pour pouvoir dire le
+  contraire, et l'a dit sur la stratégie fautive.
+
+- **Limites et points non vérifiés** : la mesure porte sur `GameRules.Default` (grille 10×10,
+  flotte 5-4-3-3-2, non-adjacence) et sur la graine 20260915. Une autre taille de grille n'a
+  pas été essayée. Le contrôle **(b)** garantit qu'une stratégie ne peut pas atteindre le
+  plateau *par le graphe de types de `ShotHistory`* ; il n'exclut pas qu'une implémentation
+  future reçoive un plateau par un autre biais, par exemple par son constructeur.
 
 ---
 

@@ -253,3 +253,78 @@ Une entrée par échange qui a compté. Les échanges de pure exécution ne sont
   vérification ; la redirection mène pour l'instant à la page « Not Found », `/placement`
   n'existant qu'à la tâche 17 ; le comportement de la sérialisation sous publication trimmée
   n'a pas été éprouvé.
+
+---
+
+## 2026-09-16 — Tâches 17 à 19 : placement, jeu en gRPC-Web, et démonstration navigateur
+
+- **Outil / modèle** : Claude Code (claude-opus-5, 1M context)
+
+- **Contexte** : suite immédiate de la tâche 16. Trois pages à écrire (placement, jeu), un
+  client gRPC-Web, puis la démonstration exigée par le sujet — une réponse **et** une erreur
+  gRPC-Web observables depuis le navigateur.
+
+- **Prompt réellement utilisé** : le même que l'entrée précédente ; l'exécution du plan s'est
+  poursuivie tâche par tâche sans nouvelle consigne.
+
+- **Réponse et hypothèses résumées** : trois propositions valaient d'être discutées.
+
+  1. **La prévisualisation du placement.** Plutôt que de recoder bornes, chevauchement et
+     adjacence dans le front, l'IA a réutilisé `PlacementRules.Validate` — la règle que le
+     serveur exécute — en lui décrivant la flotte *partielle*, exactement comme `FleetPlacer`
+     le fait déjà. Hypothèse : `PlacementRules` ne lit de `GameRules` que `GridSize`, `Fleet`
+     et `ShipsMayTouch`, ce qui rend anodin le quatrième champ absent du DTO. **Accepté.**
+  2. **Le clic ne doit pas être bloqué.** Corollaire non évident : si le front interdisait de
+     poser un navire là où sa prévisualisation est rouge, le refus du serveur deviendrait
+     indémontrable et une règle serait *de facto* passée côté client. Le clic pose donc le
+     navire quoi qu'il arrive. **Accepté**, et c'est ce qui rend l'étape 3 du README possible.
+  3. **La traduction des erreurs gRPC.** `Status.Detail` porte `GameError.ToString()` ;
+     l'IA le relit dans l'enum partagée (`Enum.TryParse<GameError>`) plutôt que de comparer
+     des chaînes. Un membre ajouté demain tombe dans la branche par défaut avec son propre
+     nom, jamais dans un message faux. **Accepté.**
+
+- **Décision et justification** : les trois acceptées. Une proposition de l'IA a en revanche
+  été **corrigée par la vérification, pas par la relecture** : après un clic, la
+  prévisualisation du navire *suivant* se superposait au navire qu'on venait de poser et le
+  masquait derrière un calque « invalide ». Rien dans le code ne le signalait ; c'est le
+  pilotage du navigateur qui l'a révélé, en butant sur un décompte de cases occupées qui ne
+  correspondait pas à l'attendu. La prévisualisation est désormais effacée après un clic.
+
+- **Scénario ou commande de vérification** : Chrome piloté par le protocole DevTools, sur
+  l'application réellement lancée.
+  - *Placement* : poser une flotte **collée**, valider, puis corriger et revalider.
+  - *Jeu* : partie complète, plus les deux erreurs attendues.
+  - *Revue 2* : 200 parties × 3 stratégies avec un compteur de refus métier
+    (`dotnet run --file refusals.cs`), plus un parcours par réflexion du graphe de types de
+    `ShotHistory`.
+
+- **Résultat attendu, puis résultat observé** :
+  - Placement — attendu : `400` portant « adjacent », maintien sur `/placement`, puis `204`
+    et redirection. Observé : conforme, et 4 allers-retours entre pages sans le moindre
+    avertissement en console (ADR 0007, désabonnement).
+  - Jeu — attendu : partie menée à son terme, tirs en `POST /battleship.BattleService/Fire`,
+    `InvalidArgument` sur case rejouée, `NotFound` sur partie inconnue. Observé : victoire en
+    96 tirs, 116 appels `Fire`, et **les deux erreurs reviennent en `HTTP 200`** avec
+    `grpc-status: 3` puis `5` dans les *trailers* — détail qui a été reporté tel quel dans le
+    README, la formulation initiale laissant croire à un code HTTP d'erreur.
+  - Revue 2 — attendu : zéro refus. Observé : 37 903 tirs, zéro refus ; et le compteur remonte
+    bien 200 refus quand on lui soumet une stratégie délibérément fautive.
+
+- **Erreur que ce contrôle pourrait détecter** : le pilotage navigateur est le seul des
+  contrôles du projet qui exerce réellement CORS, le préflight, les *trailers* gRPC-Web et le
+  cycle de vie des composants Blazor — aucun test xUnit de ce dépôt ne couvre ce chemin. Il a
+  d'ailleurs détecté deux choses qu'aucune relecture n'avait vues : le défaut de
+  prévisualisation, et le fait que reconstruire pendant que `dotnet run` tourne casse le front
+  (empreintes de `_framework/` périmées, page blanche, `404` sur `dotnet.<hash>.js`) — cette
+  dernière consignée en « Limites connues » du README.
+
+- **Preuves reproductibles et limites** : commits `0e5ec13` (tâche 17) et `ed4cb56`
+  (tâche 18) ; preuves de démonstration dans `docs/demo/` (trois captures + trace réseau).
+  Limites : Chrome a été lancé **sans interface et avec `--ignore-certificate-errors`**, donc
+  la confiance faite au certificat de développement n'est pas établie par ces contrôles ; les
+  captures montrent la page, pas l'onglet Réseau lui-même — c'est `docs/demo/grpc-web-trace.md`
+  qui en tient lieu, et il est produit par le même passage. Un `400` isolé avait été observé en
+  console pendant une première partie longue ; il ne s'est **pas reproduit** lors d'une seconde
+  partie complète instrumentée pour tracer toute réponse ≥ 400, et son origine n'est pas
+  établie — la piste la plus probable, sans preuve, est la même péremption d'empreintes que
+  ci-dessus.

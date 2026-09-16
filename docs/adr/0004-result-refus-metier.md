@@ -86,7 +86,21 @@ Le choix se joue donc sur la lisibilité et sur la traduction vers les façades.
 
 ## Vérification et réexamen
 
-À vérifier lors de l'implémentation, non encore fait :
+**Constaté** (2026-09-16, `REVUE-IA.md` revue 2) : sur 200 parties par stratégie et pour les
+trois niveaux — **37 903 tirs d'adversaire** —, le moteur n'a émis **aucun** refus métier
+pendant un tour d'adversaire. L'affirmation « aucune exception n'est levée par tour
+d'adversaire » n'est donc plus une analyse structurelle mais une mesure, et le micro-benchmark
+envisagé mesurerait bien un scénario qui n'existe pas.
+
+Le contrôle a été prouvé capable d'échouer : une stratégie délibérément fautive injectée dans
+le même harnais produit 200 refus `CellAlreadyShot`.
+
+**Constaté** aussi, par réflexion sur le graphe de types : aucun chemin ne mène de
+`ShotHistory` — le seul argument de `IOpponentStrategy.NextShot` — vers `Board` ou `Game`. Une
+stratégie ne peut donc pas interroger le moteur pour évaluer un coup candidat, faute d'y avoir
+accès.
+
+**Reste à vérifier** :
 
 - Un test par `GameError` vérifiant le statut produit de chaque côté de la frontière.
 - Un test qui rejoue une case déjà jouée et vérifie qu'aucune exception ne traverse la
