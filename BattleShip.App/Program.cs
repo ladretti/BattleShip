@@ -11,10 +11,24 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // The API is a different origin from this front (different port), so the HttpClient points
-// at it rather than at the host environment's base address, and the API declares this
-// origin in its CORS policy. The address is read from wwwroot/appsettings.json so it can be
-// changed without recompiling; the fallback is BattleShip.API's https launch profile.
-var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "https://localhost:7050";
+// at it rather than at the host environment's base address, and the API declares this origin
+// in its CORS policy.
+//
+// The address MUST match the scheme this front is itself served on, and pinning a single one
+// was a real defect: launched on its http profile, the front called the https API, which the
+// API's own http profile never starts — the call never reached a server at all, and the
+// browser reports that as "CORS request did not succeed, status (null)", which sends you
+// looking at the CORS policy instead of at the address. The mirror case is worse: a page on
+// https CANNOT call an http API, the browser blocks it as mixed content, whatever CORS says.
+//
+// So the scheme decides, and "ApiBaseAddress" still overrides both when the API is elsewhere.
+var frontScheme = new Uri(builder.HostEnvironment.BaseAddress).Scheme;
+var apiBaseAddress =
+    builder.Configuration["ApiBaseAddress"]
+    ?? builder.Configuration[$"Api:{frontScheme}"]
+    ?? throw new InvalidOperationException(
+        $"No API address configured for scheme '{frontScheme}'. Set \"Api:{frontScheme}\" " +
+        "or \"ApiBaseAddress\" in wwwroot/appsettings.json.");
 
 builder.Services.AddScoped(_ => new HttpClient
 {

@@ -17,33 +17,62 @@ TP d'autonomie — Cours C# ASP.NET (HTS Learning, Christophe MOMMER).
 - **.NET SDK 10.x**. Vérifier avec `dotnet --version` ; la version épinglée est dans
   `global.json` à la racine.
 - Un navigateur récent (la démonstration gRPC-Web passe par la console F12).
-- Certificat HTTPS de développement approuvé :
+- **Pour HTTPS seulement** — certificat de développement *approuvé*, pas seulement présent :
 
   ```bash
-  dotnet dev-certs https --trust
+  dotnet dev-certs https --check --trust
   ```
+
+  Un certificat « found » mais « not trusted » fait échouer la connexion sans qu'aucune
+  réponse n'arrive, ce que le navigateur rapporte comme un échec CORS trompeur. En HTTP,
+  ce prérequis ne s'applique pas.
 
 ## Lancer le projet
 
 L'API et le front sont deux applications distinctes, à lancer dans **deux terminaux**.
+Les deux projets ont deux profils de lancement, `http` et `https` ; **`dotnet run` sans
+option prend le premier, c'est-à-dire `http`.** Prendre le même des deux côtés.
+
+### En HTTP — aucun certificat requis
 
 ```bash
 # Terminal 1 — l'API
-dotnet run --project BattleShip.API
-#   https://localhost:7050   (http://localhost:5184)
+dotnet run --project BattleShip.API          # http://localhost:5184
 
 # Terminal 2 — le front Blazor WebAssembly
-dotnet run --project BattleShip.App
-#   https://localhost:7073   (http://localhost:5210)
+dotnet run --project BattleShip.App          # http://localhost:5210
+```
+
+Ouvrir ensuite <http://localhost:5210>.
+
+### En HTTPS — exige le certificat de développement **approuvé**
+
+```bash
+dotnet dev-certs https --check --trust       # doit dire « trusted », pas seulement « found »
+
+dotnet run --project BattleShip.API --launch-profile https   # https://localhost:7050
+dotnet run --project BattleShip.App --launch-profile https   # https://localhost:7073
 ```
 
 Ouvrir ensuite <https://localhost:7073>.
+
+> **Ne pas mélanger les deux.** Le front choisit l'adresse de l'API qui correspond à son
+> propre schéma (`wwwroot/appsettings.json`, section `Api`), parce qu'une page servie en
+> https ne peut pas appeler une API en http — le navigateur le bloque comme contenu mixte,
+> quoi que dise CORS. Lancer le front en https alors que l'API tourne en http ne peut donc
+> pas marcher, et inversement.
+>
+> Si une requête échoue avec « **échec de la requête CORS** » et un **code d'état `(null)`**,
+> le problème n'est **pas** CORS : un vrai refus CORS renvoie un code d'état. `(null)` veut
+> dire qu'aucune réponse n'est arrivée — serveur non démarré, mauvais profil, ou certificat
+> non approuvé.
 
 > Ne pas lancer `dotnet build` pendant que ces deux commandes tournent : le front servirait
 > un `index.html` pointant sur des ressources qui n'existent plus. Voir « Limites connues ».
 
 L'API et le front étant sur des origines distinctes, CORS est configuré côté API pour
-autoriser explicitement l'origine du front, ainsi que les en-têtes gRPC-Web.
+autoriser explicitement les **deux** origines du front (`Cors:Origins` dans
+`appsettings.Development.json`), ainsi que les en-têtes gRPC-Web.
 
 ## Vérifier
 
