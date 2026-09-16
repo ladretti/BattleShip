@@ -10,7 +10,7 @@ TP d'autonomie — Cours C# ASP.NET (HTS Learning, Christophe MOMMER).
 ## Binôme
 
 - Luca Ceccarelli
-- *(second membre — à compléter)*
+- Irwin Ladrette
 
 ## Prérequis
 
