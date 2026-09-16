@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject GameState State
 @inject BattleGrpcClient Grpc
+@inject BattleApiClient Api
 @inject NavigationManager Navigation
 
 <PageTitle>Play — BattleShip</PageTitle>
@@ -47,7 +48,7 @@ else
             <FiringGrid GridSize="game.Opponent.GridSize"
                         Cells="OpponentCells(game)"
                         Label="Opponent board — click to fire"
-                        Interactive="@(!finished && !_firing)"
+                        Interactive="@(!finished && !_firing && _replayCursor is null)"
                         OnCellClick="FireAsync" />
             <p class="mt-2 mb-0 text-muted small">
                 Sunk: @game.Opponent.SunkShips.Count / @game.Fleet.Count
@@ -90,6 +91,17 @@ else
         </div>
     }
 
+    @if (_replayCursor is not null)
+    {
+        <div class="alert alert-info mt-3" role="status">
+            <strong>Replaying.</strong> The boards show the game after @_replayCursor of
+            @_history.Count shots. Firing is disabled until you go back to live — nothing here
+            is sent to the server.
+        </div>
+    }
+
+    <HistoryPanel Shots="_history" Cursor="_replayCursor" CursorChanged="SetReplayCursor" />
+
     @* Required by the subject: an EXPECTED gRPC-Web error, demonstrable from the browser.
        Firing twice at the same cell gives InvalidArgument; this button gives NotFound,
        which no legitimate click can produce since the page only ever fires at the game it
@@ -119,22 +131,71 @@ else
     private string? _shotError;
     private string? _sequenceMessage;
 
-    protected override void OnInitialized() => State.OnChange += OnStateChanged;
+    /// <summary>The whole shot history, re-read after every exchange. Feeds the replay.</summary>
+    private IReadOnlyList<ShotDto> _history = [];
 
-    private IReadOnlyList<CellDto> OpponentCells(GameDto game) =>
-    [
-        .. game.Opponent.Shots,
-        // Sunk ships come last so their cells override the "hit" that revealed them.
-        .. game.Opponent.SunkShips.SelectMany(s => s.Cells),
-        .. _opponentOverlay
-    ];
+    /// <summary>
+    /// How many shots the boards draw, or <c>null</c> for the live game. Purely a rendering
+    /// concern: nothing about it ever reaches the server.
+    /// </summary>
+    private int? _replayCursor;
 
-    private IReadOnlyList<CellDto> OwnCells(GameDto game) =>
-    [
-        .. game.Own.Ships.SelectMany(s => s.Cells),
-        .. game.Own.ReceivedShots,
-        .. _ownOverlay
-    ];
+    protected override async Task OnInitializedAsync()
+    {
+        State.OnChange += OnStateChanged;
+        await LoadHistoryAsync();
+    }
+
+    private IReadOnlyList<CellDto> OpponentCells(GameDto game)
+    {
+        if (_replayCursor is { } cursor)
+            return [.. _history.Take(cursor).Where(s => s.By == "Human").Select(ToCell)];
+
+        return
+        [
+            .. game.Opponent.Shots,
+            // Sunk ships come last so their cells override the "hit" that revealed them.
+            .. game.Opponent.SunkShips.SelectMany(s => s.Cells),
+            .. _opponentOverlay
+        ];
+    }
+
+    private IReadOnlyList<CellDto> OwnCells(GameDto game)
+    {
+        // The player's own ships are drawn in every case: they are the player's, so hiding
+        // them during a replay would withhold nothing and only make the replay unreadable.
+        if (_replayCursor is { } cursor)
+            return
+            [
+                .. game.Own.Ships.SelectMany(s => s.Cells).Select(c => c with { State = "ship" }),
+                .. _history.Take(cursor).Where(s => s.By == "Opponent").Select(ToCell)
+            ];
+
+        return
+        [
+            .. game.Own.Ships.SelectMany(s => s.Cells),
+            .. game.Own.ReceivedShots,
+            .. _ownOverlay
+        ];
+    }
+
+    private static CellDto ToCell(ShotDto shot) => new(shot.X, shot.Y, shot.Result);
+
+    private void SetReplayCursor(int? cursor) => _replayCursor = cursor;
+
+    /// <summary>
+    /// A failed history read is not worth an error banner: the history is an extra, and the
+    /// game stays entirely playable without it. It is simply left as it was.
+    /// </summary>
+    private async Task LoadHistoryAsync()
+    {
+        if (State.Current is not { } game)
+            return;
+
+        var result = await Api.GetHistoryAsync(game.Id);
+        if (result.IsOk)
+            _history = result.Value;
+    }
 
     /// <summary>
     /// Read from the board the server sent, not decided here: the game is over and the
@@ -199,6 +260,7 @@ else
         // The server is re-read rather than trusted to match what was just drawn: it is the
         // one that knows which ships are sunk and whether the game is over (ADR 0007).
         await State.RefreshAsync();
+        await LoadHistoryAsync();
         _opponentOverlay.Clear();
         _ownOverlay.Clear();
         _firing = false;

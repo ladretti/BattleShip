@@ -1,0 +1,77 @@
+@* The shot history, and a cursor that replays it. The replay is RENDER ONLY: moving the
+   slider changes what the boards draw and nothing else — no request is sent, no server state
+   is touched. That is why it stays available after the game is over. *@
+
+<details class="mt-4" @attributes="AdditionalAttributes">
+    <summary>Shot history (@Shots.Count)</summary>
+
+    @if (Shots.Count == 0)
+    {
+        <p class="mt-2 mb-0 text-muted small">No shot fired yet.</p>
+    }
+    else
+    {
+        <div class="d-flex align-items-center gap-3 mt-2 flex-wrap">
+            <label class="form-label mb-0" for="replay-cursor">Replay</label>
+            <input id="replay-cursor" type="range" class="form-range" style="width: 16rem;"
+                   min="0" max="@Shots.Count" step="1"
+                   value="@(Cursor ?? Shots.Count)"
+                   @oninput="OnCursorInputAsync"
+                   aria-valuetext="@Describe(Cursor ?? Shots.Count)" />
+            <span aria-live="polite">@Describe(Cursor ?? Shots.Count)</span>
+
+            @if (Cursor is not null)
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="BackToLiveAsync">
+                    Back to live
+                </button>
+            }
+        </div>
+
+        <ol class="mt-3 mb-0 ps-3 small" style="max-height: 14rem; overflow-y: auto;">
+            @for (var i = 0; i < Shots.Count; i++)
+            {
+                var shot = Shots[i];
+                var isPast = i < (Cursor ?? Shots.Count);
+                <li class="@(isPast ? null : "text-muted")">
+                    <strong>@(shot.By == "Human" ? "You" : "Opponent")</strong>
+                    fired at column @(shot.X + 1), row @(shot.Y + 1) — @shot.Result
+                    @if (shot.SunkShipName is { } name)
+                    {
+                        <text> (<strong>@name</strong> sunk)</text>
+                    }
+                </li>
+            }
+        </ol>
+    }
+</details>
+
+@code {
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    [Parameter, EditorRequired] public IReadOnlyList<ShotDto> Shots { get; set; } = [];
+
+    /// <summary>
+    /// How many shots the boards should draw, or <c>null</c> to draw the live game. The
+    /// parent owns this value; the panel only asks for it to change.
+    /// </summary>
+    [Parameter] public int? Cursor { get; set; }
+
+    [Parameter] public EventCallback<int?> CursorChanged { get; set; }
+
+    private async Task OnCursorInputAsync(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var value))
+            return;
+
+        // Dragging the cursor all the way to the right is how the player says "show me the
+        // live game again", so it maps back to null rather than to a frozen full history.
+        await CursorChanged.InvokeAsync(value >= Shots.Count ? null : value);
+    }
+
+    private async Task BackToLiveAsync() => await CursorChanged.InvokeAsync(null);
+
+    private string Describe(int cursor) =>
+        cursor >= Shots.Count ? "live" : $"after {cursor} of {Shots.Count} shots";
+}

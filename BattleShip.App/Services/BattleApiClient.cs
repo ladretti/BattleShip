@@ -138,6 +138,36 @@ public sealed class BattleApiClient(HttpClient http)
     }
 
     /// <summary>
+    /// GET /games/{id}/history — every shot of the game, both sides, in the order they were
+    /// played. Not secret: it only reports shots that were actually fired and their outcome,
+    /// which is precisely what both players already witnessed.
+    /// </summary>
+    public async Task<ApiResult<IReadOnlyList<ShotDto>>> GetHistoryAsync(
+        Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await http.GetAsync($"games/{id}/history", cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return ApiResult<IReadOnlyList<ShotDto>>.Fail($"Game {id} no longer exists on the server.");
+
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<IReadOnlyList<ShotDto>>.Fail(
+                    await DescribeFailureAsync(response, cancellationToken));
+
+            var history = await response.Content
+                .ReadFromJsonAsync<List<ShotDto>>(cancellationToken);
+
+            return ApiResult<IReadOnlyList<ShotDto>>.Ok(history ?? []);
+        }
+        catch (Exception exception) when (IsCommunicationFailure(exception))
+        {
+            return ApiResult<IReadOnlyList<ShotDto>>.Fail(Describe(exception));
+        }
+    }
+
+    /// <summary>
     /// The two shapes an error body can take on this API, read leniently: either the
     /// <c>ValidationProblemDetails</c> that <c>TypedResults.ValidationProblem</c> produces
     /// (<c>errors</c>, a field name to its messages), or the <c>{ "error": "..." }</c>
