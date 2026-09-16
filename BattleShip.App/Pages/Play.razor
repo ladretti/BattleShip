@@ -45,7 +45,8 @@ else
     <div class="d-flex flex-wrap gap-4">
         <div>
             <h2 class="h5">Their waters</h2>
-            <FiringGrid GridSize="game.Opponent.GridSize"
+            <FiringGrid @ref="_opponentGrid"
+                        GridSize="game.Opponent.GridSize"
                         Cells="OpponentCells(game)"
                         Label="Opponent board — click to fire"
                         Interactive="@(!finished && !_firing && _replayCursor is null)"
@@ -67,16 +68,21 @@ else
         </div>
     </div>
 
-    @* The three states again. _firing covers the shot sequence being played back; the
+    @* The running commentary, and the one region a screen reader listens to. It is rendered
+       UNCONDITIONALLY: a live region that appears and disappears with the state it reports
+       is unreliable — assistive technology must already be observing the node when its text
+       changes. Only the text inside it varies. *@
+    <p class="mt-3 mb-0" role="status" aria-live="polite">
+        @if (_firing)
+        {
+            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+        }
+        @_announcement
+    </p>
+
+    @* The other two states. _firing covers the shot sequence being played back; the
        GameState failure covers a broken read of the board itself. *@
-    @if (_firing)
-    {
-        <p class="mt-3" role="status" aria-live="polite">
-            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-            @(_sequenceMessage ?? "Firing…")
-        </p>
-    }
-    else if (_shotError is not null)
+    @if (_shotError is not null)
     {
         <div class="alert alert-danger mt-3" role="alert">
             <strong>Shot refused.</strong>
@@ -129,7 +135,12 @@ else
 
     private bool _firing;
     private string? _shotError;
-    private string? _sequenceMessage;
+
+    /// <summary>
+    /// What the live region says. Kept after the exchange ends rather than cleared, so a
+    /// player who missed the announcement can still read the last result.
+    /// </summary>
+    private string _announcement = "";
 
     /// <summary>The whole shot history, re-read after every exchange. Feeds the replay.</summary>
     private IReadOnlyList<ShotDto> _history = [];
@@ -140,10 +151,31 @@ else
     /// </summary>
     private int? _replayCursor;
 
+    private FiringGrid? _opponentGrid;
+
+    /// <summary>
+    /// The cell to put focus back on once the board has been re-rendered as buttons again.
+    /// Deferred to OnAfterRenderAsync rather than done inline: the element to focus does not
+    /// exist yet at the end of the exchange.
+    /// </summary>
+    private Coordinate? _refocus;
+
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += OnStateChanged;
         await LoadHistoryAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_refocus is not { } cell || _opponentGrid is null)
+            return;
+
+        // Cleared only once it actually worked. The renders that happen DURING the exchange
+        // draw an inert board, so the first attempt necessarily fails; dropping the request
+        // then would leave focus on the document body, which is the bug this exists to fix.
+        if (await _opponentGrid.FocusCellAsync(cell))
+            _refocus = null;
     }
 
     private IReadOnlyList<CellDto> OpponentCells(GameDto game)
@@ -217,19 +249,27 @@ else
     /// refusal, not a malformed request) and which the engine answers with
     /// <c>GameNotFound</c> → <c>StatusCode.NotFound</c>.
     /// </summary>
-    private async Task FireAtUnknownGameAsync() => await RunShotAsync(Guid.NewGuid(), new Coordinate(0, 0));
+    private async Task FireAtUnknownGameAsync() =>
+        // restoreFocus: false — the shot targets a game that does not exist, so there is no
+        // cell of THIS board it would make sense to move focus to. The player stays on the
+        // diagnostics button they just pressed.
+        await RunShotAsync(Guid.NewGuid(), new Coordinate(0, 0), restoreFocus: false);
 
-    private async Task RunShotAsync(Guid gameId, Coordinate at)
+    private async Task RunShotAsync(Guid gameId, Coordinate at, bool restoreFocus = true)
     {
+        if (restoreFocus)
+            _refocus = at;
+
         _firing = true;
         _shotError = null;
-        _sequenceMessage = "Firing…";
+        _announcement = "Firing…";
 
         var result = await Grpc.FireAsync(gameId, at);
 
         if (!result.IsOk)
         {
             _shotError = result.ErrorMessage;
+            _announcement = result.ErrorMessage ?? "The shot was refused.";
             _firing = false;
 
             // A refusal can mean this page is looking at a stale board — someone else's
@@ -241,7 +281,7 @@ else
         var response = result.Value;
 
         _opponentOverlay.Add(new CellDto(response.PlayerShot.X, response.PlayerShot.Y, response.PlayerShot.Result));
-        _sequenceMessage = $"Your shot: {response.PlayerShot.Result}.";
+        _announcement = Announce("Your shot", response.PlayerShot);
         StateHasChanged();
 
         // The response carries a whole sequence — "hit = fire again" (ADR 0006) means the
@@ -251,7 +291,7 @@ else
         {
             await Task.Delay(450);
             _ownOverlay.Add(new CellDto(shot.X, shot.Y, shot.Result));
-            _sequenceMessage = $"Opponent fires at column {shot.X + 1}, row {shot.Y + 1}: {shot.Result}.";
+            _announcement = Announce("Opponent fires", shot);
             StateHasChanged();
         }
 
@@ -264,7 +304,19 @@ else
         _opponentOverlay.Clear();
         _ownOverlay.Clear();
         _firing = false;
-        _sequenceMessage = null;
+
+        if (State.Current is { Status: "Finished" } ended)
+            _announcement = PlayerWon(ended) ? "You win. Every opposing ship is sunk." : "You lose. Your fleet is sunk.";
+    }
+
+    /// <summary>
+    /// One sentence per shot, spelled out for a listener: coordinates as human numbers
+    /// starting at 1, and the sunk ship named when there is one.
+    /// </summary>
+    private static string Announce(string who, BattleShip.API.Grpc.Shot shot)
+    {
+        var sunk = string.IsNullOrEmpty(shot.SunkShipName) ? "" : $" {shot.SunkShipName} is sunk.";
+        return $"{who} at column {shot.X + 1}, row {shot.Y + 1}: {shot.Result}.{sunk}";
     }
 
     private void NewGame() => Navigation.NavigateTo("/");

@@ -10,20 +10,29 @@
         @for (var x = 0; x < GridSize; x++)
         {
             var column = x;
+            var index = row * GridSize + column;
             var cell = new Coordinate(column, row);
             var state = StateOf(cell);
 
             @if (Interactive)
             {
+                @* Roving tabindex: exactly one cell of the grid is in the tab order, so Tab
+                   steps over the whole board in one press instead of walking GridSize² cells,
+                   and the arrow keys move within it. This is the standard keyboard pattern
+                   for a grid, and it is what makes the game playable without a mouse. *@
                 <button type="button" class="cell @state" aria-label="@LabelFor(cell, state)"
-                        @onclick="() => OnCellClick.InvokeAsync(cell)">
-                    @Glyph(state)
+                        @ref="_cellRefs[index]"
+                        tabindex="@(index == _focused ? 0 : -1)"
+                        @onclick="() => OnCellClick.InvokeAsync(cell)"
+                        @onfocus="() => _focused = index"
+                        @onkeydown="args => MoveFocusAsync(args, index)">
+                    <span aria-hidden="true">@Glyph(state)</span>
                 </button>
             }
             else
             {
                 <div class="cell @state" role="img" aria-label="@LabelFor(cell, state)">
-                    @Glyph(state)
+                    <span aria-hidden="true">@Glyph(state)</span>
                 </div>
             }
         }
@@ -47,18 +56,84 @@
     [Parameter] public EventCallback<Coordinate> OnCellClick { get; set; }
 
     private Dictionary<Coordinate, string> _states = [];
+    private ElementReference[] _cellRefs = [];
+    private int _focused;
 
     protected override void OnParametersSet()
     {
         _states = [];
         foreach (var cell in Cells)
             _states[new Coordinate(cell.X, cell.Y)] = cell.State;
+
+        if (_cellRefs.Length != GridSize * GridSize)
+            _cellRefs = new ElementReference[GridSize * GridSize];
+
+        // A smaller grid could otherwise leave the roving tabindex pointing past the end,
+        // and no cell at all would be reachable by Tab.
+        _focused = Math.Clamp(_focused, 0, Math.Max(0, _cellRefs.Length - 1));
+    }
+
+    /// <summary>
+    /// Puts keyboard focus back on a given cell. The page calls this after an exchange:
+    /// firing swaps the board from buttons to inert cells and back, which REPLACES the
+    /// focused element, so focus would otherwise fall back to the document body and a
+    /// keyboard player would have to tab all the way in again before every shot.
+    ///
+    /// Returns false, and does nothing, while the grid is not interactive — during the
+    /// exchange there is no button to focus. The caller keeps its request pending and tries
+    /// again on the next render rather than dropping it, which is the whole difficulty: the
+    /// first render after a shot is the one where the board is still inert.
+    /// </summary>
+    public async Task<bool> FocusCellAsync(Coordinate cell)
+    {
+        var index = cell.Y * GridSize + cell.X;
+        if (!Interactive || index < 0 || index >= _cellRefs.Length)
+            return false;
+
+        _focused = index;
+        await _cellRefs[index].FocusAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Arrow keys move within the grid; Home and End jump to the ends of the current row.
+    /// Enter and Space are not handled here on purpose — a <c>&lt;button&gt;</c> already
+    /// activates on both, and re-implementing that would only risk firing twice.
+    /// </summary>
+    private async Task MoveFocusAsync(KeyboardEventArgs args, int index)
+    {
+        var row = index / GridSize;
+        var column = index % GridSize;
+
+        var target = args.Key switch
+        {
+            "ArrowRight" => column + 1 < GridSize ? index + 1 : index,
+            "ArrowLeft" => column > 0 ? index - 1 : index,
+            "ArrowDown" => row + 1 < GridSize ? index + GridSize : index,
+            "ArrowUp" => row > 0 ? index - GridSize : index,
+            "Home" => row * GridSize,
+            "End" => row * GridSize + GridSize - 1,
+            _ => index
+        };
+
+        if (target == index)
+            return;
+
+        _focused = target;
+        await _cellRefs[target].FocusAsync();
     }
 
     private string StateOf(Coordinate cell) => _states.GetValueOrDefault(cell, "unknown");
 
+    /// <summary>
+    /// A glyph per state, so the four states stay distinguishable <b>without colour</b> —
+    /// for a colour-blind player, in high contrast mode, or on a printed screenshot.
+    /// "unknown" is the only state with no glyph, which is itself the distinction: nothing
+    /// has happened there.
+    /// </summary>
     private static string Glyph(string state) => state switch
     {
+        "ship" => "■",
         "miss" => "·",
         "hit" => "✱",
         "sunk" => "✖",

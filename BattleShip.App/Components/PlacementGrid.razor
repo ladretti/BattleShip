@@ -2,7 +2,6 @@
    what the player pointed at, and lets the page own the placement state. *@
 
 <div class="placement-grid" role="group" aria-label="Placement grid"
-     tabindex="0" @onkeydown="OnKeyDownAsync"
      style="grid-template-columns: repeat(@GridSize, var(--cell-size));">
     @for (var y = 0; y < GridSize; y++)
     {
@@ -10,13 +9,23 @@
         @for (var x = 0; x < GridSize; x++)
         {
             var column = x;
+            var index = row * GridSize + column;
             var cell = new Coordinate(column, row);
+            var state = CssFor(cell);
+
+            @* Same roving-tabindex pattern as FiringGrid: Tab steps over the board, arrows
+               move inside it. Focus also previews, so a keyboard player sees the same green
+               or red hint a mouse player gets on hover. *@
             <button type="button"
-                    class="cell @CssFor(cell)"
+                    class="cell @state"
                     aria-label="@LabelFor(cell)"
+                    @ref="_cellRefs[index]"
+                    tabindex="@(index == _focused ? 0 : -1)"
                     @onclick="() => OnCellClick.InvokeAsync(cell)"
                     @onmouseover="() => OnCellPointed.InvokeAsync(cell)"
-                    @onfocus="() => OnCellPointed.InvokeAsync(cell)">
+                    @onfocus="() => OnCellFocusedAsync(cell, index)"
+                    @onkeydown="args => OnKeyDownAsync(args, index)">
+                <span aria-hidden="true">@Glyph(state)</span>
             </button>
         }
     }
@@ -48,6 +57,8 @@
     private HashSet<Coordinate> _occupied = [];
     private Dictionary<Coordinate, string> _shipNames = [];
     private HashSet<Coordinate> _previewCells = [];
+    private ElementReference[] _cellRefs = [];
+    private int _focused;
 
     // Recomputed whenever the page hands down new parameters, so the lookups below stay
     // O(1) per cell instead of rescanning every ship for each of the GridSize² buttons.
@@ -66,12 +77,46 @@
         }
 
         _previewCells = Preview is null ? [] : [.. Preview.Cells()];
+
+        if (_cellRefs.Length != GridSize * GridSize)
+            _cellRefs = new ElementReference[GridSize * GridSize];
+
+        _focused = Math.Clamp(_focused, 0, Math.Max(0, _cellRefs.Length - 1));
     }
 
-    private async Task OnKeyDownAsync(KeyboardEventArgs args)
+    private async Task OnCellFocusedAsync(Coordinate cell, int index)
+    {
+        _focused = index;
+        await OnCellPointed.InvokeAsync(cell);
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs args, int index)
     {
         if (args.Key is "r" or "R")
+        {
             await OnRotate.InvokeAsync();
+            return;
+        }
+
+        var row = index / GridSize;
+        var column = index % GridSize;
+
+        var target = args.Key switch
+        {
+            "ArrowRight" => column + 1 < GridSize ? index + 1 : index,
+            "ArrowLeft" => column > 0 ? index - 1 : index,
+            "ArrowDown" => row + 1 < GridSize ? index + GridSize : index,
+            "ArrowUp" => row > 0 ? index - GridSize : index,
+            "Home" => row * GridSize,
+            "End" => row * GridSize + GridSize - 1,
+            _ => index
+        };
+
+        if (target == index)
+            return;
+
+        _focused = target;
+        await _cellRefs[target].FocusAsync();
     }
 
     private string CssFor(Coordinate cell)
@@ -84,9 +129,25 @@
         return _occupied.Contains(cell) ? "occupied" : "empty";
     }
 
+    /// <summary>A glyph per state, so the grid reads without relying on colour.</summary>
+    private static string Glyph(string state) => state switch
+    {
+        "occupied" => "■",
+        "preview-valid" => "✓",
+        "preview-invalid" => "✕",
+        _ => ""
+    };
+
     private string LabelFor(Coordinate cell)
     {
         var position = $"column {cell.X + 1}, row {cell.Y + 1}";
-        return _shipNames.TryGetValue(cell, out var name) ? $"{position}, {name}" : $"{position}, empty";
+
+        if (_shipNames.TryGetValue(cell, out var name))
+            return $"{position}, {name} — activate to take it back";
+
+        if (_previewCells.Contains(cell))
+            return $"{position}, empty — {(PreviewIsValid ? "the ship fits here" : "the ship would not fit here")}";
+
+        return $"{position}, empty";
     }
 }

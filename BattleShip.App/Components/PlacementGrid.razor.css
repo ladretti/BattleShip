@@ -1,16 +1,14 @@
+/* Same measured palette discipline as FiringGrid.razor.css: every glyph/background pair is
+   at or above 4.5:1, and the four states are distinguishable without colour by their glyph. */
+
 .placement-grid {
     --cell-size: 2rem;
     display: grid;
     gap: 2px;
     width: max-content;
     padding: 2px;
-    background-color: #b9c6d2;
+    background-color: #7c8c9d; /* 3.02:1 against .cell.empty */
     border-radius: 4px;
-}
-
-.placement-grid:focus-visible {
-    outline: 3px solid #1b6ec2;
-    outline-offset: 3px;
 }
 
 .cell {
@@ -19,7 +17,18 @@
     padding: 0;
     border: none;
     border-radius: 2px;
+    font-size: 0.9rem;
+    line-height: var(--cell-size);
+    text-align: center;
     cursor: pointer;
+}
+
+.cell:focus-visible {
+    outline: 3px solid #0b3d91;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px #fff;
+    position: relative;
+    z-index: 1;
 }
 
 .cell.empty {
@@ -28,12 +37,15 @@
 
 .cell.occupied {
     background-color: #46566a;
+    color: #eaf1f7; /* 6.58:1 */
 }
 
 .cell.preview-valid {
-    background-color: #29a745;
+    background-color: #176b33;
+    color: #ffffff; /* 6.59:1 */
 }
 
 .cell.preview-invalid {
-    background-color: #d63b3b;
+    background-color: #c22f2f;
+    color: #ffffff; /* 5.61:1 */
 }
