@@ -1,5 +1,8 @@
+using BattleShip.API.Grpc;
 using BattleShip.App;
 using BattleShip.App.Services;
+using Grpc.Net.Client;
+using Grpc.Net.Client.Web;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
@@ -31,5 +34,18 @@ builder.Services.AddScoped(_ => new HttpClient
 // hosting model to make it moot.
 builder.Services.AddScoped<BattleApiClient>();
 builder.Services.AddScoped<GameState>();
+
+// gRPC-Web, the only transport for firing (ADR 0005). A browser cannot speak plain gRPC
+// over HTTP/2, so the call is wrapped by GrpcWebHandler and unwrapped server-side by
+// app.UseGrpcWeb(). The channel targets the same API address as the HttpClient above, and
+// the API's CORS policy exposes the grpc-status/grpc-message trailers without which this
+// client could not read a refusal's status at all.
+builder.Services.AddScoped(_ => GrpcChannel.ForAddress(apiBaseAddress, new GrpcChannelOptions
+{
+    HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler())
+}));
+builder.Services.AddScoped(sp => new BattleService.BattleServiceClient(
+    sp.GetRequiredService<GrpcChannel>()));
+builder.Services.AddScoped<BattleGrpcClient>();
 
 await builder.Build().RunAsync();

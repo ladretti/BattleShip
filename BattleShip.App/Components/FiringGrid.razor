@@ -1,0 +1,81 @@
+@* Draws one board from the cells the SERVER described, and reports clicks. It decides
+   nothing — not even whether a cell may be fired at again: that refusal belongs to the
+   server, and letting the click through is what makes it demonstrable (ADR 0005). *@
+
+<div class="board" role="group" aria-label="@Label"
+     style="grid-template-columns: repeat(@GridSize, var(--cell-size));">
+    @for (var y = 0; y < GridSize; y++)
+    {
+        var row = y;
+        @for (var x = 0; x < GridSize; x++)
+        {
+            var column = x;
+            var cell = new Coordinate(column, row);
+            var state = StateOf(cell);
+
+            @if (Interactive)
+            {
+                <button type="button" class="cell @state" aria-label="@LabelFor(cell, state)"
+                        @onclick="() => OnCellClick.InvokeAsync(cell)">
+                    @Glyph(state)
+                </button>
+            }
+            else
+            {
+                <div class="cell @state" role="img" aria-label="@LabelFor(cell, state)">
+                    @Glyph(state)
+                </div>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int GridSize { get; set; }
+
+    /// <summary>
+    /// Every cell the player is entitled to see on this board, exactly as the server
+    /// projected it. Duplicates are allowed and the last one wins, which is how a "sunk"
+    /// cell overrides the "hit" that discovered it.
+    /// </summary>
+    [Parameter, EditorRequired] public IReadOnlyList<CellDto> Cells { get; set; } = [];
+
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+
+    [Parameter] public bool Interactive { get; set; }
+
+    [Parameter] public EventCallback<Coordinate> OnCellClick { get; set; }
+
+    private Dictionary<Coordinate, string> _states = [];
+
+    protected override void OnParametersSet()
+    {
+        _states = [];
+        foreach (var cell in Cells)
+            _states[new Coordinate(cell.X, cell.Y)] = cell.State;
+    }
+
+    private string StateOf(Coordinate cell) => _states.GetValueOrDefault(cell, "unknown");
+
+    private static string Glyph(string state) => state switch
+    {
+        "miss" => "·",
+        "hit" => "✱",
+        "sunk" => "✖",
+        _ => ""
+    };
+
+    private static string LabelFor(Coordinate cell, string state)
+    {
+        var what = state switch
+        {
+            "miss" => "miss",
+            "hit" => "hit",
+            "sunk" => "sunk",
+            "ship" => "your ship",
+            _ => "not fired at"
+        };
+
+        return $"column {cell.X + 1}, row {cell.Y + 1}, {what}";
+    }
+}

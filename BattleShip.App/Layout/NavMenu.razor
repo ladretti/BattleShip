@@ -17,6 +17,21 @@
                 <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> New game
             </NavLink>
         </div>
+        @* Shown only once there is a game to place or play: a link to a page that would
+           only say "no game in progress" is a dead end offered to the player. *@
+        @if (State.Current is not null)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="placement">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Placement
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="play">
+                    <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Play
+                </NavLink>
+            </div>
+        }
     </nav>
 
     @* The level is shown, never chosen from here: changing it mid-game would mean changing

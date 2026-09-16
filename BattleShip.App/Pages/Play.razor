@@ -1,0 +1,213 @@
+@page "/play"
+@implements IDisposable
+@inject GameState State
+@inject BattleGrpcClient Grpc
+@inject NavigationManager Navigation
+
+<PageTitle>Play — BattleShip</PageTitle>
+
+<h1>Battle</h1>
+
+@if (State.Current is null)
+{
+    <div class="alert alert-warning" role="alert">
+        No game in progress. <a href="">Create one first.</a>
+    </div>
+}
+else if (State.Current.Status == "Placing")
+{
+    <div class="alert alert-warning" role="alert">
+        Your fleet is not placed yet. <a href="placement">Place it first.</a>
+    </div>
+}
+else
+{
+    var game = State.Current;
+    var finished = game.Status == "Finished";
+
+    @if (finished)
+    {
+        <div class="alert @(PlayerWon(game) ? "alert-success" : "alert-secondary")" role="alert">
+            <strong>@(PlayerWon(game) ? "You win." : "You lose.")</strong>
+            Every ship of the losing fleet has been sunk.
+            <button class="btn btn-primary ms-3" @onclick="NewGame">New game</button>
+        </div>
+    }
+    else
+    {
+        <p>
+            Opponent: <strong>@game.OpponentDifficulty</strong>.
+            Click a cell on their board to fire. A hit lets you fire again.
+        </p>
+    }
+
+    <div class="d-flex flex-wrap gap-4">
+        <div>
+            <h2 class="h5">Their waters</h2>
+            <FiringGrid GridSize="game.Opponent.GridSize"
+                        Cells="OpponentCells(game)"
+                        Label="Opponent board — click to fire"
+                        Interactive="@(!finished && !_firing)"
+                        OnCellClick="FireAsync" />
+            <p class="mt-2 mb-0 text-muted small">
+                Sunk: @game.Opponent.SunkShips.Count / @game.Fleet.Count
+            </p>
+        </div>
+
+        <div>
+            <h2 class="h5">Your fleet</h2>
+            <FiringGrid GridSize="game.Own.GridSize"
+                        Cells="OwnCells(game)"
+                        Label="Your board"
+                        Interactive="false" />
+            <p class="mt-2 mb-0 text-muted small">
+                Lost: @game.Own.Ships.Count(s => s.IsSunk) / @game.Fleet.Count
+            </p>
+        </div>
+    </div>
+
+    @* The three states again. _firing covers the shot sequence being played back; the
+       GameState failure covers a broken read of the board itself. *@
+    @if (_firing)
+    {
+        <p class="mt-3" role="status" aria-live="polite">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            @(_sequenceMessage ?? "Firing…")
+        </p>
+    }
+    else if (_shotError is not null)
+    {
+        <div class="alert alert-danger mt-3" role="alert">
+            <strong>Shot refused.</strong>
+            <p class="mb-0">@_shotError</p>
+        </div>
+    }
+    else if (State.State == LoadState.Failed)
+    {
+        <div class="alert alert-danger mt-3" role="alert">
+            <strong>Could not read the board.</strong>
+            <p class="mb-0">@State.ErrorMessage</p>
+        </div>
+    }
+
+    @* Required by the subject: an EXPECTED gRPC-Web error, demonstrable from the browser.
+       Firing twice at the same cell gives InvalidArgument; this button gives NotFound,
+       which no legitimate click can produce since the page only ever fires at the game it
+       is showing. See README, "Démonstration gRPC-Web". *@
+    <details class="mt-4">
+        <summary>gRPC-Web diagnostics</summary>
+        <p class="mt-2 mb-2 text-muted small">
+            Fires at a game id that does not exist, to show an expected <code>NotFound</code>
+            coming back over gRPC-Web. Watch the Network tab.
+        </p>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="FireAtUnknownGameAsync" disabled="@_firing">
+            Fire at an unknown game
+        </button>
+    </details>
+}
+
+@code {
+    /// <summary>
+    /// Shots received since the last read of the board, drawn on top of it so the sequence
+    /// can be played back one cell at a time. They are dropped as soon as the authoritative
+    /// state is re-read — they are an animation, never a second source of truth.
+    /// </summary>
+    private readonly List<CellDto> _opponentOverlay = [];
+    private readonly List<CellDto> _ownOverlay = [];
+
+    private bool _firing;
+    private string? _shotError;
+    private string? _sequenceMessage;
+
+    protected override void OnInitialized() => State.OnChange += OnStateChanged;
+
+    private IReadOnlyList<CellDto> OpponentCells(GameDto game) =>
+    [
+        .. game.Opponent.Shots,
+        // Sunk ships come last so their cells override the "hit" that revealed them.
+        .. game.Opponent.SunkShips.SelectMany(s => s.Cells),
+        .. _opponentOverlay
+    ];
+
+    private IReadOnlyList<CellDto> OwnCells(GameDto game) =>
+    [
+        .. game.Own.Ships.SelectMany(s => s.Cells),
+        .. game.Own.ReceivedShots,
+        .. _ownOverlay
+    ];
+
+    /// <summary>
+    /// Read from the board the server sent, not decided here: the game is over and the
+    /// opponent's whole fleet is sunk, so the player is the one still standing.
+    /// </summary>
+    private static bool PlayerWon(GameDto game) => game.Opponent.SunkShips.Count == game.Fleet.Count;
+
+    private async Task FireAsync(Coordinate at)
+    {
+        if (State.Current is not { } game || _firing)
+            return;
+
+        await RunShotAsync(game.Id, at);
+    }
+
+    /// <summary>
+    /// The expected-error demonstration: a well-formed but unknown game id, which
+    /// <c>FireRequestValidator</c> lets through on purpose (an unknown game is a business
+    /// refusal, not a malformed request) and which the engine answers with
+    /// <c>GameNotFound</c> → <c>StatusCode.NotFound</c>.
+    /// </summary>
+    private async Task FireAtUnknownGameAsync() => await RunShotAsync(Guid.NewGuid(), new Coordinate(0, 0));
+
+    private async Task RunShotAsync(Guid gameId, Coordinate at)
+    {
+        _firing = true;
+        _shotError = null;
+        _sequenceMessage = "Firing…";
+
+        var result = await Grpc.FireAsync(gameId, at);
+
+        if (!result.IsOk)
+        {
+            _shotError = result.ErrorMessage;
+            _firing = false;
+
+            // A refusal can mean this page is looking at a stale board — someone else's
+            // shot, a restarted API. Re-reading costs one request and removes the doubt.
+            await State.RefreshAsync();
+            return;
+        }
+
+        var response = result.Value;
+
+        _opponentOverlay.Add(new CellDto(response.PlayerShot.X, response.PlayerShot.Y, response.PlayerShot.Result));
+        _sequenceMessage = $"Your shot: {response.PlayerShot.Result}.";
+        StateHasChanged();
+
+        // The response carries a whole sequence — "hit = fire again" (ADR 0006) means the
+        // opponent may answer with several shots in a row. Showing them all at once would
+        // hide what actually happened, so they are unrolled with a short pause.
+        foreach (var shot in response.OpponentShots)
+        {
+            await Task.Delay(450);
+            _ownOverlay.Add(new CellDto(shot.X, shot.Y, shot.Result));
+            _sequenceMessage = $"Opponent fires at column {shot.X + 1}, row {shot.Y + 1}: {shot.Result}.";
+            StateHasChanged();
+        }
+
+        await Task.Delay(300);
+
+        // The server is re-read rather than trusted to match what was just drawn: it is the
+        // one that knows which ships are sunk and whether the game is over (ADR 0007).
+        await State.RefreshAsync();
+        _opponentOverlay.Clear();
+        _ownOverlay.Clear();
+        _firing = false;
+        _sequenceMessage = null;
+    }
+
+    private void NewGame() => Navigation.NavigateTo("/");
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.OnChange -= OnStateChanged;
+}

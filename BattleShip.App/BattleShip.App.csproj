@@ -20,6 +20,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The same .proto file the server compiles, not a copy of it: the client stubs are
+         generated from BattleShip.API/Protos/battle.proto itself, so the two ends of the
+         wire cannot drift. Link keeps it displayed under Protos/ in the IDE. -->
+    <Protobuf Include="../BattleShip.API/Protos/battle.proto"
+              GrpcServices="Client" Link="Protos/battle.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\BattleShip.Models\BattleShip.Models.csproj" />
   </ItemGroup>
 
