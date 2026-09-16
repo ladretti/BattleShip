@@ -3,60 +3,91 @@
 @inject GameState State
 @inject NavigationManager Navigation
 
-<PageTitle>New game — Battleship</PageTitle>
+<PageTitle>Battleship</PageTitle>
 
-<h1 class="page-title">Take the bridge.</h1>
+<div class="hero">
+    <div class="hero__pitch">
+        <h1 class="page-title">Find their fleet before they find yours.</h1>
 
-<p class="lede">
-    Pick your waters and who you are up against. You place your own fleet next; the
-    opponent's is already out there, and the server is the only one who knows where.
-</p>
+        <p class="lede">
+            Two grids of open water, five ships each. You lay yours out by hand; theirs are
+            already somewhere, and only the server knows where. Every hit buys you another
+            shot — which cuts both ways.
+        </p>
 
-<div class="new-game">
-    <div class="field">
-        <label class="field__label" for="grid-size">Grid</label>
-        <select id="grid-size" @bind="_gridSize" disabled="@IsBusy">
-            @foreach (var size in GridSizes)
+        <div class="new-game">
+            <div class="field">
+                <label class="field__label" for="grid-size">Grid</label>
+                <select id="grid-size" @bind="_gridSize" disabled="@IsBusy">
+                    @foreach (var size in GridSizes)
+                    {
+                        <option value="@size">@size × @size</option>
+                    }
+                </select>
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="difficulty">Opponent</label>
+                @* Read from the shared contract, never from three strings typed here: the
+                   server rejects anything outside this list (ADR 0008). *@
+                <select id="difficulty" @bind="_difficulty" disabled="@IsBusy">
+                    @foreach (var level in DifficultyLevels.All)
+                    {
+                        <option value="@level">@level — @Describe(level)</option>
+                    }
+                </select>
+            </div>
+
+            <button class="button button--primary" @onclick="CreateAsync" disabled="@IsBusy">
+                @(IsBusy ? "Creating…" : "Create game")
+            </button>
+        </div>
+
+        @* The three states, all rendered. A failure leaves every control above usable, so the
+           player can simply try again once the API is back up (ADR 0007). *@
+        <p class="status" role="status" aria-live="polite">
+            @if (IsBusy)
             {
-                <option value="@size">@size × @size</option>
+                <span class="busy" aria-hidden="true"></span>
+                <span>Creating the game…</span>
             }
-        </select>
+        </p>
+
+        @if (!IsBusy && State.State == LoadState.Failed)
+        {
+            <div class="alert alert--error" role="alert">
+                <span class="alert__title">Could not create the game.</span>
+                <p>@State.ErrorMessage</p>
+            </div>
+        }
     </div>
 
-    <div class="field">
-        <label class="field__label" for="difficulty">Opponent</label>
-        @* Read from the shared contract, never from three strings typed here: the server
-           rejects anything outside this list (ADR 0008). *@
-        <select id="difficulty" @bind="_difficulty" disabled="@IsBusy">
-            @foreach (var level in DifficultyLevels.All)
-            {
-                <option value="@level">@level — @Describe(level)</option>
-            }
-        </select>
+    <div class="hero__stage">
+        <DemoBattle />
+        <p class="hero__caption">A fleet under fire. Yours, in about a minute.</p>
     </div>
-
-    <button class="button button--primary" @onclick="CreateAsync" disabled="@IsBusy">
-        @(IsBusy ? "Creating…" : "Create game")
-    </button>
 </div>
 
-@* The three states, all rendered. A failure leaves every control above usable, so the
-   player can simply try again once the API is back up (ADR 0007). *@
-<p class="status" role="status" aria-live="polite">
-    @if (IsBusy)
-    {
-        <span class="busy" aria-hidden="true"></span>
-        <span>Creating the game…</span>
-    }
-</p>
-
-@if (!IsBusy && State.State == LoadState.Failed)
-{
-    <div class="alert alert--error" role="alert">
-        <span class="alert__title">Could not create the game.</span>
-        <p>@State.ErrorMessage</p>
-    </div>
-}
+@* Not a feature grid: three numbers this project actually measured, which is the only
+   honest way to say how much harder "Hard" is. The figures come from the AI duel —
+   200 games per level at a fixed seed — and are the same ones quoted in the README. *@
+<section class="levels">
+    <h2 class="levels__title">How long each opponent takes to sink you</h2>
+    <dl class="levels__list">
+        @foreach (var level in Levels)
+        {
+            <div class="levels__item" data-selected="@((_difficulty == level.Name).ToString().ToLowerInvariant())">
+                <dt class="levels__name">@level.Name</dt>
+                <dd class="levels__value">@level.Shots<span class="levels__unit"> shots</span></dd>
+                <dd class="levels__note">@level.Note</dd>
+            </div>
+        }
+    </dl>
+    <p class="levels__source">
+        Averages over 200 games per level, fixed seed, default fleet on a 10 × 10 grid.
+        Lower is worse for you.
+    </p>
+</section>
 
 @code {
     // Bounded by CreateGameInputValidator, which accepts 7 to 20 — and by the fact that the
@@ -65,6 +96,18 @@
     // offering anything the server would refuse.
     private static readonly int[] GridSizes = [8, 10, 12, 15];
 
+    /// <summary>
+    /// Measured, not guessed: BattleShip.API/Benchmark/StrategyBenchmark.cs, 200 games per
+    /// strategy at seed 20260915. Quoted here because "Hard is harder" means nothing, and
+    /// "Hard needs 41 shots instead of 96" means something.
+    /// </summary>
+    private static readonly (string Name, string Shots, string Note)[] Levels =
+    [
+        (DifficultyLevels.Easy, "95.7", "Fires at random. You have time."),
+        (DifficultyLevels.Normal, "52.6", "Hunts down whatever it hits. The playable one."),
+        (DifficultyLevels.Hard, "41.2", "Reads the whole board. You will probably lose.")
+    ];
+
     private int _gridSize = 10;
     private string _difficulty = DifficultyLevels.Normal;
 
@@ -72,11 +115,7 @@
 
     protected override void OnInitialized() => State.OnChange += OnStateChanged;
 
-    /// <summary>
-    /// What each level actually does, in the player's terms rather than the algorithm's.
-    /// "Hard" is flagged as punishing because it is: see the measured shot counts in the
-    /// README.
-    /// </summary>
+    /// <summary>What each level does, in the player's terms rather than the algorithm's.</summary>
     private static string Describe(string level) => level switch
     {
         DifficultyLevels.Easy => "fires at random",

@@ -570,7 +570,9 @@ button.cell:focus-visible {
 .sunk-stamp span {
     font-family: var(--font-display);
     font-variation-settings: var(--display-axes);
-    font-size: calc(var(--cell-size, 2.15rem) * 0.85);
+    font-size: calc(var(--cell-size, 2.15rem) * 0.72);
+    max-width: 92%;
+    text-align: center;
     letter-spacing: 0.06em;
     color: var(--danger);
     border: 3px solid var(--danger);
@@ -581,7 +583,7 @@ button.cell:focus-visible {
 }
 
 @keyframes stamp {
-    0%   { opacity: 0; transform: rotate(-16deg) scale(2.1); }
+    0%   { opacity: 0; transform: rotate(-16deg) scale(1.45); }
     35%  { opacity: 1; transform: rotate(-7deg) scale(0.94); }
     50%  { transform: rotate(-7deg) scale(1.02); }
     80%  { opacity: 1; transform: rotate(-7deg) scale(1); }
@@ -962,3 +964,78 @@ kbd {
    board keeps the silhouette and drops the rest. */
 .own-board { --ruler-size: 0.75rem; }
 .own-board .hull__deck { display: none; }
+
+
+/* ---------- 14. Front page ------------------------------------------------- */
+
+/* The pitch on one side, a battle actually happening on the other. The board is not an
+   illustration of the game — it is the game's own components, playing themselves. */
+.hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: clamp(1.5rem, 4vw, 3.5rem);
+    align-items: center;
+}
+
+.hero__pitch { display: grid; gap: 1.25rem; align-content: start; }
+.hero__stage { display: grid; gap: 0.6rem; justify-items: center; --cell-size: clamp(1.9rem, 3.6vw, 3.1rem); }
+.hero__caption { color: var(--text-dim); font-size: 0.85rem; text-align: center; }
+
+.hero .page-title { max-width: 16ch; }
+
+/* The battle is decoration: it must never take a click or a tab stop away from the form
+   beside it. FiringGrid renders inert cells here, and the whole thing is aria-hidden. */
+.demo { pointer-events: none; user-select: none; }
+
+/* Three measured numbers, not a feature grid. "Hard is harder" says nothing; "Hard needs 41
+   shots instead of 96" says something, and this project measured it. */
+.levels {
+    display: grid;
+    gap: 0.9rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+}
+
+.levels__title { font-size: 1.1rem; }
+
+.levels__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+}
+
+.levels__item {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.8rem 0.95rem;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-left-width: 4px;
+    border-radius: var(--radius-panel);
+}
+
+.levels__item[data-selected="true"] { border-left-color: var(--accent); }
+
+.levels__name {
+    font-family: var(--font-display);
+    font-variation-settings: var(--display-axes);
+    font-size: 1.05rem;
+}
+
+.levels__value {
+    margin: 0;
+    font-size: 1.9rem;
+    line-height: 1;
+    font-variation-settings: var(--ui-axes), "wght" 700;
+}
+
+.levels__unit { font-size: 0.85rem; color: var(--text-dim); font-variation-settings: var(--ui-axes); }
+.levels__note { margin: 0; color: var(--text-dim); font-size: 0.88rem; }
+.levels__source { color: var(--text-dim); font-size: 0.82rem; }
+
+@media (max-width: 900px) {
+    .hero { grid-template-columns: minmax(0, 1fr); }
+    .hero__stage { justify-items: start; }
+    .hero .page-title { max-width: none; }
+}

@@ -30,6 +30,10 @@
             write: function (key, value) {
                 try { localStorage.setItem(key, value); } catch (e) { /* not worth failing over */ }
             },
+            prefersReducedMotion: function () {
+                try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+                catch (e) { return false; }
+            },
             apply: function (theme, motion) {
                 var root = document.documentElement;
                 root.setAttribute('data-theme', theme);

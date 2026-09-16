@@ -522,3 +522,61 @@ Une entrée par échange qui a compté. Les échanges de pure exécution ne sont
   un test automatisé du dépôt — la géométrie l'est par un script hors solution, le reste par
   l'exécution dans le navigateur ; le rendu sur écran à très haute densité et le comportement
   des coques sur une grille de 20 n'ont pas été regardés.
+
+---
+
+## 2026-09-16 — Une page d'accueil qui joue au lieu de décrire
+
+- **Outil / modèle** : Claude Code (claude-opus-5, 1M context), compétence `frontend-design`
+
+- **Contexte** : la page d'accueil se réduisait à un titre, deux listes déroulantes et un
+  bouton. Le binôme : « refais la page d'accueil pour qu'elle donne envie de jouer, avec des
+  navires qui bougent et qui explosent, un véritable champ de bataille naval ».
+
+- **Prompt réellement utilisé** : la demande ci-dessus, telle quelle.
+
+- **Réponse et hypothèses résumées** : la tentation était une animation décorative — vagues,
+  navires qui dérivent, particules. L'IA a proposé l'inverse : **le champ de bataille, c'est le
+  jeu lui-même**. Une partie se déroule toute seule sur la page, rendue par le composant
+  `FiringGrid` réel, avec les vraies coques, les vrais impacts et l'apparence que le joueur a
+  choisie. Aucun second langage visuel à maintenir, et ce que le visiteur voit est exactement
+  ce qu'il va obtenir.
+
+  Un choix de fidélité mérite d'être signalé : la démonstration montre **votre** plateau sous
+  le feu, pas celui de l'adversaire. Sur le plateau adverse un navire à flot n'a rien à
+  dessiner — règle du secret — et en montrer un aurait fait la publicité de quelque chose que
+  le jeu ne fait jamais.
+
+  Deuxième parti pris : les trois niveaux sont présentés par leurs **nombres mesurés**
+  (95,7 / 52,6 / 41,2 coups), issus du duel d'IA de la revue 3. « Difficile est plus dur » ne
+  dit rien ; « Difficile a besoin de 41 coups au lieu de 96 » dit quelque chose, et ce projet
+  l'a mesuré.
+
+- **Décision et justification** : acceptée. La séquence de tirs est **écrite**, pas tirée au
+  hasard : une page d'accueil n'a qu'une occasion d'être regardée, et une séquence aléatoire
+  passe l'essentiel de ce temps à rater. Deux ratés, un navire démonté, et on recommence.
+
+- **Scénario ou commande de vérification** : pilotage du navigateur — présence et rythme de la
+  bataille, absence de point de tabulation volé au formulaire, comportement en mode calme,
+  libération de la minuterie quand on quitte la page.
+
+- **Résultat attendu, puis résultat observé** :
+  - Attendu : la démonstration est `aria-hidden` et n'expose **aucun** élément focalisable.
+    Observé : `focusableInDemo = 0`.
+  - Attendu : en mode calme le plateau se fige sans devenir vide, et repart en mode complet.
+    Observé : figé (deux relevés identiques à 2,6 s d'intervalle), toujours porteur d'une
+    bataille lisible, et reparti après bascule.
+  - Attendu : trois allers-retours entre l'accueil et le placement sans message de console.
+    Observé : console vide — la minuterie est bien annulée par `IAsyncDisposable`.
+
+- **Erreur que ce contrôle pourrait détecter** : une boucle temporisée non libérée continue de
+  battre sur un composant détruit et Blazor s'en plaint bruyamment ; c'est exactement le type
+  de fuite qu'aucun test de ce dépôt ne verrait. Le contrôle du mode calme discrimine par
+  ailleurs « l'animation ne scintille plus » de « la bataille s'est réellement arrêtée » —
+  seule la seconde est acceptable pour quelqu'un qui a demandé moins de mouvement.
+
+- **Preuves reproductibles et limites** : commit ci-après. Limites : le tampon de coulage
+  s'ouvrait à `scale(2.1)` et débordait largement d'un plateau de huit cases — ramené à 1,45
+  et borné à 92 % de la largeur. Et je me suis fait tromper **deux fois** par des captures
+  JPEG réduites, en croyant lire un mauvais thème là où les valeurs calculées étaient bonnes :
+  les couleurs se vérifient par `getComputedStyle`, pas à l'œil sur une image compressée.
