@@ -3,28 +3,35 @@
 @inject GameState State
 @inject NavigationManager Navigation
 
-<PageTitle>Place your fleet — BattleShip</PageTitle>
+<PageTitle>Place your fleet — Battleship</PageTitle>
 
-<h1>Place your fleet</h1>
+<h1 class="page-title">Lay out your fleet.</h1>
 
 @if (State.Current is null)
 {
-    <div class="alert alert-warning" role="alert">
-        No game in progress. <a href="">Create one first.</a>
+    <div class="alert alert--note" role="alert">
+        <span class="alert__title">No game in progress.</span>
+        <p><a href="">Create one first.</a></p>
     </div>
 }
 else if (State.Current.Status != "Placing")
 {
-    <div class="alert alert-info" role="alert">
-        This fleet is already placed. <a href="play">Go to the game.</a>
+    <div class="alert alert--note" role="alert">
+        <span class="alert__title">This fleet is already placed.</span>
+        <p><a href="play">Go to the game.</a></p>
     </div>
 }
 else
 {
     var game = State.Current;
 
-    <div class="d-flex flex-wrap gap-4">
-        <div>
+    <p class="lede">
+        Click a square to drop the highlighted ship. Click a ship again to take it back.
+        Press <kbd>R</kbd> to turn it.
+    </p>
+
+    <div class="stage">
+        <div class="stage__board">
             <PlacementGrid GridSize="game.Own.GridSize"
                            Placed="_placed"
                            Preview="_preview"
@@ -32,72 +39,70 @@ else
                            OnCellClick="PlaceOrRemoveAsync"
                            OnCellPointed="PointAt"
                            OnRotate="Rotate" />
-
-            <p class="mt-2 mb-0 text-muted small">
-                Click an empty cell to lay down <strong>@(NextShip?.Name ?? "—")</strong>,
-                click one of your ships to take it back.
-            </p>
         </div>
 
-        <div style="min-width: 16rem;">
-            <h2 class="h5">Fleet</h2>
-            <ul class="list-group mb-3">
+        <aside class="stage__side panel">
+            <h2 class="panel__title">Fleet</h2>
+
+            <ul class="fleet">
                 @foreach (var template in game.Fleet)
                 {
                     var isPlaced = _placed.Any(p => p.Name == template.Name);
                     var isNext = NextShip?.Name == template.Name;
-                    <li class="list-group-item d-flex justify-content-between @(isNext ? "active" : null)">
-                        <span>@template.Name <span class="text-nowrap">(@template.Size)</span></span>
-                        <span>@(isPlaced ? "placed" : isNext ? "placing…" : "waiting")</span>
+                    <li class="fleet__ship" data-active="@isNext.ToString().ToLowerInvariant()">
+                        <span class="fleet__name">@template.Name</span>
+                        <span class="fleet__note">
+                            @(isPlaced ? "placed" : isNext ? "place it now" : $"{template.Size} squares")
+                        </span>
+                        <span class="hull" aria-hidden="true">
+                            @for (var i = 0; i < template.Size; i++)
+                            {
+                                <span class="hull__pip" data-state="@(isPlaced ? "ship" : "empty")"></span>
+                            }
+                        </span>
                     </li>
                 }
             </ul>
 
-            <div class="d-flex flex-wrap gap-2 mb-3">
-                <button class="btn btn-outline-secondary" @onclick="Rotate" disabled="@IsBusy">
-                    Rotate — @_orientation (R)
+            <div class="stage__actions">
+                <button class="button" @onclick="Rotate" disabled="@IsBusy">
+                    Turn — @_orientation
                 </button>
-                <button class="btn btn-outline-secondary" @onclick="Reset" disabled="@IsBusy">
-                    Clear
-                </button>
+                <button class="button" @onclick="Reset" disabled="@IsBusy">Clear</button>
             </div>
 
-            <button class="btn btn-primary w-100"
+            <button class="button button--primary stage__confirm"
                     @onclick="ValidateAsync"
                     disabled="@(IsBusy || _placed.Count != game.Fleet.Count)">
-                @(IsBusy ? "Sending…" : "Validate fleet")
+                @(IsBusy ? "Sending…" : "Confirm fleet")
             </button>
 
             @if (!game.ShipsMayTouch)
             {
-                <p class="mt-2 mb-0 text-muted small">
-                    Ships may not touch, diagonals included.
-                </p>
+                <p class="fleet__note stage__rule">Ships may not touch, diagonals included.</p>
             }
-        </div>
+        </aside>
     </div>
 
     @* The three states. The preview hint is local and advisory; the alert below carries
        what the SERVER said, which is the only verdict that counts (ADR 0007). *@
-    @if (IsBusy)
+    <p class="status" role="status" aria-live="polite">
+        @if (IsBusy)
+        {
+            <span class="busy" aria-hidden="true"></span>
+            <span>Sending the fleet…</span>
+        }
+        else if (_preview is not null && !_previewIsValid && NextShip is { } blocked)
+        {
+            <span>@blocked.Name would not fit there — you can still drop it, and the server will say why.</span>
+        }
+    </p>
+
+    @if (!IsBusy && State.State == LoadState.Failed)
     {
-        <p class="mt-3" role="status" aria-live="polite">
-            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-            Sending the fleet…
-        </p>
-    }
-    else if (State.State == LoadState.Failed)
-    {
-        <div class="alert alert-danger mt-3" role="alert">
-            <strong>The server refused this fleet.</strong>
-            <p class="mb-0">@State.ErrorMessage</p>
-        </div>
-    }
-    else if (_preview is not null && !_previewIsValid)
-    {
-        <div class="alert alert-warning mt-3" role="status">
-            @NextShip?.Name would not fit here. You can still place it — the server has the
-            final say, and it will tell you why.
+        <div class="alert alert--error" role="alert">
+            <span class="alert__title">The server refused this fleet.</span>
+            <p>@State.ErrorMessage</p>
         </div>
     }
 }

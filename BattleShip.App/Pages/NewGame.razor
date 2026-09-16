@@ -3,18 +3,19 @@
 @inject GameState State
 @inject NavigationManager Navigation
 
-<PageTitle>New game — BattleShip</PageTitle>
+<PageTitle>New game — Battleship</PageTitle>
 
-<h1>New game</h1>
+<h1 class="page-title">Take the bridge.</h1>
 
-<p>
-    Choose the size of the grid and how hard the opponent should be, then place your fleet.
+<p class="lede">
+    Pick your waters and who you are up against. You place your own fleet next; the
+    opponent's is already out there, and the server is the only one who knows where.
 </p>
 
-<div class="row g-3" style="max-width: 40rem;">
-    <div class="col-12 col-sm-6">
-        <label class="form-label" for="grid-size">Grid size</label>
-        <select id="grid-size" class="form-select" @bind="_gridSize" disabled="@IsBusy">
+<div class="new-game">
+    <div class="field">
+        <label class="field__label" for="grid-size">Grid</label>
+        <select id="grid-size" @bind="_gridSize" disabled="@IsBusy">
             @foreach (var size in GridSizes)
             {
                 <option value="@size">@size × @size</option>
@@ -22,39 +23,38 @@
         </select>
     </div>
 
-    <div class="col-12 col-sm-6">
-        <label class="form-label" for="difficulty">Opponent</label>
+    <div class="field">
+        <label class="field__label" for="difficulty">Opponent</label>
         @* Read from the shared contract, never from three strings typed here: the server
            rejects anything outside this list (ADR 0008). *@
-        <select id="difficulty" class="form-select" @bind="_difficulty" disabled="@IsBusy">
+        <select id="difficulty" @bind="_difficulty" disabled="@IsBusy">
             @foreach (var level in DifficultyLevels.All)
             {
-                <option value="@level">@level</option>
+                <option value="@level">@level — @Describe(level)</option>
             }
         </select>
     </div>
 
-    <div class="col-12">
-        <button class="btn btn-primary" @onclick="CreateAsync" disabled="@IsBusy">
-            @(IsBusy ? "Creating…" : "Create game")
-        </button>
-    </div>
+    <button class="button button--primary" @onclick="CreateAsync" disabled="@IsBusy">
+        @(IsBusy ? "Creating…" : "Create game")
+    </button>
 </div>
 
 @* The three states, all rendered. A failure leaves every control above usable, so the
    player can simply try again once the API is back up (ADR 0007). *@
-@if (IsBusy)
+<p class="status" role="status" aria-live="polite">
+    @if (IsBusy)
+    {
+        <span class="busy" aria-hidden="true"></span>
+        <span>Creating the game…</span>
+    }
+</p>
+
+@if (!IsBusy && State.State == LoadState.Failed)
 {
-    <p class="mt-3" role="status" aria-live="polite">
-        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-        Creating the game…
-    </p>
-}
-else if (State.State == LoadState.Failed)
-{
-    <div class="alert alert-danger mt-3" role="alert">
-        <strong>Could not create the game.</strong>
-        <p class="mb-0">@State.ErrorMessage</p>
+    <div class="alert alert--error" role="alert">
+        <span class="alert__title">Could not create the game.</span>
+        <p>@State.ErrorMessage</p>
     </div>
 }
 
@@ -71,6 +71,19 @@ else if (State.State == LoadState.Failed)
     private bool IsBusy => State.State == LoadState.Loading;
 
     protected override void OnInitialized() => State.OnChange += OnStateChanged;
+
+    /// <summary>
+    /// What each level actually does, in the player's terms rather than the algorithm's.
+    /// "Hard" is flagged as punishing because it is: see the measured shot counts in the
+    /// README.
+    /// </summary>
+    private static string Describe(string level) => level switch
+    {
+        DifficultyLevels.Easy => "fires at random",
+        DifficultyLevels.Normal => "hunts down what it hits",
+        DifficultyLevels.Hard => "reads the board, and wins",
+        _ => ""
+    };
 
     private async Task CreateAsync()
     {

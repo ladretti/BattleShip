@@ -393,3 +393,66 @@ Une entrée par échange qui a compté. Les échanges de pure exécution ne sont
   niveau du DOM, pas à l'oreille ; les flèches ne suppriment pas le défilement de page ; et le
   glyphe `hit` n'a pas été observé simultanément aux quatre autres (le navire touché avait
   coulé entre-temps), il l'a été séparément.
+
+---
+
+## 2026-09-16 — Refonte de l'interface : trois apparences commutables
+
+- **Outil / modèle** : Claude Code (claude-opus-5, 1M context), compétence `frontend-design`
+
+- **Contexte** : l'interface livrée aux tâches 16 à 21 était correcte et accessible, mais sans
+  parti pris. Le binôme : « l'UI est un peu trop simpliste, je ne suis pas convaincu ».
+
+- **Prompt réellement utilisé** : « /frontend-design l'ui est un peu trop simpliste je ne suis
+  pas convaincu tu vas me reprendre tout ça et en faire quelque chose de seamless avec une
+  bonne compréhension des animations d'explosion et d'autres idées que tu pourras me donner »,
+  puis, après présentation de trois directions : « fais les trois styles et fais en sorte qu'on
+  puisse changer à tous moments via les paramètres ».
+
+- **Réponse et hypothèses résumées** : l'IA a d'abord refusé de coder et a posé un diagnostic —
+  le problème n'était pas un manque de couleurs mais trois défauts de structure : symétrie sans
+  hiérarchie (deux grilles égales, rien ne dit où regarder), aucun vocabulaire du sujet (pas de
+  règles de coordonnées, donc impossible de nommer une case), aucun temps fort (la touche ne
+  changeait qu'une couleur de fond). Trois directions ont été proposées avec maquettes ASCII,
+  chacune construite pour **éviter** le cliché du radar vert phosphore sur noir.
+
+  Hypothèse structurante de la réponse au « fais les trois » : trois feuilles de style
+  séparées tripleraient ce qu'il faut *vérifier*, en particulier l'accessibilité livrée à la
+  tâche 21 — et aucun test de ce dépôt ne détecterait qu'une skin régresse.
+
+- **Décision et justification** : un seul jeu de jetons CSS, redéfini par `[data-theme]`
+  (ADR 0009). Une apparence change le substrat et la matière d'un coup, jamais le balisage,
+  jamais le comportement clavier, **jamais le glyphe d'une case**. Bootstrap retiré : ses
+  boutons et alertes sont la principale cause du rendu « gabarit ». Deux familles variables
+  pour les trois skins, pilotées sur leurs propres axes, plutôt que six fontes.
+
+- **Scénario ou commande de vérification** : mesure des contrastes des **trois** palettes
+  (`node contrast.mjs`), puis pilotage du navigateur pour rejouer les contrôles
+  d'accessibilité de la tâche 21 sur l'interface refondue, plus deux contrôles nouveaux :
+  les glyphes relevés dans les trois skins, et le mode calme.
+
+- **Résultat attendu, puis résultat observé** :
+  - Contrastes — attendu : toutes les paires ≥ 4,5:1. Observé : **cinq échecs** à la première
+    mesure (3,82 / 4,21 / 4,49 / 4,35 / 4,35), corrigés puis remesurés.
+  - Glyphes — attendu : identiques dans les trois. Observé : identiques
+    (`hit:✱ miss:· ship:■ sunk:✖ unknown:`), ce qui rend la promesse « lisible sans la
+    couleur » vraie par construction et non par trois efforts.
+  - Clavier — attendu : rien de perdu. Observé : 1 case sur 100 dans l'ordre de tabulation,
+    flèches et `R` opérants, focus conservé sur la case tirée, région live à jour.
+  - Secousse du plateau — attendu : sur une touche et un coulé, pas sur un manqué, et
+    supprimée en mode calme. Observé : `flinch / none / flinch / none` exactement.
+
+- **Erreur que ce contrôle pourrait détecter** : un défaut de mise en page **invisible pour
+  tout test de ce dépôt** a été trouvé ainsi. La gerbe d'impact était placée explicitement
+  dans la grille CSS ; le placement automatique contournait alors sa case et décalait toutes
+  les suivantes d'un cran, faisant apparaître une douzième ligne fantôme. Mesuré
+  (`gridTemplateRows` = 12 au lieu de 11), corrigé en rendant la gerbe **dans** la case
+  touchée, revérifié à 11×11.
+
+- **Preuves reproductibles et limites** : `docs/demo/` régénéré sur la nouvelle interface —
+  les captures précédentes montraient l'ancienne et seraient devenues des preuves fausses.
+  Scripts `contrast.mjs`, `demo.mjs` dans le scratchpad. Limites : aucun lecteur d'écran réel
+  essayé, dans aucune des trois apparences ; les polices viennent de Google Fonts, donc sans
+  réseau les trois skins se ressemblent davantage ; et la refonte n'est couverte par **aucun
+  test automatisé** — seules l'exécution dans le navigateur et la mesure des contrastes
+  l'étayent.

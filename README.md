@@ -123,10 +123,18 @@ Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible a
 - **Historique et rejeu** : la liste ordonnée des coups des deux camps, et un curseur qui
   rejoue la partie. Le rejeu est un **rendu seul** — il n'émet aucune requête et ne touche
   jamais l'état serveur.
+- **Trois apparences commutables à tout moment** depuis *Settings* — *Hydrographic* (carte
+  marine, les coups sont de l'encre), *Steel* (tôle peinte, les coups brûlent), *Tabletop*
+  (le jeu en plastique, les coups sont des pions). Plus un réglage **Impacts : complet ou
+  calme**. Les deux sont mémorisés entre deux visites. Une apparence change la matière,
+  jamais la structure ni les glyphes (ADR 0009).
+- **Chorégraphie d'impact** : anneaux de choc, débris projetés, le plateau qui tressaille sur
+  une touche ou un coulé — jamais sur un manqué — et un tampon quand une coque descend.
 - **Accessibilité** : les deux grilles se jouent au clavier seul (tabindex roving, flèches,
   `Début`/`Fin`, `Entrée` pour agir, `R` pour pivoter), une région `aria-live` annonce chaque
-  coup, chaque état porte un **glyphe** en plus de sa couleur, et les contrastes sont mesurés.
-- Tests métier et tests d'intégration : **140 tests**, `dotnet test`.
+  coup, chaque état porte un **glyphe** en plus de sa couleur — **le même dans les trois
+  apparences** — et les contrastes sont mesurés dans les trois.
+- Tests métier et tests d'intégration : **142 tests**, `dotnet test`.
 
 ## Démonstration gRPC-Web
 
@@ -134,7 +142,7 @@ Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible a
 `Fire` pour ne garder que les appels gRPC-Web.
 
 1. Créer une partie (`/`), poser les cinq navires en cliquant sur la grille, puis
-   **Validate fleet**.
+   **Confirm fleet**.
 2. **Réponse attendue** — cliquer une case vierge de « Their waters » : un
    `POST /battleship.BattleService/Fire` apparaît, en `HTTP 200`, `Content-Type:
    application/grpc-web`. Le coup s'affiche sur la grille, puis la riposte adverse se déroule
@@ -205,6 +213,9 @@ Le scénario a été déroulé et capturé dans `docs/demo/` :
   la page reste blanche avec un `404` sur `dotnet.<hash>.js` en console. Remède : arrêter puis
   relancer `dotnet run --project BattleShip.App`. Constaté pendant la mise au point de la
   démonstration.
+- **Les polices viennent de Google Fonts.** Sans réseau, la pile de secours s'applique : le
+  jeu reste lisible mais les trois apparences se ressemblent davantage, les réglages d'axes
+  variables n'ayant plus de support.
 - **Accessibilité — ce qui reste.** Les contrastes ont été calculés (rapport WCAG 2.1) mais
   **aucun lecteur d'écran réel n'a été essayé** : les annonces sont vérifiées au niveau du DOM,
   pas à l'oreille. Les flèches ne suppriment pas le défilement de la page (Blazor ne permet pas
@@ -224,7 +235,7 @@ Le scénario a été déroulé et capturé dans `docs/demo/` :
 | `docs/superpowers/specs/2026-09-15-bataille-navale-design.md` | conception d'ensemble |
 | `docs/superpowers/plans/` | plan d'implémentation découpé en tâches |
 | `docs/demo/` | preuves de la démonstration gRPC-Web (captures + trace réseau) |
-| `docs/adr/` | décisions d'architecture (0001 à 0008) |
+| `docs/adr/` | décisions d'architecture (0001 à 0009) |
 | `PROMPTS.md` | échanges décisifs avec l'IA |
 | `REVUE-IA.md` | revues argumentées des propositions de l'IA |
 | `CONTEXTE-IA.md` | contexte du projet |

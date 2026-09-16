@@ -1,45 +1,99 @@
+@inject Random Random
+
 @* Draws one board from the cells the SERVER described, and reports clicks. It decides
    nothing — not even whether a cell may be fired at again: that refusal belongs to the
    server, and letting the click through is what makes it demonstrable (ADR 0005). *@
 
-<div class="board" role="group" aria-label="@Label"
-     style="grid-template-columns: repeat(@GridSize, var(--cell-size));">
-    @for (var y = 0; y < GridSize; y++)
-    {
-        var row = y;
+<div class="board-frame">
+    <div class="board" role="group" aria-label="@Label"
+         style="grid-template-columns: auto repeat(@GridSize, var(--cell-size, 2.15rem));">
+
+        @* Coordinate rulers. Not decoration: naming a cell out loud is how the game has
+           always been played, and the aria-labels below use the same names. *@
+        <span class="ruler" aria-hidden="true"></span>
         @for (var x = 0; x < GridSize; x++)
         {
-            var column = x;
-            var index = row * GridSize + column;
-            var cell = new Coordinate(column, row);
-            var state = StateOf(cell);
+            <span class="ruler" aria-hidden="true">@Column(x)</span>
+        }
 
-            @if (Interactive)
+        @for (var y = 0; y < GridSize; y++)
+        {
+            var row = y;
+            <span class="ruler" aria-hidden="true">@(row + 1)</span>
+
+            @for (var x = 0; x < GridSize; x++)
             {
-                @* Roving tabindex: exactly one cell of the grid is in the tab order, so Tab
-                   steps over the whole board in one press instead of walking GridSize² cells,
-                   and the arrow keys move within it. This is the standard keyboard pattern
-                   for a grid, and it is what makes the game playable without a mouse. *@
-                <button type="button" class="cell @state" aria-label="@LabelFor(cell, state)"
-                        @ref="_cellRefs[index]"
-                        tabindex="@(index == _focused ? 0 : -1)"
-                        @onclick="() => OnCellClick.InvokeAsync(cell)"
-                        @onfocus="() => _focused = index"
-                        @onkeydown="args => MoveFocusAsync(args, index)">
-                    <span aria-hidden="true">@Glyph(state)</span>
-                </button>
-            }
-            else
-            {
-                <div class="cell @state" role="img" aria-label="@LabelFor(cell, state)">
-                    <span aria-hidden="true">@Glyph(state)</span>
-                </div>
+                var column = x;
+                var index = row * GridSize + column;
+                var cell = new Coordinate(column, row);
+                var state = StateOf(cell);
+
+                var struck = Impact is { } mark && mark.At == cell;
+
+                @if (Interactive)
+                {
+                    @* Roving tabindex: exactly one cell of the grid is in the tab order, so Tab
+                       steps over the whole board in one press instead of walking GridSize² cells,
+                       and the arrow keys move within it. This is the standard keyboard pattern
+                       for a grid, and it is what makes the game playable without a mouse. *@
+                    <button type="button" class="cell @state @(struck ? "is-struck" : null)"
+                            aria-label="@LabelFor(cell, state)"
+                            @ref="_cellRefs[index]"
+                            tabindex="@(index == _focused ? 0 : -1)"
+                            @onclick="() => OnCellClick.InvokeAsync(cell)"
+                            @onfocus="() => _focused = index"
+                            @onkeydown="args => MoveFocusAsync(args, index)">
+                        <span aria-hidden="true">@Glyph(state)</span>
+                        @if (struck) { @Burst(Impact!) }
+                    </button>
+                }
+                else
+                {
+                    <div class="cell @state @(struck ? "is-struck" : null)" role="img"
+                         aria-label="@LabelFor(cell, state)">
+                        <span aria-hidden="true">@Glyph(state)</span>
+                        @if (struck) { @Burst(Impact!) }
+                    </div>
+                }
             }
         }
+
+    </div>
+
+    @if (Impact is { Kind: "sunk" } sinking)
+    {
+        <div class="sunk-stamp" aria-hidden="true">
+            <span @key="sinking.Sequence">@(SunkLabel ?? "Sunk")</span>
+        </div>
     }
 </div>
 
+@* The burst is rendered INSIDE the cell that was struck, never as a grid item of its own.
+   Placing it explicitly in the grid made CSS auto-placement route the following cells
+   around it, which pushed the whole board one square out of line and grew a phantom
+   twelfth row — visible only in the browser, never in a test. As a child of the cell it
+   needs no measuring, survives a resize, and cannot disturb the layout. *@
+@{
+    RenderFragment Burst(ImpactMark impact) =>
+        @<span @key="impact.Sequence" class="impact impact--@impact.Kind" aria-hidden="true">
+            <span class="impact__flash"></span>
+            <span class="impact__ring"></span>
+            <span class="impact__ring impact__ring--late"></span>
+            @foreach (var shard in Shards(impact.Kind))
+            {
+                <span class="impact__shard" style="@shard"></span>
+            }
+        </span>;
+}
+
 @code {
+    /// <summary>
+    /// The shot to play an impact for. <see cref="ImpactMark.Sequence"/> is what makes a
+    /// repeat of the same cell, or two hits in a row, restart the animation instead of
+    /// leaving the previous one frozen on screen.
+    /// </summary>
+    public sealed record ImpactMark(Coordinate At, string Kind, int Sequence);
+
     [Parameter, EditorRequired] public int GridSize { get; set; }
 
     /// <summary>
@@ -52,6 +106,11 @@
     [Parameter, EditorRequired] public string Label { get; set; } = "";
 
     [Parameter] public bool Interactive { get; set; }
+
+    [Parameter] public ImpactMark? Impact { get; set; }
+
+    /// <summary>The name stamped across the board when a hull goes down.</summary>
+    [Parameter] public string? SunkLabel { get; set; }
 
     [Parameter] public EventCallback<Coordinate> OnCellClick { get; set; }
 
@@ -123,13 +182,48 @@
         await _cellRefs[target].FocusAsync();
     }
 
-    private string StateOf(Coordinate cell) => _states.GetValueOrDefault(cell, "unknown");
+    /// <summary>
+    /// The debris flung by an impact, as inline custom properties the stylesheet animates.
+    /// Randomness is injected rather than taken from Random.Shared — the same discipline the
+    /// engine follows. Here it only decides where sparks fly, but an exception to that rule
+    /// is not worth arguing for.
+    /// </summary>
+    private IEnumerable<string> Shards(string kind)
+    {
+        var count = kind == "miss" ? 6 : 12;
+        var reach = kind == "miss" ? 26 : 52;
+
+        for (var i = 0; i < count; i++)
+        {
+            var angle = (2 * Math.PI * i / count) + (Random.NextDouble() * 0.5);
+            var distance = reach * (0.55 + (Random.NextDouble() * 0.75));
+            var dx = Math.Round(Math.Cos(angle) * distance, 1);
+            var dy = Math.Round(Math.Sin(angle) * distance, 1);
+            var size = kind == "miss" ? 3 + Random.Next(3) : 4 + Random.Next(5);
+            var delay = Random.Next(0, 90);
+
+            yield return
+                $"--dx:{Css(dx)}px;--dy:{Css(dy)}px;--s:{size}px;--d:{delay}ms";
+        }
+    }
 
     /// <summary>
-    /// A glyph per state, so the four states stay distinguishable <b>without colour</b> —
-    /// for a colour-blind player, in high contrast mode, or on a printed screenshot.
-    /// "unknown" is the only state with no glyph, which is itself the distinction: nothing
-    /// has happened there.
+    /// CSS never accepts a decimal comma, and this app runs under whatever locale the
+    /// player's browser reports — so the invariant culture is not optional here.
+    /// </summary>
+    private static string Css(double value) =>
+        value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private string StateOf(Coordinate cell) => _states.GetValueOrDefault(cell, "unknown");
+
+    /// <summary>Column names as the game says them out loud: A, B, C…</summary>
+    private static string Column(int x) => ((char)('A' + x)).ToString();
+
+    /// <summary>
+    /// A glyph per state, so the five states stay distinguishable <b>without colour</b> —
+    /// for a colour-blind player, in high contrast mode, or on a printed screenshot. The
+    /// glyphs are identical in all three skins: a theme changes the material, never the
+    /// information.
     /// </summary>
     private static string Glyph(string state) => state switch
     {
@@ -151,6 +245,6 @@
             _ => "not fired at"
         };
 
-        return $"column {cell.X + 1}, row {cell.Y + 1}, {what}";
+        return $"{Column(cell.X)}{cell.Y + 1}, {what}";
     }
 }

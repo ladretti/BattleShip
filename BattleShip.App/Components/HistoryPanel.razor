@@ -2,44 +2,42 @@
    slider changes what the boards draw and nothing else — no request is sent, no server state
    is touched. That is why it stays available after the game is over. *@
 
-<details class="mt-4" @attributes="AdditionalAttributes">
-    <summary>Shot history (@Shots.Count)</summary>
+<details class="drawer">
+    <summary>Shot history — @Shots.Count</summary>
 
     @if (Shots.Count == 0)
     {
-        <p class="mt-2 mb-0 text-muted small">No shot fired yet.</p>
+        <p class="fleet__note">Nothing fired yet.</p>
     }
     else
     {
-        <div class="d-flex align-items-center gap-3 mt-2 flex-wrap">
-            <label class="form-label mb-0" for="replay-cursor">Replay</label>
-            <input id="replay-cursor" type="range" class="form-range" style="width: 16rem;"
+        <div class="replay">
+            <label class="field__label" for="replay-cursor">Replay</label>
+            <input id="replay-cursor" type="range"
                    min="0" max="@Shots.Count" step="1"
                    value="@(Cursor ?? Shots.Count)"
                    @oninput="OnCursorInputAsync"
                    aria-valuetext="@Describe(Cursor ?? Shots.Count)" />
-            <span aria-live="polite">@Describe(Cursor ?? Shots.Count)</span>
+            <span class="fleet__note" aria-live="polite">@Describe(Cursor ?? Shots.Count)</span>
 
             @if (Cursor is not null)
             {
-                <button class="btn btn-sm btn-outline-secondary" @onclick="BackToLiveAsync">
-                    Back to live
-                </button>
+                <button class="button" @onclick="BackToLiveAsync">Back to live</button>
             }
         </div>
 
-        <ol class="mt-3 mb-0 ps-3 small" style="max-height: 14rem; overflow-y: auto;">
+        <ol class="log">
             @for (var i = 0; i < Shots.Count; i++)
             {
                 var shot = Shots[i];
                 var isPast = i < (Cursor ?? Shots.Count);
-                <li class="@(isPast ? null : "text-muted")">
-                    <strong>@(shot.By == "Human" ? "You" : "Opponent")</strong>
-                    fired at column @(shot.X + 1), row @(shot.Y + 1) — @shot.Result
-                    @if (shot.SunkShipName is { } name)
-                    {
-                        <text> (<strong>@name</strong> sunk)</text>
-                    }
+                <li class="log__entry" data-future="@((!isPast).ToString().ToLowerInvariant())"
+                    data-result="@shot.Result">
+                    <span class="log__who">@(shot.By == "Human" ? "You" : "Them")</span>
+                    <span class="log__square">@Square(shot)</span>
+                    <span class="log__result">
+                        @shot.Result@(shot.SunkShipName is { } name ? $" — {name} down" : "")
+                    </span>
                 </li>
             }
         </ol>
@@ -47,9 +45,6 @@
 </details>
 
 @code {
-    [Parameter(CaptureUnmatchedValues = true)]
-    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
-
     [Parameter, EditorRequired] public IReadOnlyList<ShotDto> Shots { get; set; } = [];
 
     /// <summary>
@@ -71,6 +66,8 @@
     }
 
     private async Task BackToLiveAsync() => await CursorChanged.InvokeAsync(null);
+
+    private static string Square(ShotDto shot) => $"{(char)('A' + shot.X)}{shot.Y + 1}";
 
     private string Describe(int cursor) =>
         cursor >= Shots.Count ? "live" : $"after {cursor} of {Shots.Count} shots";

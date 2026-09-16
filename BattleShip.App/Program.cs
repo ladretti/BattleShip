@@ -49,6 +49,12 @@ builder.Services.AddScoped(_ => new HttpClient
 builder.Services.AddScoped<BattleApiClient>();
 builder.Services.AddScoped<GameState>();
 
+// The look of the interface, and how much of it moves, are player settings (see
+// AppearanceState). Randomness is injected rather than taken from Random.Shared — the same
+// discipline the engine follows; here it only scatters impact debris.
+builder.Services.AddScoped<AppearanceState>();
+builder.Services.AddScoped(_ => Random.Shared);
+
 // gRPC-Web, the only transport for firing (ADR 0005). A browser cannot speak plain gRPC
 // over HTTP/2, so the call is wrapped by GrpcWebHandler and unwrapped server-side by
 // app.UseGrpcWeb(). The channel targets the same API address as the HttpClient above, and

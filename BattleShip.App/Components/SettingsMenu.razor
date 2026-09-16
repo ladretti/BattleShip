@@ -1,0 +1,75 @@
+@implements IDisposable
+@inject AppearanceState Appearance
+
+<div class="settings">
+    <button class="button" @onclick="Toggle"
+            aria-expanded="@_open.ToString().ToLowerInvariant()" aria-controls="settings-panel">
+        Settings
+    </button>
+
+    @if (_open)
+    {
+        <div class="panel settings__panel" id="settings-panel">
+            <fieldset class="choice">
+                <legend>Look</legend>
+                @foreach (var skin in AppearanceState.Skins)
+                {
+                    <label class="choice__option">
+                        <input type="radio" name="skin" value="@skin.Id"
+                               checked="@(Appearance.Theme == skin.Id)"
+                               @onchange="() => SetThemeAsync(skin.Id)" />
+                        <span>
+                            <span class="choice__name">@skin.Name</span>
+                            <span class="choice__hint">@skin.Hint</span>
+                        </span>
+                        @* Decorative: the names and hints above already say which is which. *@
+                        <span class="swatch" aria-hidden="true">
+                            @foreach (var colour in skin.Swatch)
+                            {
+                                <i style="background:@colour"></i>
+                            }
+                        </span>
+                    </label>
+                }
+            </fieldset>
+
+            <fieldset class="choice">
+                <legend>Impacts</legend>
+                <label class="choice__option">
+                    <input type="radio" name="motion" value="full"
+                           checked="@(Appearance.Motion == "full")"
+                           @onchange="@(() => SetMotionAsync("full"))" />
+                    <span>
+                        <span class="choice__name">Full</span>
+                        <span class="choice__hint">Shockwaves, debris, the board flinches.</span>
+                    </span>
+                </label>
+                <label class="choice__option">
+                    <input type="radio" name="motion" value="calm"
+                           checked="@(Appearance.Motion == "calm")"
+                           @onchange="@(() => SetMotionAsync("calm"))" />
+                    <span>
+                        <span class="choice__name">Calm</span>
+                        <span class="choice__hint">Cells change, nothing moves.</span>
+                    </span>
+                </label>
+            </fieldset>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _open;
+
+    protected override void OnInitialized() => Appearance.OnChange += OnAppearanceChanged;
+
+    private void Toggle() => _open = !_open;
+
+    private async Task SetThemeAsync(string theme) => await Appearance.SetThemeAsync(theme);
+
+    private async Task SetMotionAsync(string motion) => await Appearance.SetMotionAsync(motion);
+
+    private void OnAppearanceChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Appearance.OnChange -= OnAppearanceChanged;
+}

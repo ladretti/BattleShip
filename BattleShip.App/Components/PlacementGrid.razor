@@ -1,34 +1,45 @@
 @* Pure rendering: this component decides nothing. It draws the cells it is given, reports
    what the player pointed at, and lets the page own the placement state. *@
 
-<div class="placement-grid" role="group" aria-label="Placement grid"
-     style="grid-template-columns: repeat(@GridSize, var(--cell-size));">
-    @for (var y = 0; y < GridSize; y++)
-    {
-        var row = y;
+<div class="board-frame">
+    <div class="placement-grid" role="group" aria-label="Placement grid"
+         style="grid-template-columns: auto repeat(@GridSize, var(--cell-size, 2.15rem));">
+
+        <span class="ruler" aria-hidden="true"></span>
         @for (var x = 0; x < GridSize; x++)
         {
-            var column = x;
-            var index = row * GridSize + column;
-            var cell = new Coordinate(column, row);
-            var state = CssFor(cell);
-
-            @* Same roving-tabindex pattern as FiringGrid: Tab steps over the board, arrows
-               move inside it. Focus also previews, so a keyboard player sees the same green
-               or red hint a mouse player gets on hover. *@
-            <button type="button"
-                    class="cell @state"
-                    aria-label="@LabelFor(cell)"
-                    @ref="_cellRefs[index]"
-                    tabindex="@(index == _focused ? 0 : -1)"
-                    @onclick="() => OnCellClick.InvokeAsync(cell)"
-                    @onmouseover="() => OnCellPointed.InvokeAsync(cell)"
-                    @onfocus="() => OnCellFocusedAsync(cell, index)"
-                    @onkeydown="args => OnKeyDownAsync(args, index)">
-                <span aria-hidden="true">@Glyph(state)</span>
-            </button>
+            <span class="ruler" aria-hidden="true">@Column(x)</span>
         }
-    }
+
+        @for (var y = 0; y < GridSize; y++)
+        {
+            var row = y;
+            <span class="ruler" aria-hidden="true">@(row + 1)</span>
+
+            @for (var x = 0; x < GridSize; x++)
+            {
+                var column = x;
+                var index = row * GridSize + column;
+                var cell = new Coordinate(column, row);
+                var state = CssFor(cell);
+
+                @* Same roving-tabindex pattern as FiringGrid: Tab steps over the board, arrows
+                   move inside it. Focus also previews, so a keyboard player sees the same green
+                   or red hint a mouse player gets on hover. *@
+                <button type="button"
+                        class="cell @state"
+                        aria-label="@LabelFor(cell)"
+                        @ref="_cellRefs[index]"
+                        tabindex="@(index == _focused ? 0 : -1)"
+                        @onclick="() => OnCellClick.InvokeAsync(cell)"
+                        @onmouseover="() => OnCellPointed.InvokeAsync(cell)"
+                        @onfocus="() => OnCellFocusedAsync(cell, index)"
+                        @onkeydown="args => OnKeyDownAsync(args, index)">
+                    <span aria-hidden="true">@Glyph(state)</span>
+                </button>
+            }
+        }
+    </div>
 </div>
 
 @code {
@@ -129,6 +140,8 @@
         return _occupied.Contains(cell) ? "occupied" : "empty";
     }
 
+    private static string Column(int x) => ((char)('A' + x)).ToString();
+
     /// <summary>A glyph per state, so the grid reads without relying on colour.</summary>
     private static string Glyph(string state) => state switch
     {
@@ -140,7 +153,7 @@
 
     private string LabelFor(Coordinate cell)
     {
-        var position = $"column {cell.X + 1}, row {cell.Y + 1}";
+        var position = $"{Column(cell.X)}{cell.Y + 1}";
 
         if (_shipNames.TryGetValue(cell, out var name))
             return $"{position}, {name} — activate to take it back";
