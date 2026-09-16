@@ -1,5 +1,5 @@
 using BattleShip.API.Benchmark;
-using BattleShip.API.Contracts;
+using BattleShip.Models.Contracts;
 using BattleShip.API.Endpoints;
 using BattleShip.API.Grpc;
 using BattleShip.API.Services;

@@ -1,4 +1,4 @@
-using BattleShip.API.Contracts;
+using BattleShip.Models.Contracts;
 using BattleShip.API.Strategies;
 using FluentValidation;
 

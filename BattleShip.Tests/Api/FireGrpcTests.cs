@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using BattleShip.API.Contracts;
+using BattleShip.Models.Contracts;
 using BattleShip.API.Grpc;
 using Grpc.Core;
 using Grpc.Net.Client;

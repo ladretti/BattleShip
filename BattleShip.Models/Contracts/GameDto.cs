@@ -1,4 +1,10 @@
-namespace BattleShip.API.Contracts;
+// The wire contract lives in BattleShip.Models, not in BattleShip.API, so that
+// BattleShip.App consumes the very types the server produces instead of a hand-kept copy
+// of them (ADR 0008). These are bare records: no attribute, no System.Text.Json, no
+// reference added to the project — the domain gains the SHAPE of the contract, never a
+// transport mechanism. The projection onto it, DtoMappings.ToDto(), deliberately stays in
+// BattleShip.API.
+namespace BattleShip.Models.Contracts;
 
 /// <summary>
 /// A single cell, always tied to something the receiving player is entitled to know.

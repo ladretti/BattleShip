@@ -1,4 +1,8 @@
-namespace BattleShip.API.Contracts;
+// Shared with BattleShip.App for the same reason as GameDto.cs: the front serializes these
+// very types rather than a copy of them (ADR 0008). Their VALIDATION stays on the server —
+// CreateGameInputValidator and PlacementInputValidator, in BattleShip.API — since a rule
+// checked only client-side is not a rule.
+namespace BattleShip.Models.Contracts;
 
 /// <summary>Input of POST /games: the grid size and the opponent's difficulty level.</summary>
 public sealed record CreateGameInput(int GridSize, string Difficulty);

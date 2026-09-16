@@ -1,4 +1,5 @@
 using BattleShip.API.Contracts;
+using BattleShip.Models.Contracts;
 using BattleShip.Models;
 
 namespace BattleShip.Tests.Api;

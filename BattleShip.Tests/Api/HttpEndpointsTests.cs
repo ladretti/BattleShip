@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
-using BattleShip.API.Contracts;
+using BattleShip.Models.Contracts;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace BattleShip.Tests.Api;
