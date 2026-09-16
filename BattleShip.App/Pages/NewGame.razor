@@ -1,0 +1,89 @@
+@page "/"
+@implements IDisposable
+@inject GameState State
+@inject NavigationManager Navigation
+
+<PageTitle>New game — BattleShip</PageTitle>
+
+<h1>New game</h1>
+
+<p>
+    Choose the size of the grid and how hard the opponent should be, then place your fleet.
+</p>
+
+<div class="row g-3" style="max-width: 40rem;">
+    <div class="col-12 col-sm-6">
+        <label class="form-label" for="grid-size">Grid size</label>
+        <select id="grid-size" class="form-select" @bind="_gridSize" disabled="@IsBusy">
+            @foreach (var size in GridSizes)
+            {
+                <option value="@size">@size × @size</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-12 col-sm-6">
+        <label class="form-label" for="difficulty">Opponent</label>
+        @* Read from the shared contract, never from three strings typed here: the server
+           rejects anything outside this list (ADR 0008). *@
+        <select id="difficulty" class="form-select" @bind="_difficulty" disabled="@IsBusy">
+            @foreach (var level in DifficultyLevels.All)
+            {
+                <option value="@level">@level</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-12">
+        <button class="btn btn-primary" @onclick="CreateAsync" disabled="@IsBusy">
+            @(IsBusy ? "Creating…" : "Create game")
+        </button>
+    </div>
+</div>
+
+@* The three states, all rendered. A failure leaves every control above usable, so the
+   player can simply try again once the API is back up (ADR 0007). *@
+@if (IsBusy)
+{
+    <p class="mt-3" role="status" aria-live="polite">
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        Creating the game…
+    </p>
+}
+else if (State.State == LoadState.Failed)
+{
+    <div class="alert alert-danger mt-3" role="alert">
+        <strong>Could not create the game.</strong>
+        <p class="mb-0">@State.ErrorMessage</p>
+    </div>
+}
+
+@code {
+    // Bounded by CreateGameInputValidator, which accepts 7 to 20 — and by the fact that the
+    // default fleet admits no legal placement at all below 7 under the non-adjacency rule.
+    // A handful of sizes as a list, rather than a free number field, keeps the page from
+    // offering anything the server would refuse.
+    private static readonly int[] GridSizes = [8, 10, 12, 15];
+
+    private int _gridSize = 10;
+    private string _difficulty = DifficultyLevels.Normal;
+
+    private bool IsBusy => State.State == LoadState.Loading;
+
+    protected override void OnInitialized() => State.OnChange += OnStateChanged;
+
+    private async Task CreateAsync()
+    {
+        await State.CreateAsync(_gridSize, _difficulty);
+
+        // Navigate only on success: on failure the player stays here, sees why, and retries.
+        if (State.State == LoadState.Ready)
+            Navigation.NavigateTo("/placement");
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    // Without this, GameState — which outlives every page — would keep this component alive
+    // and re-render it after it was destroyed (ADR 0007).
+    public void Dispose() => State.OnChange -= OnStateChanged;
+}

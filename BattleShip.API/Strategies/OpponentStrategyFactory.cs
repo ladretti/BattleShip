@@ -1,23 +1,7 @@
 using BattleShip.Models;
+using BattleShip.Models.Contracts;
 
 namespace BattleShip.API.Strategies;
-
-/// <summary>
-/// The single source of truth for the three accepted difficulty names — a contract with
-/// the front end (task 16). Both <c>CreateGameInputValidator</c> (which rejects any other
-/// value with a 400) and <see cref="OpponentStrategyFactory"/> (which maps each of these
-/// three names to a strategy) read from <see cref="All"/> or its individual constants,
-/// instead of each keeping its own copy of the same three strings: two independent lists
-/// can drift apart silently, one cannot.
-/// </summary>
-public static class DifficultyLevels
-{
-    public const string Easy = "Easy";
-    public const string Normal = "Normal";
-    public const string Hard = "Hard";
-
-    public static readonly IReadOnlyList<string> All = [Easy, Normal, Hard];
-}
 
 /// <summary>
 /// Resolves the <see cref="IOpponentStrategy"/> that matches a difficulty string carried

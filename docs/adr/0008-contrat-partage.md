@@ -83,10 +83,16 @@ Deux garde-fous délimitent ce que ce déplacement autorise :
 - **Constaté** : après déplacement, `dotnet build` passe sans avertissement et
   `dotnet test` donne 136/136, à l'identique de la ligne de base prise juste avant le
   refactor. Le déplacement n'a donc modifié aucun comportement observable côté serveur.
+- **Constaté** : le corps réellement renvoyé par `POST /games` (camelCase) se relit sans
+  perte dans `GameDto` avec les options `JsonSerializerDefaults.Web`, celles-là mêmes
+  qu'emploie `System.Net.Http.Json` dans le navigateur — 13 propriétés vérifiées une à une,
+  y compris les `IReadOnlyList<T>` imbriquées. Aucun attribut de sérialisation n'a été
+  nécessaire.
 - **Constaté** : le pouvoir discriminant de l'option retenue a été établi par une expérience
-  dédiée — renommer `GameDto.Status` en `GameDto.State` sans toucher au front fait échouer la
-  compilation de `BattleShip.App`, là où l'option A aurait compilé et rendu un statut nul à
-  l'exécution. Voir `REVUE-IA.md`, revue 4.
+  dédiée — renommer `GameDto.OpponentDifficulty` en `GameDto.Level` sans toucher au front
+  fait échouer la compilation de `BattleShip.App` (`NavMenu.razor(27,29): error CS1061`), là
+  où l'option A aurait compilé et affiché un niveau vide à l'exécution. Voir `REVUE-IA.md`,
+  revue 4.
 - **Reste à vérifier** : rien dans la compilation n'empêche un futur attribut JSON sur ces
   records. Aucun test ne garde cette frontière ; seule la revue le fait.
 - À réexaminer si un client hors solution apparaissait (application mobile, service tiers) :
