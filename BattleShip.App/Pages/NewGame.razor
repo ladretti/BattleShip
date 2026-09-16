@@ -5,8 +5,11 @@
 
 <PageTitle>Battleship</PageTitle>
 
-<div class="hero">
-    <div class="hero__pitch">
+<section class="keyart">
+    <SeaBattle />
+    <div class="keyart__scrim" aria-hidden="true"></div>
+
+    <div class="keyart__content">
         <h1 class="page-title">Find their fleet before they find yours.</h1>
 
         <p class="lede">
@@ -61,12 +64,7 @@
             </div>
         }
     </div>
-
-    <div class="hero__stage">
-        <DemoBattle />
-        <p class="hero__caption">A fleet under fire. Yours, in about a minute.</p>
-    </div>
-</div>
+</section>
 
 @* Not a feature grid: three numbers this project actually measured, which is the only
    honest way to say how much harder "Hard" is. The figures come from the AI duel —

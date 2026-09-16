@@ -128,11 +128,12 @@ Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible a
   (le jeu en plastique, les coups sont des pions). Plus un réglage **Impacts : complet ou
   calme**. Les deux sont mémorisés entre deux visites. Une apparence change la matière,
   jamais la structure ni les glyphes (ADR 0009).
-- **Page d'accueil jouée, pas illustrée** : une partie se déroule toute seule à côté du
-  formulaire, avec les composants du jeu — mêmes coques, mêmes impacts, même apparence que
-  celle choisie. Elle est `aria-hidden`, ne prend aucun point de tabulation, et s'arrête en
-  mode calme comme sous `prefers-reduced-motion`. Les trois niveaux y sont présentés par
-  leurs **nombres mesurés**, pas par des adjectifs.
+- **Page d'accueil illustrée** : une action navale vue depuis l'eau — horizon, mer qui
+  dérive, notre navire au premier plan, l'adversaire qui encaisse puis riposte. Dessinée en
+  SVG plutôt que photographiée, donc elle suit les trois apparences sans un seul fichier
+  d'image. `aria-hidden`, aucun point de tabulation, et figée sur une image en mode calme
+  comme sous `prefers-reduced-motion`. Les trois niveaux y sont présentés par leurs
+  **nombres mesurés**, pas par des adjectifs.
 - **Coques dessinées**, pas des carrés : chaque navire est une silhouette continue qui
   franchit les gouttières entre ses cases, générée par géométrie plutôt que par des images
   (une fonction au lieu de trente fichiers). Les dégâts se marquent sur la coque, une épave

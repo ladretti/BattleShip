@@ -580,3 +580,60 @@ Une entrée par échange qui a compté. Les échanges de pure exécution ne sont
   et borné à 92 % de la largeur. Et je me suis fait tromper **deux fois** par des captures
   JPEG réduites, en croyant lire un mauvais thème là où les valeurs calculées étaient bonnes :
   les couleurs se vérifient par `getComputedStyle`, pas à l'œil sur une image compressée.
+
+---
+
+## 2026-09-16 — Une illustration, pas une démonstration (correction de l'entrée précédente)
+
+- **Outil / modèle** : Claude Code (claude-opus-5, 1M context), compétence `frontend-design`
+
+- **Contexte** : l'entrée précédente décrit une page d'accueil où une partie se jouait toute
+  seule. Le binôme l'a **rejetée** : « ce n'est pas vraiment ce que j'ai demandé, je voulais
+  plus une illustration imagée qu'une présentation du jeu ».
+
+- **Prompt réellement utilisé** : la remarque ci-dessus.
+
+- **Réponse et hypothèses résumées** : l'IA avait interprété « champ de bataille naval »
+  comme *montrer le jeu*, et livré une démonstration fonctionnelle. La demande était une
+  **image**. Le glissement à opérer n'est pas cosmétique, il est de point de vue : le plateau
+  se regarde **de dessus**, une illustration se regarde **de profil** — horizon, mer, coques
+  silhouettées, obus qui tracent, gerbes et fumée.
+
+  Hypothèse conservée de la proposition précédente, et c'est la seule : dessiner plutôt que
+  photographier. Une image fixe demanderait un fichier par apparence et ne participerait pas
+  au thème ; en SVG, chaque couleur est un jeton et la même scène devient une gravure sur
+  carte, un Atlantique bas de plafond ou une mer de plastique.
+
+- **Décision et justification** : démonstration fonctionnelle **retirée** du dépôt — elle
+  n'est pas laissée en place « au cas où », elle ne répondait pas à la demande. Remplacée par
+  la scène `SeaBattle`, posée en pleine image derrière le texte, celui-ci reposant sur la
+  partie opaque d'un voile pour que chaque mot reste lu contre `--bg` et jamais contre la
+  peinture.
+
+- **Scénario ou commande de vérification** : pilotage du navigateur, en **arrêtant
+  l'animation sur des instants précis** (`getAnimations().currentTime`) plutôt qu'en espérant
+  tomber sur le bon frame — une scène ne se juge pas sur une capture prise au hasard.
+
+- **Résultat attendu, puis résultat observé** :
+  - Attendu : la scène se repeint entièrement depuis les jetons dans les trois apparences.
+    Observé : mer et coques différentes à chaque skin (`rgb(147,171,181)` / `rgb(62,71,79)` /
+    `rgb(35,100,180)`), aucune couleur en dur.
+  - Attendu : en mode calme, une **image figée**, pas une mer vide. Observé : classe
+    `keyart__scene--still`, vagues à `animation-name: none`, boule de feu tenue à 0,9
+    d'opacité.
+  - Attendu : zéro élément focalisable dans l'illustration. Observé : 0.
+
+- **Erreur que ce contrôle pourrait détecter** : trois défauts de composition qu'aucune
+  mesure n'aurait donnés, et qui ne se voient qu'en regardant.
+  1. **Notre navire était presque entièrement caché** derrière le voile de texte — on n'en
+     voyait que la proue. Recomposé : la poupe passe sous les mots, la tourelle et les canons
+     sortent au clair.
+  2. **Les gerbes d'eau étaient dessinées sous les bandes de mer**, donc invisibles. Le groupe
+     d'impact est passé au-dessus.
+  3. **L'adversaire ne ripostait jamais** : c'était un tir au but, pas une bataille. Ajout de
+     sa bouche à feu, de son obus et d'une colonne d'eau courte devant notre proue.
+
+- **Preuves reproductibles et limites** : commit ci-après. Limites : la scène n'est couverte
+  par aucun test — seule l'observation l'étaye ; les filtres de flou SVG ont un coût de rendu
+  qui n'a pas été mesuré sur une machine modeste ; et le cycle dure 7,5 s, durée choisie à
+  l'œil et non éprouvée auprès de quiconque.

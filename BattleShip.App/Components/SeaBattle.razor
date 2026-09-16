@@ -1,0 +1,188 @@
+@implements IDisposable
+@inject AppearanceState Appearance
+@inject IJSRuntime Js
+
+@* The key art: a naval action seen from the water, not the board seen from above.
+
+   It is drawn rather than photographed, for the same reason the hulls are (ADR 0010): a
+   picture would need one file per skin and would take no part in the theme. Every colour
+   here is a custom property, so the same drawing is an engraved chart, an overcast North
+   Atlantic, or a plastic toy sea — without a second asset.
+
+   Decoration, and nothing else: aria-hidden, no focus, no pointer. The whole cycle stops
+   under Calm and under prefers-reduced-motion, frozen on one dramatic frame rather than
+   blanked — a still picture is still a picture. *@
+
+<svg class="keyart__scene @(Still ? "keyart__scene--still" : null)"
+     viewBox="0 0 1600 620" preserveAspectRatio="xMidYMid slice"
+     aria-hidden="true" focusable="false">
+    <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--sky-hi)" />
+            <stop offset="100%" stop-color="var(--sky-lo)" />
+        </linearGradient>
+        <linearGradient id="deep" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--sea-hi)" />
+            <stop offset="100%" stop-color="var(--sea-lo)" />
+        </linearGradient>
+        <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="9" />
+        </filter>
+        <filter id="softer" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="14" />
+        </filter>
+
+        <radialGradient id="glare" cx="72%" cy="18%" r="45%">
+            <stop offset="0%" stop-color="var(--sky-hi)" stop-opacity="0.55" />
+            <stop offset="100%" stop-color="var(--sky-hi)" stop-opacity="0" />
+        </radialGradient>
+    </defs>
+
+    <rect x="0" y="0" width="1600" height="330" fill="url(#sky)" />
+    <rect x="0" y="0" width="1600" height="330" fill="url(#glare)" />
+    <rect x="0" y="326" width="1600" height="300" fill="url(#deep)" />
+
+    @* --- The enemy, hull down on the horizon ------------------------------------- *@
+    <g transform="translate(180 0)">
+    <g class="keyart__enemy">
+        <path d="M 1150 322 L 1330 318 L 1368 328 L 1330 338 L 1160 338 Z" fill="var(--silhouette)" />
+        <rect x="1232" y="300" width="34" height="20" fill="var(--silhouette)" />
+        <rect x="1248" y="288" width="12" height="14" fill="var(--silhouette)" />
+        <rect x="1288" y="304" width="14" height="16" fill="var(--silhouette)" />
+    </g>
+    </g>
+
+    @* --- The sea, in bands that drift at different speeds ------------------------ *@
+    @foreach (var band in Bands)
+    {
+        <path class="keyart__wave @band.Class" d="@band.Path" fill="@band.Fill" />
+    }
+
+    @* --- Impact on the enemy: bloom, water plumes, then smoke -------------------
+       Drawn AFTER the sea, or the plumes rise behind the waves and are never seen. *@
+    <g transform="translate(180 0)">
+    <g class="keyart__impact">
+        <ellipse class="keyart__plume keyart__plume--a" cx="1252" cy="320" rx="13" ry="52" fill="var(--foam)" />
+        <ellipse class="keyart__plume keyart__plume--b" cx="1330" cy="322" rx="11" ry="40" fill="var(--foam)" />
+        <circle class="keyart__flash" cx="1290" cy="316" r="34" fill="var(--fire)" filter="url(#soft)" />
+        <circle class="keyart__ball" cx="1290" cy="316" r="17" fill="var(--fire)" />
+        <circle class="keyart__core" cx="1290" cy="313" r="8" fill="var(--fire-hot)" />
+        <circle class="keyart__smoke keyart__smoke--a" cx="1292" cy="304" r="24" fill="var(--smoke)" filter="url(#soft)" />
+        <circle class="keyart__smoke keyart__smoke--b" cx="1276" cy="300" r="19" fill="var(--smoke)" filter="url(#soft)" />
+        <circle class="keyart__smoke keyart__smoke--c" cx="1310" cy="298" r="16" fill="var(--smoke)" filter="url(#soft)" />
+    </g>
+    </g>
+
+    @* --- Our ship, cutting in from the left -------------------------------------- *@
+    @* The outer translate is composition; the inner group is what the bob animation drives.
+       Two groups, because one transform cannot be both. *@
+    <g transform="translate(372 34)">
+    <g class="keyart__ship">
+        <path d="M 30 470 L 880 446 L 985 486 L 890 524 L 80 524 Q 24 516 30 470 Z"
+              fill="var(--silhouette)" />
+
+        @* Superstructure, bridge, funnel, mast — read as one dark mass from a distance,
+           and as a warship when you look. *@
+        <rect x="330" y="392" width="150" height="58" fill="var(--silhouette)" />
+        <rect x="366" y="358" width="78" height="38" fill="var(--silhouette)" />
+        <rect x="392" y="330" width="26" height="30" fill="var(--silhouette)" />
+        <rect x="530" y="366" width="56" height="84" rx="6" fill="var(--silhouette)" />
+        <path d="M 404 330 L 410 268 L 416 330 Z" fill="var(--silhouette)" />
+        <path d="M 372 300 L 448 286" stroke="var(--silhouette)" stroke-width="3" />
+
+        @* Forward turret, barrels raised at the enemy. The flash happens at their muzzle. *@
+        <g class="keyart__turret">
+            <path d="M 660 446 L 668 424 L 742 424 L 750 446 Z" fill="var(--silhouette)" />
+            <path d="M 742 430 L 856 396" stroke="var(--silhouette)" stroke-width="9" stroke-linecap="round" />
+            <path d="M 742 440 L 856 408" stroke="var(--silhouette)" stroke-width="9" stroke-linecap="round" />
+            <circle class="keyart__muzzle" cx="862" cy="400" r="24" fill="var(--fire)" />
+        </g>
+
+        <path d="M 200 446 L 208 428 L 268 428 L 276 446 Z" fill="var(--silhouette)" />
+    </g>
+    </g>
+
+    @* --- The shell, arcing across --------------------------------------------- *@
+    <circle class="keyart__shell" cx="0" cy="0" r="7" fill="var(--fire)" />
+
+    @* --- And the answer: their muzzle, their shell, a near miss off our bow ------ *@
+    <circle class="keyart__return-muzzle" cx="1512" cy="318" r="14" fill="var(--fire)" />
+    <circle class="keyart__return-shell" cx="0" cy="0" r="6" fill="var(--fire)" />
+
+    <g class="keyart__splash">
+        <ellipse cx="1130" cy="470" rx="26" ry="96" fill="var(--foam)" />
+        <ellipse cx="1130" cy="392" rx="34" ry="30" fill="var(--foam)" filter="url(#softer)" opacity="0.8" />
+    </g>
+
+    @* A last band in front of the bow, so the ship sits IN the water rather than on it. *@
+    <path class="keyart__wave keyart__wave--front" d="@Bands[^1].Path" fill="var(--sea-lo)" />
+</svg>
+
+@code {
+    private bool _osPrefersStill;
+
+    /// <summary>
+    /// Held on one frame when the player asked for Calm, or when their system did. Both
+    /// answers matter: a page that honours only its own setting still moves for someone who
+    /// told their operating system not to.
+    /// </summary>
+    private bool Still => _osPrefersStill || Appearance.Motion == "calm";
+
+    protected override void OnInitialized() => Appearance.OnChange += OnAppearanceChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            _osPrefersStill = await Js.InvokeAsync<bool>("battleshipSettings.prefersReducedMotion");
+        }
+        catch (JSException)
+        {
+            // Scripting restricted, or an older bundle: assume motion is welcome rather than
+            // silently showing a still page to everyone.
+            _osPrefersStill = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void OnAppearanceChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Appearance.OnChange -= OnAppearanceChanged;
+
+    private sealed record Band(string Class, string Path, string Fill);
+
+    /// <summary>
+    /// The sea, as scalloped bands. Each one is drawn three viewBox widths long and slides
+    /// by exactly one scallop period, so the loop has no seam to notice.
+    /// </summary>
+    private static readonly Band[] Bands =
+    [
+        new("keyart__wave--far", Scallops(352, 9, 200), "var(--sea-hi)"),
+        new("keyart__wave--mid", Scallops(400, 14, 260), "var(--sea-mid)"),
+        new("keyart__wave--near", Scallops(470, 20, 320), "var(--sea-lo)"),
+        new("keyart__wave--fore", Scallops(548, 26, 400), "var(--sea-mid)")
+    ];
+
+    /// <summary>
+    /// One band: a run of shallow arcs along <paramref name="y"/>, closed down to the bottom
+    /// of the frame. The period divides the slide distance, which is what keeps the loop
+    /// seamless.
+    /// </summary>
+    private static string Scallops(int y, int amplitude, int period)
+    {
+        var path = new System.Text.StringBuilder($"M -{period} {y}");
+        var up = true;
+
+        for (var x = -period; x < 3200; x += period)
+        {
+            path.Append($" q {period / 2} {(up ? -amplitude : amplitude)} {period} 0");
+            up = !up;
+        }
+
+        return path.Append(" L 3200 620 L -400 620 Z").ToString();
+    }
+}
