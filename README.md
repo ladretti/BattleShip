@@ -2,12 +2,10 @@
 
 TP d'autonomie — Cours C# ASP.NET (HTS Learning, Christophe MOMMER).
 
-> **État au 2026-09-16 : le socle est jouable de bout en bout.**
-> Une partie complète se joue dans le navigateur, de la création à la victoire : création de
-> partie, placement manuel validé côté serveur, tir en gRPC-Web, fin de partie et création
-> d'une autre. La démonstration gRPC-Web ci-dessous a été déroulée et ses preuves sont dans
-> `docs/demo/`. Restent au backlog l'historique/rejeu et le travail d'accessibilité annoncés
-> dans « Arbitrages du backlog ».
+> **État au 2026-09-16 : le socle et les trois extensions du backlog sont livrés.**
+> Une partie complète se joue dans le navigateur, de la création à la victoire, au clavier
+> comme à la souris. La démonstration gRPC-Web ci-dessous a été déroulée et ses preuves sont
+> dans `docs/demo/`. Ce qui reste ouvert est dit, sans détour, en « Limites connues ».
 
 ## Binôme
 
@@ -93,13 +91,13 @@ Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible a
 - **Le secret** : le front ne reçoit jamais la position d'un navire adverse encore à flot, et
   l'adversaire ne voit jamais la grille du joueur — le type `ShotHistory` qu'il reçoit ne
   porte aucun chemin vers un `Board` (vérifié par réflexion, `REVUE-IA.md` revue 2).
-- Tests métier et tests d'intégration : **136 tests**, `dotnet test`.
-
-Ce qui n'est **pas** livré, et se voit : l'historique des coups a bien sa route
-`GET /games/{id}/history`, mais **aucun panneau d'interface** ne l'affiche encore ; le travail
-d'accessibilité est commencé (chaque case est un `<button>` avec `aria-label`, régions
-`aria-live`) mais **la navigation aux flèches et le contrôle des contrastes n'ont pas été
-faits**.
+- **Historique et rejeu** : la liste ordonnée des coups des deux camps, et un curseur qui
+  rejoue la partie. Le rejeu est un **rendu seul** — il n'émet aucune requête et ne touche
+  jamais l'état serveur.
+- **Accessibilité** : les deux grilles se jouent au clavier seul (tabindex roving, flèches,
+  `Début`/`Fin`, `Entrée` pour agir, `R` pour pivoter), une région `aria-live` annonce chaque
+  coup, chaque état porte un **glyphe** en plus de sa couleur, et les contrastes sont mesurés.
+- Tests métier et tests d'intégration : **140 tests**, `dotnet test`.
 
 ## Démonstration gRPC-Web
 
@@ -143,8 +141,10 @@ Le scénario a été déroulé et capturé dans `docs/demo/` :
 1. **Duel d'IA + mesure** — **livré et mesuré** : N parties par stratégie à graine fixe, nombre
    moyen de coups (`BattleShip.API/Benchmark/StrategyBenchmark.cs`). C'est la preuve chiffrée que
    les trois niveaux diffèrent réellement ; les chiffres sont en « Limites connues ».
-2. **Historique des coups + rejeu** — la liste ordonnée des tirs est déjà dans le modèle.
-3. **Accessibilité** — grille navigable au clavier, annonces pour lecteur d'écran, contrastes.
+2. **Historique des coups + rejeu** — **livré** : `GET /games/{id}/history` et le panneau de
+   rejeu de la page de jeu, curseur compris.
+3. **Accessibilité** — **livré pour l'essentiel** : clavier, annonces, glyphes, contrastes
+   mesurés. Voir « Limites connues » pour ce qui reste.
 
 **Écarté du socle**, et pourquoi :
 
@@ -176,9 +176,14 @@ Le scénario a été déroulé et capturé dans `docs/demo/` :
   la page reste blanche avec un `404` sur `dotnet.<hash>.js` en console. Remède : arrêter puis
   relancer `dotnet run --project BattleShip.App`. Constaté pendant la mise au point de la
   démonstration.
-- L'historique des coups est exposé par l'API mais **pas affiché** ; le rejeu n'existe pas.
-- Accessibilité **partielle** : cases en `<button>` avec `aria-label`, annonces `aria-live`,
-  mais pas de navigation aux flèches et **contrastes non mesurés**.
+- **Accessibilité — ce qui reste.** Les contrastes ont été calculés (rapport WCAG 2.1) mais
+  **aucun lecteur d'écran réel n'a été essayé** : les annonces sont vérifiées au niveau du DOM,
+  pas à l'oreille. Les flèches ne suppriment pas le défilement de la page (Blazor ne permet pas
+  de `preventDefault` conditionnel sans interop JS, et l'annuler pour toutes les touches
+  emprisonnerait `Tab`). La grille du joueur n'est pas focalisable : elle est lue par son
+  `aria-label` case par case, pas parcourue.
+- Le rejeu ne rejoue que les **coups** : il ne reconstitue pas l'état « coulé » des navires
+  intermédiaires, chaque case gardant le résultat que le serveur a donné à ce coup-là.
 - La sérialisation JSON du front repose sur la réflexion. Elle est vérifiée en développement ;
   son comportement sous **publication trimmée** (`dotnet publish` en Release) n'a pas été
   éprouvé.

@@ -328,3 +328,68 @@ Une entrée par échange qui a compté. Les échanges de pure exécution ne sont
   partie complète instrumentée pour tracer toute réponse ≥ 400, et son origine n'est pas
   établie — la piste la plus probable, sans preuve, est la même péremption d'empreintes que
   ci-dessus.
+
+---
+
+## 2026-09-16 — Tâches 20 et 21 : historique, rejeu, accessibilité
+
+- **Outil / modèle** : Claude Code (claude-opus-5, 1M context)
+
+- **Contexte** : phases 0 à 4 closes et vertes, donc les extensions du backlog deviennent
+  légitimes. L'endpoint d'historique existait déjà depuis la tâche 13 ; il manquait ses tests
+  et son interface.
+
+- **Prompt réellement utilisé** : toujours le même — l'exécution du plan s'est poursuivie
+  jusqu'à la tâche 21.
+
+- **Réponse et hypothèses résumées, et ce qui a été corrigé** : c'est la session où
+  l'exécution a le plus souvent démenti l'IA, et c'est ce qui la rend intéressante.
+
+  1. **Deux hypothèses fausses dans les tests d'historique.** L'IA a écrit
+     `Assert.Equal("miss", history[0].Result)` en croyant que `(5,5)` était hors de toute
+     flotte — vrai pour la flotte du *joueur*, dont elle contrôlait le placement, faux pour la
+     flotte *adverse*, placée aléatoirement par le serveur. Le test passait par chance.
+     Deuxième hypothèse fausse dans la foulée : l'unicité des navires coulés, vérifiée
+     globalement alors que **les deux flottes portent les mêmes noms**. Les deux ont été
+     corrigées : le résultat d'un tir est désormais *découvert* en tirant jusqu'à obtenir un
+     raté, et l'unicité est vérifiée par camp.
+  2. **Un test sur du code préexistant ne prouve rien tant qu'il n'a pas échoué.** L'endpoint
+     datant de la tâche 13, les quatre tests sont passés du premier coup. Son pouvoir
+     discriminant a donc été établi en faisant renvoyer l'historique **inversé** : les deux
+     tests d'ordre tombent, le test `404` reste vert. Puis restauration, `git diff` vide.
+  3. **Le focus perdu après chaque tir.** Trouvé en pilotant le navigateur au clavier :
+     après un coup, `document.activeElement` retombait sur `<body>`, la grille passant de
+     `<button>` à `<div>` pendant le tir. Aucune relecture ne l'aurait vu. Première correction
+     insuffisante — elle consommait la demande de focus au premier rendu, celui où le plateau
+     est encore inerte ; la seconde ne la consomme qu'une fois la remise au focus réussie.
+  4. **Deux couleurs sous le seuil.** Les contrastes ont été **calculés** (formule WCAG 2.1)
+     plutôt que jugés à l'œil : le vert de prévisualisation était à 3,13:1 et le séparateur de
+     cases à 1,53:1. Corrigés à 6,59:1 et 3,02:1.
+
+- **Décision et justification** : tout accepté après correction. Le rejeu est délibérément un
+  **rendu seul** — aucune requête, aucune mutation serveur —, ce qui est vérifié plutôt
+  qu'affirmé : zéro requête émise pendant un déplacement du curseur.
+
+- **Scénario ou commande de vérification** : `dotnet test --filter HistoryEndpoint` avec et
+  sans l'endpoint saboté ; `node contrast.mjs` pour les ratios ; deux scénarios navigateur, le
+  premier au **clavier seul** avec de vrais événements `Input.dispatchKeyEvent` — pas des
+  événements DOM synthétiques, qui contourneraient précisément la gestion du focus qu'on
+  cherche à éprouver.
+
+- **Résultat attendu, puis résultat observé** :
+  - Rejeu — attendu : curseur à 1 ⇒ 1 marque sur la grille adverse, 0 sur la sienne, tir
+    désactivé, **zéro requête**. Observé : exactement cela, dans les deux sens.
+  - Clavier — attendu : 1 seule case sur 100 dans l'ordre de tabulation, 3 × → puis 2 × ↓
+    amènent en colonne 4 ligne 3, `r` bascule la rotation, `Entrée` agit. Observé : conforme,
+    et le focus reste sur la case tirée (`column 5, row 5, hit`) après correction.
+
+- **Erreur que ce contrôle pourrait détecter** : le pilotage au clavier discrimine ce qu'aucun
+  test unitaire de ce dépôt ne peut voir — l'ordre de tabulation, le déplacement du focus, sa
+  survie à un re-rendu. Il a trouvé le seul défaut réel de la tâche 21.
+
+- **Preuves reproductibles et limites** : commits `224bb39` et `9f5d151` ; scripts
+  `replay.mjs`, `a11y.mjs`, `glyphs.mjs`, `contrast.mjs` dans le scratchpad de session.
+  Limites : **aucun lecteur d'écran réel n'a été essayé** — les annonces sont vérifiées au
+  niveau du DOM, pas à l'oreille ; les flèches ne suppriment pas le défilement de page ; et le
+  glyphe `hit` n'a pas été observé simultanément aux quatre autres (le navire touché avait
+  coulé entre-temps), il l'a été séparément.
