@@ -1,0 +1,39 @@
+.placement-grid {
+    --cell-size: 2rem;
+    display: grid;
+    gap: 2px;
+    width: max-content;
+    padding: 2px;
+    background-color: #b9c6d2;
+    border-radius: 4px;
+}
+
+.placement-grid:focus-visible {
+    outline: 3px solid #1b6ec2;
+    outline-offset: 3px;
+}
+
+.cell {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.cell.empty {
+    background-color: #eaf1f7;
+}
+
+.cell.occupied {
+    background-color: #46566a;
+}
+
+.cell.preview-valid {
+    background-color: #29a745;
+}
+
+.cell.preview-invalid {
+    background-color: #d63b3b;
+}

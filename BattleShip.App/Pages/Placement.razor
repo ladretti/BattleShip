@@ -1,0 +1,216 @@
+@page "/placement"
+@implements IDisposable
+@inject GameState State
+@inject NavigationManager Navigation
+
+<PageTitle>Place your fleet — BattleShip</PageTitle>
+
+<h1>Place your fleet</h1>
+
+@if (State.Current is null)
+{
+    <div class="alert alert-warning" role="alert">
+        No game in progress. <a href="">Create one first.</a>
+    </div>
+}
+else if (State.Current.Status != "Placing")
+{
+    <div class="alert alert-info" role="alert">
+        This fleet is already placed. <a href="play">Go to the game.</a>
+    </div>
+}
+else
+{
+    var game = State.Current;
+
+    <div class="d-flex flex-wrap gap-4">
+        <div>
+            <PlacementGrid GridSize="game.Own.GridSize"
+                           Placed="_placed"
+                           Preview="_preview"
+                           PreviewIsValid="_previewIsValid"
+                           OnCellClick="PlaceOrRemoveAsync"
+                           OnCellPointed="PointAt"
+                           OnRotate="Rotate" />
+
+            <p class="mt-2 mb-0 text-muted small">
+                Click an empty cell to lay down <strong>@(NextShip?.Name ?? "—")</strong>,
+                click one of your ships to take it back.
+            </p>
+        </div>
+
+        <div style="min-width: 16rem;">
+            <h2 class="h5">Fleet</h2>
+            <ul class="list-group mb-3">
+                @foreach (var template in game.Fleet)
+                {
+                    var isPlaced = _placed.Any(p => p.Name == template.Name);
+                    var isNext = NextShip?.Name == template.Name;
+                    <li class="list-group-item d-flex justify-content-between @(isNext ? "active" : null)">
+                        <span>@template.Name <span class="text-nowrap">(@template.Size)</span></span>
+                        <span>@(isPlaced ? "placed" : isNext ? "placing…" : "waiting")</span>
+                    </li>
+                }
+            </ul>
+
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button class="btn btn-outline-secondary" @onclick="Rotate" disabled="@IsBusy">
+                    Rotate — @_orientation (R)
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="Reset" disabled="@IsBusy">
+                    Clear
+                </button>
+            </div>
+
+            <button class="btn btn-primary w-100"
+                    @onclick="ValidateAsync"
+                    disabled="@(IsBusy || _placed.Count != game.Fleet.Count)">
+                @(IsBusy ? "Sending…" : "Validate fleet")
+            </button>
+
+            @if (!game.ShipsMayTouch)
+            {
+                <p class="mt-2 mb-0 text-muted small">
+                    Ships may not touch, diagonals included.
+                </p>
+            }
+        </div>
+    </div>
+
+    @* The three states. The preview hint is local and advisory; the alert below carries
+       what the SERVER said, which is the only verdict that counts (ADR 0007). *@
+    @if (IsBusy)
+    {
+        <p class="mt-3" role="status" aria-live="polite">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            Sending the fleet…
+        </p>
+    }
+    else if (State.State == LoadState.Failed)
+    {
+        <div class="alert alert-danger mt-3" role="alert">
+            <strong>The server refused this fleet.</strong>
+            <p class="mb-0">@State.ErrorMessage</p>
+        </div>
+    }
+    else if (_preview is not null && !_previewIsValid)
+    {
+        <div class="alert alert-warning mt-3" role="status">
+            @NextShip?.Name would not fit here. You can still place it — the server has the
+            final say, and it will tell you why.
+        </div>
+    }
+}
+
+@code {
+    private readonly List<ShipPlacement> _placed = [];
+    private Orientation _orientation = Orientation.Horizontal;
+    private ShipPlacement? _preview;
+    private bool _previewIsValid;
+
+    private bool IsBusy => State.State == LoadState.Loading;
+
+    /// <summary>The first ship of the fleet that has not been laid down yet.</summary>
+    private ShipTemplateDto? NextShip => State.Current?.Fleet
+        .FirstOrDefault(t => _placed.All(p => p.Name != t.Name));
+
+    protected override void OnInitialized() => State.OnChange += OnStateChanged;
+
+    private void Rotate()
+    {
+        _orientation = _orientation == Orientation.Horizontal ? Orientation.Vertical : Orientation.Horizontal;
+        RecomputePreview(_preview?.Origin);
+    }
+
+    private void Reset()
+    {
+        _placed.Clear();
+        ClearPreview();
+    }
+
+    private void ClearPreview()
+    {
+        _preview = null;
+        _previewIsValid = false;
+    }
+
+    private void PointAt(Coordinate cell) => RecomputePreview(cell);
+
+    private Task PlaceOrRemoveAsync(Coordinate cell)
+    {
+        // Clicking a ship takes it back, which is the only way to move one that was put in
+        // the wrong place without clearing the whole fleet.
+        var existing = _placed.FirstOrDefault(p => p.Cells().Contains(cell));
+        if (existing is not null)
+        {
+            _placed.Remove(existing);
+            ClearPreview();
+            return Task.CompletedTask;
+        }
+
+        if (Candidate(cell) is not { } candidate)
+            return Task.CompletedTask;
+
+        // Deliberately placed even when the preview says it will not do. The preview is a
+        // comfort; refusing the click here would make the server's own refusal
+        // undemonstrable, and would put a rule in the front (ADR 0007).
+        _placed.Add(candidate);
+
+        // Dropped rather than recomputed for the NEXT ship at the same spot: that preview
+        // would sit right on top of the ship just laid down and hide it behind an "invalid"
+        // overlay the player never asked for. It comes back as soon as the pointer moves.
+        ClearPreview();
+        return Task.CompletedTask;
+    }
+
+    private async Task ValidateAsync()
+    {
+        var ships = _placed
+            .Select(p => new ShipPlacementInput(p.Name, p.Origin.X, p.Origin.Y, p.Orientation.ToString()))
+            .ToList();
+
+        await State.PlaceFleetAsync(ships);
+
+        if (State.State == LoadState.Ready)
+            Navigation.NavigateTo("/play");
+    }
+
+    /// <summary>Where the ship being placed would land, or <c>null</c> if the fleet is complete.</summary>
+    private ShipPlacement? Candidate(Coordinate origin) =>
+        NextShip is { } next ? new ShipPlacement(next.Name, origin, _orientation, next.Size) : null;
+
+    /// <summary>
+    /// Asks the domain — <see cref="PlacementRules.Validate"/>, the very rule the server
+    /// runs — whether the candidate fits, instead of reimplementing bounds, overlap and
+    /// adjacency in the front. The trick for validating an incomplete fleet is the one
+    /// <c>FleetPlacer</c> already uses: describe to the rule the partial fleet actually
+    /// being checked.
+    /// </summary>
+    private void RecomputePreview(Coordinate? origin)
+    {
+        if (State.Current is not { } game || origin is not { } cell || Candidate(cell) is not { } candidate)
+        {
+            ClearPreview();
+            return;
+        }
+
+        _preview = candidate;
+
+        List<ShipTemplate> partialFleet =
+        [
+            .. _placed.Select(p => new ShipTemplate(p.Name, p.Size)),
+            new ShipTemplate(candidate.Name, candidate.Size)
+        ];
+
+        // ExtraTurnOnHit is irrelevant here — PlacementRules reads only GridSize, Fleet and
+        // ShipsMayTouch — and it is not part of the DTO precisely because placement does not
+        // depend on it. It is not a rule being decided in the front.
+        var rules = new GameRules(game.Own.GridSize, partialFleet, game.ShipsMayTouch, ExtraTurnOnHit: true);
+
+        _previewIsValid = PlacementRules.Validate([.. _placed, candidate], rules).IsOk;
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.OnChange -= OnStateChanged;
+}

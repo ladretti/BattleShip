@@ -103,6 +103,47 @@ public sealed class GameState(BattleApiClient api)
         Transition(LoadState.Ready, null);
     }
 
+    /// <summary>
+    /// Submits the human fleet, then re-reads the game from the server rather than guessing
+    /// what accepting it changed. That second round trip is the point: the server is the one
+    /// that turns the game from Placing to InProgress and that decides which cells the ships
+    /// ended up on, and this class is not allowed to decide either (ADR 0007).
+    ///
+    /// A refusal leaves <see cref="Current"/> on the game as it was — still in Placing — so
+    /// the page can show the server's reason and let the player move a ship and try again.
+    /// </summary>
+    public async Task PlaceFleetAsync(IReadOnlyList<ShipPlacementInput> ships)
+    {
+        if (Current is null)
+        {
+            Transition(LoadState.Failed, "No game to place a fleet on. Create one first.");
+            return;
+        }
+
+        var id = Current.Id;
+        Transition(LoadState.Loading, null);
+
+        var placement = await api.PlaceFleetAsync(id, ships);
+        if (!placement.IsOk)
+        {
+            Transition(LoadState.Failed, placement.ErrorMessage);
+            return;
+        }
+
+        var reread = await api.GetGameAsync(id);
+        if (!reread.IsOk)
+        {
+            // The fleet WAS accepted; only reading the result back failed. Saying so keeps
+            // the player from re-submitting a placement the server has already taken.
+            Transition(LoadState.Failed,
+                $"The fleet was accepted, but reading the game back failed: {reread.ErrorMessage}");
+            return;
+        }
+
+        Current = reread.Value;
+        Transition(LoadState.Ready, null);
+    }
+
     private void Transition(LoadState state, string? errorMessage)
     {
         State = state;

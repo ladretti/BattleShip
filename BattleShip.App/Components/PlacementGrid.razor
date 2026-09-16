@@ -1,0 +1,92 @@
+@* Pure rendering: this component decides nothing. It draws the cells it is given, reports
+   what the player pointed at, and lets the page own the placement state. *@
+
+<div class="placement-grid" role="group" aria-label="Placement grid"
+     tabindex="0" @onkeydown="OnKeyDownAsync"
+     style="grid-template-columns: repeat(@GridSize, var(--cell-size));">
+    @for (var y = 0; y < GridSize; y++)
+    {
+        var row = y;
+        @for (var x = 0; x < GridSize; x++)
+        {
+            var column = x;
+            var cell = new Coordinate(column, row);
+            <button type="button"
+                    class="cell @CssFor(cell)"
+                    aria-label="@LabelFor(cell)"
+                    @onclick="() => OnCellClick.InvokeAsync(cell)"
+                    @onmouseover="() => OnCellPointed.InvokeAsync(cell)"
+                    @onfocus="() => OnCellPointed.InvokeAsync(cell)">
+            </button>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int GridSize { get; set; }
+
+    /// <summary>The ships already laid down, with the cells each one occupies.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<ShipPlacement> Placed { get; set; } = [];
+
+    /// <summary>
+    /// Where the ship being placed would land if the player clicked now, or <c>null</c>
+    /// when nothing is being pointed at or every ship is already placed.
+    /// </summary>
+    [Parameter] public ShipPlacement? Preview { get; set; }
+
+    /// <summary>
+    /// Whether <see cref="Preview"/> would be accepted. A comfort, not a guarantee: the
+    /// page computes it with the domain's own rule, and the server decides anyway
+    /// (ADR 0007). A red preview does not prevent the click.
+    /// </summary>
+    [Parameter] public bool PreviewIsValid { get; set; }
+
+    [Parameter] public EventCallback<Coordinate> OnCellClick { get; set; }
+    [Parameter] public EventCallback<Coordinate> OnCellPointed { get; set; }
+    [Parameter] public EventCallback OnRotate { get; set; }
+
+    private HashSet<Coordinate> _occupied = [];
+    private Dictionary<Coordinate, string> _shipNames = [];
+    private HashSet<Coordinate> _previewCells = [];
+
+    // Recomputed whenever the page hands down new parameters, so the lookups below stay
+    // O(1) per cell instead of rescanning every ship for each of the GridSize² buttons.
+    protected override void OnParametersSet()
+    {
+        _occupied = [];
+        _shipNames = [];
+
+        foreach (var placement in Placed)
+        {
+            foreach (var cell in placement.Cells())
+            {
+                _occupied.Add(cell);
+                _shipNames[cell] = placement.Name;
+            }
+        }
+
+        _previewCells = Preview is null ? [] : [.. Preview.Cells()];
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (args.Key is "r" or "R")
+            await OnRotate.InvokeAsync();
+    }
+
+    private string CssFor(Coordinate cell)
+    {
+        // The preview wins over the occupied state on purpose: what matters while pointing
+        // is whether the ship WOULD fit, and an overlap is precisely what must show red.
+        if (_previewCells.Contains(cell))
+            return PreviewIsValid ? "preview-valid" : "preview-invalid";
+
+        return _occupied.Contains(cell) ? "occupied" : "empty";
+    }
+
+    private string LabelFor(Coordinate cell)
+    {
+        var position = $"column {cell.X + 1}, row {cell.Y + 1}";
+        return _shipNames.TryGetValue(cell, out var name) ? $"{position}, {name}" : $"{position}, empty";
+    }
+}

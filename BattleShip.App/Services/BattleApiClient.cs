@@ -110,6 +110,34 @@ public sealed class BattleApiClient(HttpClient http)
     }
 
     /// <summary>
+    /// POST /games/{id}/placement — expects 204. A 400 is the point of this call as much as
+    /// the 204 is: it is how the server refuses an overlapping, out-of-bounds or adjacent
+    /// fleet, and its wording is handed back untouched so the page can show the reason the
+    /// server actually gave rather than a guess made here.
+    /// </summary>
+    public async Task<ApiResult<bool>> PlaceFleetAsync(
+        Guid id, IReadOnlyList<ShipPlacementInput> ships, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await http.PostAsJsonAsync(
+                $"games/{id}/placement", new PlacementInput(ships), cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NoContent)
+                return ApiResult<bool>.Ok(true);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return ApiResult<bool>.Fail($"Game {id} no longer exists on the server.");
+
+            return ApiResult<bool>.Fail(await DescribeFailureAsync(response, cancellationToken));
+        }
+        catch (Exception exception) when (IsCommunicationFailure(exception))
+        {
+            return ApiResult<bool>.Fail(Describe(exception));
+        }
+    }
+
+    /// <summary>
     /// The two shapes an error body can take on this API, read leniently: either the
     /// <c>ValidationProblemDetails</c> that <c>TypedResults.ValidationProblem</c> produces
     /// (<c>errors</c>, a field name to its messages), or the <c>{ "error": "..." }</c>
