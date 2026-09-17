@@ -61,7 +61,8 @@ le résultat du coup du joueur, puis la chaîne des coups adverses jusqu'au prem
 - Course `Read` / `Mutate` : verrou de `Read` retiré, **5 exécutions sur 5 en échec**
   (`ArgumentException` reproductible) ; verrou rétabli, 5/5 au vert et suite complète 133/133
   (`REVUE-IA.md`, revue 4).
-- **Reste à vérifier** : la capture de la console réseau du navigateur montrant l'appel et l'erreur.
+- **Constaté** : le scénario du README piloté dans Chrome renvoie `HTTP 200` avec `grpc-status` `3`
+  puis `5` dans les trailers — trace et captures dans `docs/demo/grpc-web-trace.md`.
 
 ## Références
 

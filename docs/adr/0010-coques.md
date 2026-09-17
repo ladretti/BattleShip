@@ -5,11 +5,10 @@ Accepté — 2026-09-16
 
 ## Contexte
 
-Après l'ADR 0009, un navire restait n carrés colorés portant un glyphe ; il fallait qu'il devienne
-**un objet** — une coque continue, avec étrave et poupe, franchissant les gouttières. L'obstacle est
-que **le navire est un objet unique alors que tout le reste du système est par case** : chaque case
-est un `<button>` focalisable avec son `aria-label`, son glyphe et son état de dégât, et en fusionner
-cinq détruirait le clavier et l'accessibilité. D'où : séparer le **dessin** de l'**usage**.
+Après l'ADR 0009, un navire restait n carrés colorés ; il fallait qu'il devienne **un objet**, une
+coque continue, avec étrave et poupe, franchissant les gouttières. Or **le navire est un objet
+unique quand tout le reste du système est par case** : chaque case est un `<button>` focalisable, et
+en fusionner cinq détruirait le clavier et l'accessibilité — d'où le **dessin** séparé de l'**usage**.
 
 ## Options envisagées
 
@@ -29,7 +28,8 @@ cinq détruirait le clavier et l'accessibilité. D'où : séparer le **dessin** 
 Option E.
 
 - **Une grille séparée, jamais des éléments ajoutés à la grille de jeu.** Un élément placé fait
-  contourner sa case par le placement automatique et décale les suivantes (défaut livré une fois).
+  contourner sa case par le placement automatique et décale les suivantes — défaut livré une fois
+  (douzième ligne fantôme, ADR 0009 ; `PROMPTS.md`).
 - **Le gabarit des deux grilles est explicite et identique** : la piste des règles était en `auto`,
   dimensionnée par son texte, et la couche, sans texte, voyait son `auto` s'effondrer.
 - **La silhouette est paramétrique** (`HullGeometry`), construite en (longueur, largeur) puis

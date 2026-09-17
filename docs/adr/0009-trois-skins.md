@@ -45,15 +45,15 @@ le calme supprime la chorégraphie sans arrêter le jeu et rejoint `prefers-redu
 - Une apparence ne peut pas proposer une mise en page différente ; il faudrait rouvrir cet ADR et
   retomber sur l'option A et son coût.
 - Les réglages vivent dans `localStorage`, appliqués par un script **avant** le démarrage de Blazor
-  pour qu'aucune première image ne montre la mauvaise apparence. `localStorage` peut lever en
-  navigation privée : chaque accès tolère l'échec et retombe sur les valeurs par défaut. Une valeur
-  relue du stockage est validée contre l'ensemble connu avant d'atteindre le DOM.
+  pour qu'aucune première image ne montre la mauvaise apparence ; il peut lever en navigation privée,
+  chaque accès tolère l'échec, et toute valeur relue est validée contre l'ensemble connu.
 
 ## Vérification et réexamen
 
 - **Constaté** : les 24 paires de contraste glyphe/fond et texte/fond des trois apparences sont
   au-dessus de 4,5:1 et le filet de grille au-dessus du seuil non textuel de 3:1 ; cinq paires
-  étaient sous le seuil à la première mesure, toutes corrigées et remesurées.
+  étaient sous le seuil à la première mesure, toutes corrigées et remesurées
+  (`PROMPTS.md`, 2026-09-16 — refonte en trois apparences).
 - **Constaté** : les cinq glyphes relevés dans le navigateur sont identiques dans les trois
   apparences (`hit:✱ miss:· ship:■ sunk:✖ unknown:`).
 - **Constaté** : l'accessibilité de la tâche 21 survit — une seule case sur cent dans l'ordre de
