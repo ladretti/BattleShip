@@ -113,6 +113,10 @@ public sealed class Game
 
     internal void Replay(GameEvent next)
     {
+        if (next.Sequence != _events.Count)
+            throw new InvalidOperationException(
+                $"Event sequence {next.Sequence} does not follow the journal length {_events.Count}.");
+
         _events.Add(next);
 
         switch (next)

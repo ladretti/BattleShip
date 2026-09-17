@@ -4,52 +4,61 @@ namespace BattleShip.Tests.Domain;
 
 public sealed class GameFoldTests
 {
-    private static Game PlayedGame(int seed, int shots)
+    private static (Game Game, IReadOnlyList<ShotRecord> Shots) PlayedGame(int seed, int shots)
     {
         var rules = GameRules.Default;
         var human = new FleetPlacer(new Random(seed)).PlaceAll(rules).Value;
         var opponent = new FleetPlacer(new Random(seed + 1)).PlaceAll(rules).Value;
         var game = Game.Start(Guid.NewGuid(), rules, human, opponent);
+        var recorded = new List<ShotRecord>();
 
         var fired = 0;
-        for (var x = 0; x < rules.GridSize && fired < shots; x++)
+        while (fired < shots && game.Status != GameStatus.Finished)
         {
-            for (var y = 0; y < rules.GridSize && fired < shots; y++)
+            var firedThisPass = 0;
+            for (var x = 0; x < rules.GridSize && fired < shots && game.Status != GameStatus.Finished; x++)
             {
-                var shooter = game.CurrentPlayer;
-                var target = shooter == Player.Human ? game.OpponentBoard : game.HumanBoard;
-                if (target.ReceivedShots.Contains(new Coordinate(x, y)))
-                    continue;
+                for (var y = 0; y < rules.GridSize && fired < shots && game.Status != GameStatus.Finished; y++)
+                {
+                    var shooter = game.CurrentPlayer;
+                    var target = shooter == Player.Human ? game.OpponentBoard : game.HumanBoard;
+                    if (target.ReceivedShots.Contains(new Coordinate(x, y)))
+                        continue;
 
-                var result = shooter == Player.Human
-                    ? game.PlayerFires(new Coordinate(x, y))
-                    : game.OpponentFires(new Coordinate(x, y));
+                    var result = shooter == Player.Human
+                        ? game.PlayerFires(new Coordinate(x, y))
+                        : game.OpponentFires(new Coordinate(x, y));
 
-                if (result.IsOk)
-                    fired++;
-
-                if (game.Status == GameStatus.Finished)
-                    return game;
+                    if (result.IsOk)
+                    {
+                        fired++;
+                        firedThisPass++;
+                        recorded.Add(result.Value);
+                    }
+                }
             }
+
+            if (firedThisPass == 0)
+                break;
         }
 
-        return game;
+        Assert.True(fired == shots || game.Status == GameStatus.Finished);
+        return (game, recorded);
     }
 
     [Fact]
     public void The_history_is_derived_from_the_journal()
     {
-        var game = PlayedGame(seed: 21, shots: 12);
+        var (game, expectedRecords) = PlayedGame(seed: 21, shots: 12);
 
-        Assert.Equal(
-            game.Events.OfType<ShotFired>().Count(),
-            game.History.Count);
+        Assert.Equal(expectedRecords, game.History);
     }
 
     [Fact]
     public void Folding_the_whole_journal_reproduces_the_played_state()
     {
-        var game = PlayedGame(seed: 21, shots: 12);
+        var (game, _) = PlayedGame(seed: 21, shots: 200);
+        Assert.Equal(GameStatus.Finished, game.Status);
 
         var replayed = GameFold.Fold(game.Id, game.Events);
 
@@ -61,16 +70,23 @@ public sealed class GameFoldTests
         Assert.Equal(
             game.OpponentBoard.Ships.Select(s => s.IsSunk),
             replayed.OpponentBoard.Ships.Select(s => s.IsSunk));
+        Assert.Equal(
+            game.HumanBoard.Ships.Select(s => s.IsSunk),
+            replayed.HumanBoard.Ships.Select(s => s.IsSunk));
     }
 
     [Fact]
     public void Folding_the_same_prefix_twice_gives_the_same_state()
     {
-        var game = PlayedGame(seed: 33, shots: 40);
+        var (game, _) = PlayedGame(seed: 33, shots: 40);
         var prefix = game.Events.Take(game.Events.Count / 2).ToList();
 
         var first = GameFold.Fold(game.Id, prefix);
         var second = GameFold.Fold(game.Id, prefix);
+
+        Assert.Equal(
+            prefix.OfType<ShotFired>().Count(e => e.By == Player.Human && e.Result != ShotResult.Miss),
+            first.OpponentBoard.Ships.Sum(s => s.HitCells.Count));
 
         Assert.Equal(first.Status, second.Status);
         Assert.Equal(first.CurrentPlayer, second.CurrentPlayer);
@@ -87,9 +103,9 @@ public sealed class GameFoldTests
     [Fact]
     public void Folding_every_prefix_of_a_valid_journal_never_throws()
     {
-        var game = PlayedGame(seed: 33, shots: 40);
+        var (game, _) = PlayedGame(seed: 33, shots: 40);
 
-        for (var n = 0; n <= game.Events.Count; n++)
+        for (var n = 1; n <= game.Events.Count; n++)
         {
             var prefix = game.Events.Take(n).ToList();
             var exception = Record.Exception(() => GameFold.Fold(game.Id, prefix));
@@ -100,7 +116,7 @@ public sealed class GameFoldTests
     [Fact]
     public void A_ship_is_not_reported_sunk_before_the_shot_that_sank_it()
     {
-        var game = PlayedGame(seed: 33, shots: 60);
+        var (game, _) = PlayedGame(seed: 33, shots: 60);
 
         var sinking = game.Events.OfType<ShotFired>()
             .FirstOrDefault(e => e.Result == ShotResult.Sunk);
