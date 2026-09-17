@@ -173,3 +173,32 @@ contrat (diapo 36, déduit par le front), aucun test d'intégration ne menant un
 **Preuve / limite** : commits `9c4550f` (commentaires), `5948009` (vainqueur), `0d873f9` (partie complète),
 `d4ca64b` (conformité) ; limite : les greps de conventions détectent les formes, pas l'intention — la lisibilité
 sans commentaire n'est établie que par relecture.
+
+## 2026-09-17 — Brainstorming du journal d'événements
+
+**Outil** : Claude Code (claude-opus-5). **Contexte** : socle et trois extensions livrés, plus de contrainte de
+délai ; le binôme veut un axe qui sorte du « jeu en 2D » et impressionne sur le fond. **Prompt** : « un simple
+jeu en 2D c'est trop bateau, je veux aller plus loin et en mettre plein les yeux — qu'est-ce qui côté
+architecture pourrait améliorer le jeu ? » (compétence `superpowers:brainstorming`)
+**Réponse** : trois axes chiffrés — **A** journal d'événements, **B** temps réel multijoueur, **C** rendu 3D.
+Argument décisif pour A, trouvé en lisant le moteur et non supposé : `Game._history` **existe déjà** et
+`DtoMappings.ToOwnBoardDto` en dérive déjà les cases reçues, pendant que `Board._receivedShots` et
+`Ship._hitCells` stockent le même fait en mutable — le même fait est écrit **trois fois** dans `Board.Fire`.
+Le journal **retire** cette duplication au lieu d'ajouter une couche : l'objection « event sourcing = cérémonie »
+tombe.
+**Décision** : **A et C retenus** par le binôme, **B écarté** (plomberie hors domaine) ; **une spec par
+sous-système**, A d'abord car C consomme son flux et car A seul touche le cœur protégé par les tests.
+Persistance disque **écartée du périmètre** par le binôme malgré un coût quasi nul — une spec, un sujet.
+Concurrence optimiste **examinée puis écartée** : le verrou par partie de l'ADR 0002 est correct et testé,
+`IGameStore` n'est étendu que d'un `ReadEvents`.
+**Vérification** : **aucune à ce stade — rien n'a été exécuté, c'est une session de conception.** Les contrôles
+sont définis et ordonnés dans la spec § 6 : cinq tests neufs dont la paire 3/4 qui encadre la censure du secret
+(chacun seul est satisfait par une implémentation triviale et fausse), et le test 2 qui **doit échouer sur le
+code actuel** avant d'être rendu vert.
+**Preuve / limite** : spec `docs/superpowers/specs/2026-09-17-journal-evenements-design.md`, commit `81449d5` ;
+ADR 0011 à écrire **avant** la première ligne de code. Limites : l'hypothèse centrale — le repli produit le
+même état que la mutation — n'est **pas prouvée**, elle sera mise à l'épreuve par les tests existants ; la
+sérialisation des records polymorphes en Blazor WASM est **inconnue** et se tranche par `dotnet run --file`
+avant d'écrire le contrat ; une première rédaction de la spec affirmait à tort qu'« aucun contrat public ne
+change » alors que `Board.ReceivedShots` et `Ship.HitCells` sont publiques — corrigé en conservant ces
+propriétés, calculées sur l'état replié.
