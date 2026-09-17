@@ -72,4 +72,69 @@ public sealed class GameEventTests
         Assert.Single(first.HitCells);
         Assert.Empty(second.HitCells);
     }
+
+    private static Board BoardWithOneDestroyer() =>
+        new(5, [new Ship("Destroyer", 2, [new Coordinate(0, 0), new Coordinate(0, 1)])]);
+
+    [Fact]
+    public void Decide_does_not_mutate_the_board()
+    {
+        var board = BoardWithOneDestroyer();
+
+        var first = board.Decide(new Coordinate(0, 0));
+        var second = board.Decide(new Coordinate(0, 0));
+
+        Assert.True(first.IsOk);
+        Assert.True(second.IsOk);
+        Assert.Equal(ShotResult.Hit, second.Value.Result);
+        Assert.Empty(board.ReceivedShots);
+    }
+
+    [Fact]
+    public void Decide_refuses_a_cell_outside_the_grid()
+    {
+        var board = BoardWithOneDestroyer();
+
+        var result = board.Decide(new Coordinate(9, 9));
+
+        Assert.False(result.IsOk);
+        Assert.Equal(GameError.OutOfBounds, result.Error);
+    }
+
+    [Fact]
+    public void Decide_refuses_a_cell_already_shot()
+    {
+        var board = BoardWithOneDestroyer();
+        board.Apply(new Coordinate(4, 4));
+
+        var result = board.Decide(new Coordinate(4, 4));
+
+        Assert.False(result.IsOk);
+        Assert.Equal(GameError.CellAlreadyShot, result.Error);
+    }
+
+    [Fact]
+    public void Decide_reports_a_sinking_before_it_happens()
+    {
+        var board = BoardWithOneDestroyer();
+        board.Apply(new Coordinate(0, 0));
+
+        var result = board.Decide(new Coordinate(0, 1));
+
+        Assert.True(result.IsOk);
+        Assert.Equal(ShotResult.Sunk, result.Value.Result);
+        Assert.Equal("Destroyer", result.Value.SunkShipName);
+    }
+
+    [Fact]
+    public void Apply_never_throws_even_when_replayed_twice()
+    {
+        var board = BoardWithOneDestroyer();
+
+        board.Apply(new Coordinate(0, 0));
+        board.Apply(new Coordinate(0, 0));
+
+        Assert.Single(board.ReceivedShots);
+        Assert.Single(board.Ships[0].HitCells);
+    }
 }

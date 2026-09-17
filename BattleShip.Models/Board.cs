@@ -1,5 +1,7 @@
 namespace BattleShip.Models;
 
+public readonly record struct ShotOutcome(ShotResult Result, string? SunkShipName);
+
 public sealed class Board(int gridSize, IReadOnlyList<Ship> ships)
 {
     private readonly HashSet<Coordinate> _receivedShots = new();
@@ -11,21 +13,46 @@ public sealed class Board(int gridSize, IReadOnlyList<Ship> ships)
 
     public bool AllSunk => Ships.All(s => s.IsSunk);
 
-    public Result<ShotRecord> Fire(Coordinate at, Player by)
+    public Result<ShotOutcome> Decide(Coordinate at)
     {
         if (IsOutOfBounds(at))
-            return Result<ShotRecord>.Fail(GameError.OutOfBounds);
+            return Result<ShotOutcome>.Fail(GameError.OutOfBounds);
+
+        if (_receivedShots.Contains(at))
+            return Result<ShotOutcome>.Fail(GameError.CellAlreadyShot);
+
+        var target = Ships.FirstOrDefault(s => s.Cells.Contains(at));
+        if (target is null)
+            return Result<ShotOutcome>.Ok(new ShotOutcome(ShotResult.Miss, null));
+
+        var sinks = target.HitCells.Count + 1 == target.Size;
+        return Result<ShotOutcome>.Ok(sinks
+            ? new ShotOutcome(ShotResult.Sunk, target.Name)
+            : new ShotOutcome(ShotResult.Hit, null));
+    }
+
+    public void Apply(Coordinate at)
+    {
+        if (IsOutOfBounds(at))
+            throw new ArgumentOutOfRangeException(
+                nameof(at), at, "An applied event can never land outside the grid.");
 
         if (!_receivedShots.Add(at))
-            return Result<ShotRecord>.Fail(GameError.CellAlreadyShot);
+            return;
 
-        var hitShip = Ships.FirstOrDefault(s => s.TryHit(at));
-        if (hitShip is null)
-            return Result<ShotRecord>.Ok(new ShotRecord(at, ShotResult.Miss, by, null));
+        Ships.FirstOrDefault(s => s.Cells.Contains(at))?.TryHit(at);
+    }
 
-        var result = hitShip.IsSunk ? ShotResult.Sunk : ShotResult.Hit;
-        var sunkShipName = hitShip.IsSunk ? hitShip.Name : null;
-        return Result<ShotRecord>.Ok(new ShotRecord(at, result, by, sunkShipName));
+    public Result<ShotRecord> Fire(Coordinate at, Player by)
+    {
+        var decision = Decide(at);
+        if (!decision.IsOk)
+            return Result<ShotRecord>.Fail(decision.Error);
+
+        Apply(at);
+
+        return Result<ShotRecord>.Ok(
+            new ShotRecord(at, decision.Value.Result, by, decision.Value.SunkShipName));
     }
 
     private bool IsOutOfBounds(Coordinate at) =>
