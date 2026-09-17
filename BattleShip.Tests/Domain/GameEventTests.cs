@@ -29,7 +29,8 @@ public sealed class GameEventTests
     public void Every_event_is_a_game_event()
     {
         var rules = GameRules.Default;
-        var fleet = new FleetPlacer(new Random(11)).PlaceAll(rules).Value;
+        IReadOnlyList<ShipSnapshot> fleet =
+            [.. new FleetPlacer(new Random(11)).PlaceAll(rules).Value.Select(ShipSnapshot.Of)];
 
         GameEvent[] events =
         [
@@ -40,5 +41,35 @@ public sealed class GameEventTests
         ];
 
         Assert.Equal([0, 1, 2, 3], events.Select(e => e.Sequence));
+    }
+
+    [Fact]
+    public void A_snapshot_does_not_share_hit_state_with_the_ship_it_came_from()
+    {
+        var ship = new Ship("Destroyer", 2, [new Coordinate(0, 0), new Coordinate(0, 1)]);
+        var snapshot = ShipSnapshot.Of(ship);
+
+        ship.TryHit(new Coordinate(0, 0));
+
+        var rebuilt = snapshot.ToShip();
+
+        Assert.True(ship.HitCells.Count == 1);
+        Assert.Empty(rebuilt.HitCells);
+        Assert.Equal(ship.Cells, rebuilt.Cells);
+    }
+
+    [Fact]
+    public void Two_ships_rebuilt_from_the_same_snapshot_are_independent()
+    {
+        var snapshot = new ShipSnapshot(
+            "Destroyer", 2, [new Coordinate(0, 0), new Coordinate(0, 1)]);
+
+        var first = snapshot.ToShip();
+        var second = snapshot.ToShip();
+
+        first.TryHit(new Coordinate(0, 0));
+
+        Assert.Single(first.HitCells);
+        Assert.Empty(second.HitCells);
     }
 }
