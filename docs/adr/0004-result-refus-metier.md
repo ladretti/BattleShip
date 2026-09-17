@@ -38,7 +38,7 @@ micro-benchmark mesurerait un scénario inexistant. Le choix se joue donc sur la
 
 ## Conséquences
 
-- `CLAUDE.md` § Gestion des erreurs doit être mis à jour, sinon les deux documents se contredisent.
+- `CLAUDE.md` § Gestion des erreurs a été mis à jour : les deux documents ne se contredisent plus.
 - `IGameStore.Mutate` renvoie un `Result<T>` (ADR 0002) : section critique courte et sans exception.
 - La traduction `GameError` → statut vit en un seul endroit par façade ; aucun `catch` par type
   dans les endpoints :

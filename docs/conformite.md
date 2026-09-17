@@ -14,7 +14,7 @@ assumé, non corrigé.
 | Bibliothèque de modèles sans dépendance (28) | `BattleShip.Models.csproj` | `grep -c Reference BattleShip.Models/BattleShip.Models.csproj` | 0 référence |
 | Références API→Models, App→Models, Tests→API (15) | trois `.csproj` | `grep -h ProjectReference */*.csproj` | 4 références : Tests référence API et, en direct, Models (les tests métier compilent contre le domaine) |
 | Pages du gabarit purgées (28) | `BattleShip.App/Pages/` | `ls BattleShip.App/Pages` | ni Counter ni Weather |
-| Partie complète contre l'ordinateur (5, 63) | `FireGrpcTests.A_game_played_to_the_end_finishes_with_the_player_as_winner` ; `Play.razor` bouton *New game* | `dotnet test --filter A_game_played_to_the_end` | `FireGrpcTests.A_game_played_to_the_end_finishes_with_the_player_as_winner au vert` |
+| Partie complète contre l'ordinateur (5, 63) | `FireGrpcTests.A_game_played_to_the_end_finishes_with_the_player_as_winner` ; `Play.razor` bouton *New game* | `dotnet test --filter A_game_played_to_the_end` | `FireGrpcTests.A_game_played_to_the_end_finishes_with_the_player_as_winner` au vert |
 | FluentValidation sur toutes les entrées serveur, HTTP et gRPC (40, 50) | `BattleShip.API/Validation/` (4 validateurs), appel explicite `ValidateAsync` dans chaque route et dans `BattleGrpcService.Fire` | `grep -rn ValidateAsync BattleShip.API` | 4 entrées, 4 appels explicites |
 | gRPC-Web : réponse **et** erreur attendue depuis le navigateur (48) | `Protos/battle.proto`, `docs/demo/*.png`, `docs/demo/grpc-web-trace.md` | `ls docs/demo` | 3 captures + trace |
 | Tests métier et d'intégration (6, 39) | `BattleShip.Tests/Domain`, `/Api`, `/Opponent` | `dotnet test` | 145 tests, 72 [Fact] et 8 [Theory] |
@@ -27,40 +27,35 @@ assumé, non corrigé.
 |---|---|---|---|
 | Identifier la fin de partie **et le gagnant** (36) | `Game.Winner`, `GameDto.Winner` | `dotnet test --filter The_shooter_who_sinks_the_last_ship_is_the_winner` | **corrigé le 2026-09-17** : le vainqueur était déduit par le front |
 | Partie complète de la création à la victoire, aucun coup après la fin (5, 38) | `FireGrpcTests.A_game_played_to_the_end_finishes_with_the_player_as_winner` | `dotnet test --filter A_game_played_to_the_end` | **ajouté le 2026-09-17** ; `FailedPrecondition` sur le tir suivant |
-
-## Spécifications du jeu (diapos 36, 37, 38, 46) — suite
-
-| Exigence | Preuve dans le dépôt | Commande de contrôle | Constat |
-|---|---|---|---|
 | Placement sans chevauchement ni débordement (36) | `PlacementRulesTests`, `FleetPlacerTests` (graine fixe) | `dotnet test --filter PlacementRules` | 8/8 tests verts |
 | Un coup refusé ne modifie pas la partie ; case rejouée non comptée (36) | `GameTests.A_shot_on_an_already_shot_cell_is_rejected` | `dotnet test --filter already_shot` | `Result` en échec, historique inchangé |
 | Positions adverses secrètes (36, 37) | `SecretTests` (3 tests), `ShotHistory` sans chemin vers `Board` | `dotnet test --filter SecretTests` | 3/3 ; revue 1 |
 | Contrat explicite : créer, connaître l'état, faire évoluer (37) | `POST /games`, `GET /games/{id}`, `POST /games/{id}/placement`, `Fire` gRPC, `GET /games/{id}/history` | `grep -rn MapGet BattleShip.API; grep -rn MapPost BattleShip.API` | 5 opérations, ADR 0005 et 0008 |
-| Aucun coup après la fin (38) | `GameTests.A_shot_after_the_end_of_the_game_is_rejected` ; `FireGrpcTests` (tâche 7) | `dotnet test --filter after_the_end` | `GameAlreadyFinished` → `FailedPrecondition` |
+| Aucun coup après la fin (38) | `GameTests.A_shot_after_the_end_of_the_game_is_rejected` ; `FireGrpcTests.A_game_played_to_the_end_finishes_with_the_player_as_winner` | `dotnet test --filter after_the_end` | `GameAlreadyFinished` → `FailedPrecondition` |
 | Adversaire soumis aux mêmes règles de validité (38) | `StrategyInvariantTests.A_strategy_never_proposes_an_invalid_shot` (`[Theory]` sur les 3 stratégies) | `dotnet test --filter never_proposes` | 3/3 |
 | Interface : créer, deux grilles, jouer, annoncer la fin, rejouer (46) | `NewGame.razor`, `Placement.razor`, `Play.razor` (bouton *New game*) | démonstration README | constaté dans le navigateur le 2026-09-16 |
-| Incident de communication pris en charge (46) | `BattleApiClient.IsCommunicationFailure` (4 emplois), `BattleGrpcClient` (`RpcException`) | `grep -rn IsCommunicationFailure BattleShip.App` | 5 lignes (4 emplois + 1 définition) + 1 |
+| Incident de communication pris en charge (46) | `BattleApiClient.IsCommunicationFailure` (4 emplois), `BattleGrpcClient` (`RpcException`) | `grep -rn IsCommunicationFailure BattleShip.App` | 5 lignes (4 emplois + 1 définition), plus le `catch (RpcException` de `BattleGrpcClient.cs` |
 
 ## Bonnes pratiques du référentiel (diapos 4, 24-27, 31-35, 39, 43-45, 49-51)
 
 | Pratique | Preuve | Commande | Constat |
 |---|---|---|---|
-| Propriétés, pas de getters/setters (4) | tout le domaine | `grep -rnE 'public \w+ Get[A-Z]'` puis `grep -rnE 'public \w+ Set[A-Z]'` | 0 |
-| `_camelCase` privé, `PascalCase` public, `Async` sur les `Task` (4, CLAUDE.md § 2) | — | greps de la tâche 8 | 0 écart ; exception : `BattleGrpcService.Fire`, nom imposé par la base générée |
-| Pas de `.Result` / `.Wait()` (4) | — | grep | 1 faux positif (`Shot.Result`, pas `Task.Result`) ; 0 réel |
-| `Nullable` activé, 0 avertissement (24) | 4 `.csproj` | `dotnet build` | 4/4, 0 warning |
-| `sealed` sauf statique (CLAUDE.md § 2) | — | grep | 0 classe ouverte |
-| Contraintes de route, `TypedResults`, statuts 201/204/400/404/409 (31, 34) | `GameEndpoints.cs`, `ErrorMapping.cs` | grep | `{id:guid}` ×3 ; 100 % `TypedResults` |
-| Traduction des refus en un seul endroit, sans `catch` par type (ADR 0004) | `ErrorMapping.cs` | `grep -rn catch BattleShip.API` | 0 `catch` |
-| OpenAPI en développement, `api.http` versionné (35) | `Program.cs`, `api.http` | grep, `git ls-files` | présents |
-| Durées de vie DI choisies et justifiées (33) | `Program.cs` ×2, ADR 0002, ADR 0007, revue 5 | grep | Singleton pour l'état partagé, Scoped ailleurs |
+| Propriétés, pas de getters/setters (4) | tout le domaine | `grep -rnE 'public \w+ (Get\|Set)[A-Z]\w*\(' --include='*.cs' BattleShip.API BattleShip.App BattleShip.Models \| grep -v /obj/ \| wc -l` | 0 |
+| `_camelCase` privé, `PascalCase` public, `Async` sur les `Task` (4, CLAUDE.md § 2) | — | `grep -rnE '\bTask(<[^>]*>)?\s+[A-Z]\w*\(' --include='*.cs' --include='*.razor' BattleShip.API BattleShip.App BattleShip.Models \| grep -v /obj/ \| grep -v Async` | 1 ligne : `BattleGrpcService.Fire`, nom imposé par la base générée (limite) |
+| Pas de `.Result` / `.Wait()` (4) | — | `grep -rnE '\.Wait\(\)\|GetAwaiter\(\)\.GetResult' --include='*.cs' --include='*.razor' BattleShip.API BattleShip.App BattleShip.Models \| grep -v /obj/ \| wc -l` | 0 ; 0 `Task.Result` : toutes les occurrences de `.Result` sont la propriété `Result` d'un tir |
+| `Nullable` activé, 0 avertissement (24) | 4 `.csproj` | `grep -c '<Nullable>enable' BattleShip.*/*.csproj && dotnet build` | 4 fichiers à 1 ; 0 warning |
+| `sealed` sauf statique (CLAUDE.md § 2) | — | `grep -rnE '^\s*public (static \|abstract \|partial )?class ' --include='*.cs' . \| grep -v /obj/ \| grep -v sealed \| grep -vE 'static class\|partial class Program'` | aucune ligne : 0 classe ouverte |
+| Contraintes de route, `TypedResults`, statuts 201/204/400/404/409 (31, 34) | `GameEndpoints.cs`, `ErrorMapping.cs` | `grep -rnoE 'Map(Get\|Post)\("[^"]+"' --include='*.cs' BattleShip.API \| grep -v /obj/` ; `grep -rnoE '\b(TypedResults\|Results)\.' --include='*.cs' BattleShip.API \| grep -v /obj/ \| cut -d: -f3 \| sort \| uniq -c` | 5 routes dont 3 en `{id:guid}` ; 12 `TypedResults.`, 0 `Results.` |
+| Traduction des refus en un seul endroit, sans `catch` par type (ADR 0004) | `ErrorMapping.cs` | `grep -rn catch --include='*.cs' BattleShip.API \| grep -v /obj/` | aucune ligne : 0 `catch` |
+| OpenAPI en développement, `api.http` versionné (35) | `Program.cs`, `api.http` | `grep -nE 'AddOpenApi\|MapOpenApi' BattleShip.API/Program.cs && git ls-files api.http` | lignes 14 et 36 (`MapOpenApi` sous `IsDevelopment`) ; `api.http` versionné |
+| Durées de vie DI choisies et justifiées (33) | `Program.cs` ×2, ADR 0002, ADR 0007, revue 5 | `grep -nE 'AddSingleton\|AddScoped\|AddTransient' BattleShip.API/Program.cs BattleShip.App/Program.cs` | API : 3 `Singleton` (store, aléa, fabrique) + 4 `Scoped` (validateurs) ; App : 8 `Scoped` |
 | Store partagé concurrent (ADR 0002) | `InMemoryGameStore` : `ConcurrentDictionary` + verrou par partie | `dotnet test --filter InMemoryGameStore` | 8/8 ; revues 3 et 4 |
-| Aléa injecté (CLAUDE.md § 3 bis) | `FleetPlacer(Random)`, stratégies | grep `Random.Shared` hors `Program.cs` | 0 |
+| Aléa injecté (CLAUDE.md § 3 bis) | `FleetPlacer(Random)`, stratégies | `grep -rn 'Random.Shared' --include='*.cs' BattleShip.Models BattleShip.API/Strategies BattleShip.API/Benchmark \| grep -v /obj/ \| wc -l` | 0 |
 | `[Fact]` et `[Theory]`, tests de refus (39, 63) | `BattleShip.Tests` | `dotnet test` | 72 Fact, 8 Theory, ≥ 12 tests de refus |
-| Trois états Blazor, `HttpClient.BaseAddress`, `System.Net.Http.Json` (43, 44) | `BattleApiClient`, `Program.cs` du front | grep | conformes |
-| CORS : origines explicites, en-têtes gRPC-Web exposés (45) | `Program.cs` de l'API, `CorsTests` (5 tests) | `dotnet test --filter CorsTests` | 5/5 ; `WithOrigins` depuis la configuration ; `AllowAnyOrigin` absent |
-| Contrat `.proto` avec `csharp_namespace`, validation gRPC, `RpcException` typée (49, 50) | `battle.proto`, `BattleGrpcService`, `ErrorMapping` | grep | conformes |
-| Code en anglais, docs en français (CLAUDE.md § 2) | — | grep accents | 0 dans le code |
+| Trois états Blazor, `HttpClient.BaseAddress`, `System.Net.Http.Json` (43, 44) | `GameState.LoadState`, `BattleApiClient`, `Program.cs` du front | `grep -c LoadState BattleShip.App/Services/GameState.cs ; grep -n BaseAddress BattleShip.App/Program.cs` | 14 lignes `LoadState` (Idle / Loading / Ready / Failed) ; `BaseAddress` ligne 23 |
+| CORS : origines explicites, en-têtes gRPC-Web exposés (45) | `Program.cs` de l'API, `CorsTests` (5 tests) | `grep -nE 'WithOrigins\|AllowAnyOrigin\|WithExposedHeaders' BattleShip.API/Program.cs ; dotnet test --filter CorsTests` | 5/5 ; `WithOrigins` ligne 18 depuis la configuration ; `AllowAnyOrigin` absent |
+| Contrat `.proto` avec `csharp_namespace`, validation gRPC, `RpcException` typée (49, 50) | `battle.proto`, `BattleGrpcService`, `ErrorMapping` | `grep -n csharp_namespace BattleShip.API/Protos/battle.proto` | ligne 2 : `BattleShip.API.Grpc` |
+| Code en anglais, docs en français (CLAUDE.md § 2) | — | `grep -rnP '[éèàçùÉ]' --include='*.cs' --include='*.razor' --include='*.proto' BattleShip.API BattleShip.App BattleShip.Models BattleShip.Tests \| grep -v /obj/ \| wc -l` | 0 |
 | `dotnet format` propre (21) | — | `dotnet format --verify-no-changes` | exit 0 |
 
 ## Limites assumées

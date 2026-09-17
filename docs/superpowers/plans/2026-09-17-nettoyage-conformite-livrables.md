@@ -36,6 +36,7 @@ sont trop longs, on ne les lira pas ».
 - Refus métier en `Result<T>` (ADR 0004) ; exceptions réservées aux anomalies. Jamais `Random.Shared` en dur dans `BattleShip.Models` ou dans une stratégie.
 - `BattleShip.Models` ne référence aucun projet ni aucun paquet NuGet.
 - Budgets de lignes des livrables (vérifiés par `wc -l`) : `PROMPTS.md` ≤ 160, `REVUE-IA.md` ≤ 200, `README.md` ≤ 150, chaque ADR ≤ 70, `CONTEXTE-IA.md` ≤ 60, `docs/conformite.md` ≤ 70.
+- Relevé à l'exécution (2026-09-17) : `PROMPTS.md` ≤ 175 et `REVUE-IA.md` ≤ 215 pour loger l'entrée de session ; `README.md` ≤ 155 pour le paragraphe « Code généré ».
 - Scripts jetables dans le scratchpad de session (`/tmp/claude-1000/-home-luca-git-9-2-2-Env-aspnet-BattleShip/005671b5-a351-454b-9d45-668bebb5e33b/scratchpad/`), **pas** dans le dépôt ; leur contenu intégral figure dans ce plan pour rester reproductible.
 - État de départ constaté le 2026-09-17 : branche `feat/bataille-navale`, arbre propre, `dotnet build` 0 avertissement, `dotnet test` **142/142** en ~4 s, `dotnet format --verify-no-changes` exit 0.
 

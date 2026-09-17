@@ -105,7 +105,7 @@ d'une partie pendant un tir concurrent échoue si `GameEndpoints` revenait de `s
 `store.Find` — d'abord au niveau HTTP/gRPC (`FireGrpcTests`), commit `aef815e`.
 
 **Hypothèse à vérifier** : que le test **puisse échouer**, de façon reproductible, une fois la
-lecture ramenée à `Find` — donc qu'il expose le risque que `IGameStore.cs` documente sur
+lecture ramenée à `Find` — donc qu'il expose le risque que l'ADR 0002 documente sur
 `Game.History` et `Board.ReceivedShots`.
 
 **Expérience** : lecture ramenée à `store.Find(id)`, puis `dotnet test --filter
@@ -130,7 +130,7 @@ rétabli → 5/5 au vert, 380-460 ms ; suite 133/133 en ≈ 4 s.
 
 **Décision** : **adaptée** — le test HTTP/gRPC est **supprimé** (il ne discriminait rien et coûtait
 4-6 s : une fausse assurance payée cher), remplacé par celui du store ; la projection combinée
-`History` + `ReceivedShots` est conservée, `IGameStore.cs` désignant les deux comme à risque.
+`History` + `ReceivedShots` est conservée, l'ADR 0002 désignant les deux comme à risque.
 
 **Preuves et limites** : commit `aef815e` ; commandes ci-dessus, rejouables avec le verrou de `Read`
 commenté à la main. **Réserve** : l'exception obtenue n'est pas celle annoncée — elle vient de

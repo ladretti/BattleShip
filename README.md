@@ -12,7 +12,7 @@ du backlog sont livrés ; une partie complète se joue dans le navigateur, de la
 
 - **.NET SDK 10.x** — vérifier avec `dotnet --version` ; version épinglée par `global.json`.
 - Un navigateur récent : la démonstration gRPC-Web se lit dans la console F12.
-- **HTTPS seulement** : certificat de développement *approuvé* — `dotnet dev-certs https --check --trust`.
+- **Pour le profil HTTPS uniquement** : certificat de développement *approuvé* — `dotnet dev-certs https --check --trust`.
 
 ## Lancer le projet
 
@@ -112,8 +112,7 @@ annonces, glyphes, contrastes).
 
 - **Persistance SQLite / EF** — infrastructure qui ne sert ni le moteur ni l'adversaire ; `IGameStore` rend le
   changement local le jour où il devient utile.
-- **Multijoueur** — sessions et temps réel hors périmètre.
-- **Déploiement** — coût sans valeur ajoutée pour l'évaluation.
+- **Multijoueur** (sessions et temps réel) et **déploiement** — hors périmètre, sans valeur ajoutée pour l'évaluation.
 - **Placement automatique du joueur** — le placement manuel démontre mieux la validation serveur.
 
 ## Limites connues
@@ -126,13 +125,20 @@ annonces, glyphes, contrastes).
   la page perd la partie en cours** (ADR 0007).
 - **Reconstruire pendant que `dotnet run` tourne casse le front** : les empreintes de `_framework/` changent, la page
   reste blanche avec un `404` sur `dotnet.<hash>.js`. Remède : relancer `dotnet run --project BattleShip.App`.
-- **Les polices viennent de Google Fonts** : sans réseau, la pile de secours s'applique et les trois apparences se
-  ressemblent davantage.
+- **Polices Google Fonts** : sans réseau, la pile de secours s'applique et les trois apparences se ressemblent.
 - **Accessibilité** : les contrastes sont calculés, mais **aucun lecteur d'écran réel n'a été essayé** ; les flèches
   ne suppriment pas le défilement de la page ; la grille du joueur est lue case par case, pas parcourue.
 - Le rejeu ne rejoue que les **coups** : il ne reconstitue pas l'état « coulé » intermédiaire.
-- La sérialisation JSON du front repose sur la réflexion ; son comportement sous **publication trimmée** n'a pas été
-  éprouvé.
+- La sérialisation JSON du front repose sur la réflexion ; son comportement sous **publication trimmée** est inconnu.
+
+## Code généré
+
+- **Protobuf** : `Grpc.Tools` génère dans `obj/`, depuis `Protos/battle.proto`, `BattleService`,
+  `BattleServiceBase`, `FireRequest`, `FireResponse` et `Shot` ; seul le `.proto` est versionné.
+- **`public partial class Program;`** (fin de `BattleShip.API/Program.cs`) : accroche de `WebApplicationFactory<Program>`
+  pour les tests d'intégration, pas du code métier.
+- **Gabarits** : `Program.cs`, `Properties/launchSettings.json` et `.gitignore` sortent de `dotnet new webapi`,
+  `dotnet new blazorwasm` et `dotnet new gitignore`, puis ont été adaptés.
 
 ## Documentation
 
@@ -144,6 +150,6 @@ annonces, glyphes, contrastes).
 | `docs/demo/` | preuves de la démonstration gRPC-Web |
 | `docs/adr/` | décisions d'architecture (0001 à 0010) |
 | `PROMPTS.md` | échanges décisifs avec l'IA |
-| `REVUE-IA.md` | six revues argumentées des propositions de l'IA |
+| `REVUE-IA.md` | sept revues argumentées des propositions de l'IA |
 | `CONTEXTE-IA.md` | contexte du projet |
 | `CLAUDE.md` | cadre de travail de l'IA sur ce dépôt |

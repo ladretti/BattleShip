@@ -1,7 +1,7 @@
 # ADR 0007 : Gestion de l'état côté Blazor
 
 ## Statut et date
-Accepté — 2026-09-15
+Accepté — 2026-09-15 — amendé 2026-09-16 (revue 5) : durée de vie `Scoped`
 
 ## Contexte
 

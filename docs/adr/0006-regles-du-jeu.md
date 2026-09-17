@@ -46,6 +46,10 @@ facilité d'écriture des tests.
   produirait des placements que le validateur refuserait.
 - Le tirage-rejet du `FleetPlacer` peut boucler sous non-adjacence : compteur de garde, puis
   relance complète.
+- **Borne basse de `GridSize` à 7** (`CreateGameInputValidator` : `InclusiveBetween(7, 20)`) : en deçà,
+  `FleetPlacer` échoue à placer la flotte par défaut sous la non-adjacence (0/20 à 5 et à 6, 20/20 à
+  partir de 7). La branche d'échec de placement de `GameEndpoints` est donc inatteignable par une
+  entrée validée : l'atteindre serait une **anomalie** (exception), pas un refus métier (ADR 0004).
 - Si le placement manuel déborde le budget front, le repli est le placement automatique avec un
   bouton « re-générer », arbitrage à consigner.
 
