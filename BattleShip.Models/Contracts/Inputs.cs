@@ -1,4 +1,3 @@
-
 namespace BattleShip.Models.Contracts;
 
 public sealed record CreateGameInput(int GridSize, string Difficulty);

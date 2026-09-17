@@ -1,4 +1,3 @@
-
 namespace BattleShip.Models.Contracts;
 
 public sealed record CellDto(int X, int Y, string State);
