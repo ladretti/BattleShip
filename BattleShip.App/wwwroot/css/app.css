@@ -1,21 +1,3 @@
-/* ============================================================================
-   Battleship — one interface, three skins.
-
-   Everything below is driven by custom properties declared per [data-theme] on
-   <html>. A theme changes the SUBSTRATE (what the board is made of) and the
-   MATERIAL of a shot (ink, fire, plastic). It never changes the STRUCTURE, and
-   never changes the glyph a cell carries — so the promise that the five cell
-   states stay distinguishable without colour holds in all three skins by
-   construction, not by three separate efforts.
-
-   Fonts: two variable families for all three themes, varied on their own axes
-   rather than swapped for new ones. Fraunces carries the display voice (its
-   optical-size, SOFT and WONK axes cover engraved chart lettering, industrial
-   heaviness and toy roundness); Archivo carries the interface, using its width
-   axis to go from chart-label narrow to moulded-plastic wide.
-   ============================================================================ */
-
-/* ---------- 1. Reset and base ---------------------------------------------- */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -60,17 +42,13 @@ button, input, select { font: inherit; color: inherit; }
     white-space: nowrap;
 }
 
-/* ---------- 2. Themes ------------------------------------------------------ */
-
-/* 2a. Hydrographic — a sea chart. Shots are ink on paper: a pale sounding for a
-   miss, vermilion that bleeds for a hit, a struck stamp for a sunk hull. */
 :root,
 [data-theme="chart"] {
     --bg: #0E2233;
     --bg-2: #15304A;
     --bg-3: #1B3D52;
-    --surface: #6B828B;   /* engraved ruling seen through the 1px gaps — 3.10:1 on paper */
-    --surface-2: #CFDAD7;  /* the paper margin around the plate */
+    --surface: #6B828B;
+    --surface-2: #CFDAD7;
     --line: #8FA5B2;
 
     --text: #EAF0F3;
@@ -87,7 +65,6 @@ button, input, select { font: inherit; color: inherit; }
     --cell-sunk: #14212B;      --on-sunk: #F4E3D6;
     --cell-ship: #35566E;      --on-ship: #E1E8E6;
 
-    /* Key art, engraved-chart weather: pale paper sky, ink silhouettes. */
     --sky-hi: #E9EEEA;
     --sky-lo: #C2D1D1;
     --sea-hi: #93ABB5;
@@ -119,7 +96,6 @@ button, input, select { font: inherit; color: inherit; }
     --panel-shadow: 0 18px 40px -24px #04121Fcc;
     --board-frame: 10px;
 
-    /* Faint depth soundings printed on the chart. */
     --substrate:
         radial-gradient(circle at 20% 30%, #B9C9C8 0 1px, transparent 1.2px),
         radial-gradient(circle at 70% 75%, #B9C9C8 0 1px, transparent 1.2px);
@@ -136,12 +112,11 @@ button, input, select { font: inherit; color: inherit; }
     --ui-tracking: 0.005em;
 }
 
-/* 2b. Steel — the interface is the ship. Painted plate, rivets, burn marks. */
 [data-theme="steel"] {
     --bg: #22262B;
     --bg-2: #2C3238;
     --bg-3: #363D45;
-    --surface: #2B3037;   /* the seam between plates, seen through the 3px gaps */
+    --surface: #2B3037;
     --surface-2: #3A414A;
     --line: #5E6772;
 
@@ -157,9 +132,8 @@ button, input, select { font: inherit; color: inherit; }
     --cell-miss: #7C858F;      --on-miss: #11151A;
     --cell-hit: #D8501F;       --on-hit: #1C0A02;
     --cell-sunk: #6E1C11;      --on-sunk: #FBE3DA;
-    --cell-ship: #2F353C;      --on-ship: #171B20;  /* dark glyph, the hull is light */
+    --cell-ship: #2F353C;      --on-ship: #171B20;
 
-    /* Key art, North Atlantic overcast: everything grey until something burns. */
     --sky-hi: #545C66;
     --sky-lo: #2E353C;
     --sea-hi: #3E474F;
@@ -173,7 +147,7 @@ button, input, select { font: inherit; color: inherit; }
 
     --hull-bed: #464D56;
     --pip: #99A2AC;
-    --hull: #99A2AC;      /* haze grey — 3.31:1 on the plate; darker cannot reach 3:1 */
+    --hull: #99A2AC;
     --hull-deck: #7E8894;
     --hull-line: #262C33;
     --hull-sunk: #6E1C11;
@@ -191,7 +165,6 @@ button, input, select { font: inherit; color: inherit; }
     --panel-shadow: 0 16px 34px -22px #000000cc;
     --board-frame: 14px;
 
-    /* Brushed plate: fine horizontal grain. */
     --substrate:
         repeating-linear-gradient(0deg, #ffffff08 0 1px, transparent 1px 3px),
         repeating-linear-gradient(90deg, #00000010 0 1px, transparent 1px 7px);
@@ -208,7 +181,6 @@ button, input, select { font: inherit; color: inherit; }
     --ui-tracking: 0.02em;
 }
 
-/* 2c. Board — the plastic game itself, seen close. Moulded case, pegged holes. */
 [data-theme="board"] {
     --bg: #10365E;
     --bg-2: #16457A;
@@ -231,7 +203,6 @@ button, input, select { font: inherit; color: inherit; }
     --cell-sunk: #8A1C17;      --on-sunk: #FFE6E2;
     --cell-ship: #BFC6CE;      --on-ship: #22303F;
 
-    /* Key art, moulded plastic: flat bright water, pale grey ships. */
     --sky-hi: #6FA9E0;
     --sky-lo: #3A7CC0;
     --sea-hi: #2364B4;
@@ -276,8 +247,6 @@ button, input, select { font: inherit; color: inherit; }
     --ui-axes: "wdth" 112, "wght" 500;
     --ui-tracking: 0;
 }
-
-/* ---------- 3. Shell ------------------------------------------------------- */
 
 .shell {
     min-height: 100vh;
@@ -331,8 +300,6 @@ button, input, select { font: inherit; color: inherit; }
     color: var(--text-dim);
     font-size: 1.05rem;
 }
-
-/* ---------- 4. Controls ---------------------------------------------------- */
 
 .button {
     display: inline-flex;
@@ -414,8 +381,6 @@ button, input, select { font: inherit; color: inherit; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---------- 5. Boards ------------------------------------------------------ */
-
 .board-frame {
     display: inline-block;
     padding: var(--board-frame);
@@ -428,8 +393,6 @@ button, input, select { font: inherit; color: inherit; }
     position: relative;
 }
 
-/* The rivets that only the steel hull has. Decoration elsewhere would be noise;
-   here it is the signature of the substrate. */
 [data-theme="steel"] .board-frame::before,
 [data-theme="steel"] .board-frame::after {
     content: "";
@@ -487,9 +450,6 @@ button.cell:hover:not(.miss):not(.hit):not(.sunk) {
     background: color-mix(in srgb, var(--cell-unknown) 82%, var(--accent));
 }
 
-/* The four resolved states. The glyph — set in the component, identical across
-   themes — is what makes them readable without colour; the theme only decides
-   what the material looks like. */
 .cell.miss  { background: var(--cell-miss);  color: var(--on-miss);  box-shadow: var(--cell-relief); }
 .cell.hit   { background: var(--cell-hit);   color: var(--on-hit);   box-shadow: var(--cell-relief); }
 .cell.sunk  { background: var(--cell-sunk);  color: var(--on-sunk);  box-shadow: var(--cell-relief); }
@@ -497,10 +457,6 @@ button.cell:hover:not(.miss):not(.hit):not(.sunk) {
 .cell.empty { background: var(--cell-unknown); }
 .cell.occupied { background: var(--cell-ship); color: var(--on-ship); box-shadow: var(--cell-relief); }
 
-/* The preview cells sit ON the ghost hull, so they paint no background of their own — the
-   hull is the ship you are about to drop. What tells valid from refused without colour is
-   the outline (solid vs dashed) plus these glyphs, whose contrast is the one already
-   measured against the hull fill. */
 .cell.preview-valid,
 .cell.preview-invalid { background: transparent; color: var(--on-ship); }
 
@@ -511,10 +467,6 @@ button.cell:focus-visible {
     position: relative;
 }
 
-/* ---------- 6. Impact ------------------------------------------------------ */
-
-/* One burst, living inside the struck cell and overflowing it. Its parts are themed by
-   --spark-* and --ripple. */
 .cell.is-struck { position: relative; z-index: 2; }
 
 .impact {
@@ -577,12 +529,6 @@ button.cell:focus-visible {
     100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.4); }
 }
 
-/* The struck board flinches. Applied to the frame, so the whole PLATE moves — a cell
-   moving on its own would read as a bug, not as a hit.
-   Driven by :has() rather than a class the component toggles on a timer: an animation
-   starts when an element begins matching, and the burst is rebuilt with a fresh key on
-   every shot, so the flinch restarts on its own. The page clears the impact for one
-   render before each shot, which is what makes two hits in a row both land. */
 .board-frame:has(.impact--hit),
 .board-frame:has(.impact--sunk) { animation: flinch 320ms cubic-bezier(.36,.07,.19,.97); }
 
@@ -593,7 +539,6 @@ button.cell:focus-visible {
     68%  { transform: translate(-2px, 1px) rotate(-0.12deg); }
 }
 
-/* The stamp that lands when a hull goes down. */
 .sunk-stamp {
     position: absolute;
     inset: 0;
@@ -626,8 +571,6 @@ button.cell:focus-visible {
     100% { opacity: 0; transform: rotate(-7deg) scale(1); }
 }
 
-/* Calm mode, and the OS-level preference, both land here. The states still
-   change — they just stop moving. An effect nobody can watch is not an effect. */
 @media (prefers-reduced-motion: reduce) {
     .impact__flash, .impact__ring, .impact__shard,
     .board-frame:has(.impact), .sunk-stamp span, .busy {
@@ -651,12 +594,7 @@ button.cell:focus-visible {
 [data-motion="calm"] .impact__ring,
 [data-motion="calm"] .impact__shard { opacity: 0; }
 
-/* The stamp is pure theatre: with no animation to take it away it would sit on the board
-   until the next shot, covering it. Calm mode drops it entirely — the live region announces
-   the sinking either way, and the wreck itself stays on the board. */
 [data-motion="calm"] .sunk-stamp { display: none; }
-
-/* ---------- 7. Fleet readout ----------------------------------------------- */
 
 .fleet { display: grid; gap: 0.55rem; margin: 0; padding: 0; list-style: none; }
 
@@ -676,7 +614,6 @@ button.cell:focus-visible {
 .fleet__name { letter-spacing: var(--ui-tracking); }
 .fleet__note { color: var(--text-dim); font-size: 0.85rem; }
 
-/* Hull integrity: one pip per cell of the ship. Reads as a hull, not a bar. */
 .hull { display: flex; gap: 2px; grid-column: 1 / -1; }
 
 .hull__pip {
@@ -688,8 +625,6 @@ button.cell:focus-visible {
 
 .hull__pip[data-state="hit"] { background: var(--cell-hit); }
 .hull__pip[data-state="sunk"] { background: var(--cell-sunk); }
-
-/* ---------- 8. Settings ---------------------------------------------------- */
 
 .settings { position: relative; }
 
@@ -726,8 +661,6 @@ button.cell:focus-visible {
 .swatch { display: flex; gap: 3px; }
 .swatch i { width: 12px; height: 20px; border-radius: 2px; display: block; }
 
-/* ---------- 9. Boot -------------------------------------------------------- */
-
 .boot {
     min-height: 100vh;
     display: grid;
@@ -759,18 +692,12 @@ button.cell:focus-visible {
 
 #blazor-error-ui .dismiss { cursor: pointer; float: right; }
 
-/* ---------- 10. Small screens ---------------------------------------------- */
-
 @media (max-width: 720px) {
     :root { --cell-size: 1.7rem; }
     .masthead { gap: 0.5rem 1rem; }
     .masthead__spacer { margin-left: 0; }
 }
 
-/* ---------- 11. Stage ------------------------------------------------------ */
-
-/* The board you act on is the hero; everything else is a sidebar. Two equal grids
-   side by side is what made the old screen unreadable — nothing said where to look. */
 .stage {
     display: grid;
     gap: clamp(1.25rem, 3vw, 2.5rem);
@@ -806,7 +733,6 @@ button.cell:focus-visible {
     font-variation-settings: var(--ui-axes), "wght" 640;
 }
 
-/* Your own board is reference, not target: same component, half the scale. */
 .own-board { --cell-size: 1.15rem; }
 .own-board .ruler { font-size: 0.55rem; }
 .own-board .cell { font-size: 0.55rem; }
@@ -830,8 +756,6 @@ kbd {
     padding: 0 0.35em;
     background: var(--bg-3);
 }
-
-/* ---------- 12. Drawers and log -------------------------------------------- */
 
 .drawer {
     border: 1px solid var(--line);
@@ -889,14 +813,6 @@ kbd {
     .stage { grid-template-columns: minmax(0, 1fr); }
 }
 
-
-/* ---------- 13. Hulls ------------------------------------------------------ */
-
-/* The overlay is a SECOND grid, stacked exactly over the board: same template, same gap,
-   same padding. A ship spanning n columns therefore covers n cells and the n-1 gutters
-   between them, which is what makes a hull one object rather than n squares. It is never
-   items added to the board itself — an explicitly placed item makes the board's
-   auto-placement route around it and pushes every following cell out of line. */
 .board-overlay {
     position: absolute;
     inset: var(--board-frame);
@@ -907,10 +823,6 @@ kbd {
     z-index: 1;
 }
 
-/* The bed under a ship. A cell sitting on a hull paints nothing, so without this it would
-   reveal the BOARD's background — which is the ruling colour seen through the gutters, and
-   that drew a grey halo around every ship. Painting the slot also erases the ruling inside
-   the ship's own footprint, which is what a single continuous hull should do. */
 .hull-slot {
     display: block;
     min-width: 0;
@@ -952,8 +864,6 @@ kbd {
 .hull--sunk .hull__block,
 .hull--sunk .hull__turret { fill: var(--hull-sunk); opacity: 0.8; }
 
-/* The ship about to be dropped. Solid when the rule accepts it, dashed when it does not —
-   the hint must not rest on colour alone, and the cells underneath keep their ✓ / ✕. */
 .hull--ghost .hull__body {
     stroke: #176B33;
     stroke-width: 5;
@@ -964,9 +874,6 @@ kbd {
     stroke-dasharray: 9 6;
 }
 
-/* A cell sitting on a hull paints no background — it would hide the ship underneath. It
-   keeps its glyph, which is what makes the state readable without colour, and rises above
-   the overlay so the glyph stays on top of the hull. */
 .cell.over-hull {
     background: transparent;
     box-shadow: none;
@@ -974,16 +881,7 @@ kbd {
     z-index: 2;
 }
 
-/* Damage, one element per damaged cell, placed by the grid rather than inside the hull's
-   viewBox — the gutter it would have to account for changes with the skin, so a mark drawn
-   in hull space would drift by up to a tenth of a cell. The blot covers the centre of the
-   cell generously on purpose: the glyph sits there, and its contrast was measured against
-   this fill. */
 .scar {
-    /* Centred and deliberately smaller than the cell: at full bleed the marks lined up into
-       a row of stars and swallowed the hull they are supposed to be damaging. Still wide
-       enough that the cell's glyph always lands on the mark, which is what keeps the glyph's
-       measured contrast true. */
     place-self: center;
     width: 70%;
     height: 70%;
@@ -996,16 +894,9 @@ kbd {
 
 .scar--sunk { background: var(--cell-sunk); width: 80%; height: 80%; }
 
-/* Deck furniture is the first thing to become mud at the side panel's scale, so the small
-   board keeps the silhouette and drops the rest. */
 .own-board { --ruler-size: 0.75rem; }
 .own-board .hull__deck { display: none; }
 
-
-/* ---------- 14. Front page ------------------------------------------------- */
-
-/* The pitch on one side, a battle actually happening on the other. The board is not an
-   illustration of the game — it is the game's own components, playing themselves. */
 .hero {
     display: grid;
     grid-template-columns: minmax(0, 1fr) max-content;
@@ -1019,12 +910,8 @@ kbd {
 
 .hero .page-title { max-width: 16ch; }
 
-/* The battle is decoration: it must never take a click or a tab stop away from the form
-   beside it. FiringGrid renders inert cells here, and the whole thing is aria-hidden. */
 .demo { pointer-events: none; user-select: none; }
 
-/* Three measured numbers, not a feature grid. "Hard is harder" says nothing; "Hard needs 41
-   shots instead of 96" says something, and this project measured it. */
 .levels {
     display: grid;
     gap: 0.9rem;
@@ -1076,11 +963,6 @@ kbd {
     .hero .page-title { max-width: none; }
 }
 
-
-/* ---------- 15. Key art ---------------------------------------------------- */
-
-/* A picture, not a demo. The pitch sits on the solid part of a scrim, so every word is
-   read against --bg — the contrast already measured — and never against the painting. */
 .keyart {
     position: relative;
     display: grid;
@@ -1114,8 +996,6 @@ kbd {
 
 .keyart .page-title { max-width: 15ch; }
 
-/* --- The sea, drifting ---------------------------------------------------- */
-
 .keyart__wave { animation: drift linear infinite; }
 .keyart__wave--far  { animation-duration: 26s; --slide: -200px; }
 .keyart__wave--mid  { animation-duration: 19s; --slide: -260px; }
@@ -1128,8 +1008,6 @@ kbd {
     to   { transform: translateX(var(--slide)); }
 }
 
-/* --- The ship, alive in the water ----------------------------------------- */
-
 .keyart__ship { animation: bob 9s ease-in-out infinite; transform-origin: 400px 480px; }
 .keyart__enemy { animation: bob 7s ease-in-out infinite reverse; transform-origin: 1260px 320px; }
 
@@ -1138,10 +1016,6 @@ kbd {
     50%      { transform: translateY(-7px) rotate(-0.45deg); }
 }
 
-/* --- One shot, every seven and a half seconds ------------------------------ */
-
-/* The single orchestrated moment of the page: muzzle, arc, impact, smoke. Everything else
-   on screen is quiet on purpose. */
 .keyart__muzzle { opacity: 0; animation: muzzle 7.5s linear infinite; transform-origin: 862px 400px; }
 
 @keyframes muzzle {
@@ -1200,8 +1074,6 @@ kbd {
     100%    { opacity: 0; transform: translate(0, 0) scale(0.3); }
 }
 
-/* --- Their answer: muzzle, shell, a column of water short of our bow -------- */
-
 .keyart__return-muzzle {
     opacity: 0;
     animation: muzzle 7.5s linear infinite;
@@ -1234,10 +1106,6 @@ kbd {
     100%    { opacity: 0; transform: scaleY(0.08); }
 }
 
-/* --- Held still ------------------------------------------------------------ */
-
-/* Calm mode and the system preference both land on ONE frame rather than an empty sea:
-   the shell in flight, the enemy already burning. A still picture is still a picture. */
 .keyart__scene--still .keyart__wave,
 .keyart__scene--still .keyart__ship,
 .keyart__scene--still .keyart__enemy,

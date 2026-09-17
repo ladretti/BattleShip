@@ -31,8 +31,7 @@
 
             <div class="field">
                 <label class="field__label" for="difficulty">Opponent</label>
-                @* Read from the shared contract, never from three strings typed here: the
-                   server rejects anything outside this list (ADR 0008). *@
+
                 <select id="difficulty" @bind="_difficulty" disabled="@IsBusy">
                     @foreach (var level in DifficultyLevels.All)
                     {
@@ -46,8 +45,6 @@
             </button>
         </div>
 
-        @* The three states, all rendered. A failure leaves every control above usable, so the
-           player can simply try again once the API is back up (ADR 0007). *@
         <p class="status" role="status" aria-live="polite">
             @if (IsBusy)
             {
@@ -66,9 +63,6 @@
     </div>
 </section>
 
-@* Not a feature grid: three numbers this project actually measured, which is the only
-   honest way to say how much harder "Hard" is. The figures come from the AI duel —
-   200 games per level at a fixed seed — and are the same ones quoted in the README. *@
 <section class="levels">
     <h2 class="levels__title">How long each opponent takes to sink you</h2>
     <dl class="levels__list">
@@ -88,17 +82,8 @@
 </section>
 
 @code {
-    // Bounded by CreateGameInputValidator, which accepts 7 to 20 — and by the fact that the
-    // default fleet admits no legal placement at all below 7 under the non-adjacency rule.
-    // A handful of sizes as a list, rather than a free number field, keeps the page from
-    // offering anything the server would refuse.
     private static readonly int[] GridSizes = [8, 10, 12, 15];
 
-    /// <summary>
-    /// Measured, not guessed: BattleShip.API/Benchmark/StrategyBenchmark.cs, 200 games per
-    /// strategy at seed 20260915. Quoted here because "Hard is harder" means nothing, and
-    /// "Hard needs 41 shots instead of 96" means something.
-    /// </summary>
     private static readonly (string Name, string Shots, string Note)[] Levels =
     [
         (DifficultyLevels.Easy, "95.7", "Fires at random. You have time."),
@@ -113,7 +98,6 @@
 
     protected override void OnInitialized() => State.OnChange += OnStateChanged;
 
-    /// <summary>What each level does, in the player's terms rather than the algorithm's.</summary>
     private static string Describe(string level) => level switch
     {
         DifficultyLevels.Easy => "fires at random",
@@ -126,14 +110,11 @@
     {
         await State.CreateAsync(_gridSize, _difficulty);
 
-        // Navigate only on success: on failure the player stays here, sees why, and retries.
         if (State.State == LoadState.Ready)
             Navigation.NavigateTo("/placement");
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);
 
-    // Without this, GameState — which outlives every page — would keep this component alive
-    // and re-render it after it was destroyed (ADR 0007).
     public void Dispose() => State.OnChange -= OnStateChanged;
 }

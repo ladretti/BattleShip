@@ -1,22 +1,10 @@
 @using BattleShip.App.Rendering
 
-@* One ship, drawn as a single shape across the cells it occupies — gutters included, which
-   is the whole point: the board's gap would otherwise slice the hull into n squares.
-
-   preserveAspectRatio is "none" on purpose. The element covers n cells PLUS the n-1 gutters
-   between them, and the gutter is 1px on the chart and 6px on the tabletop, so the exact
-   ratio is a theme decision that CSS owns and this component cannot know. Letting the hull
-   stretch to fill makes a ship slightly longer on a chunkier board, which reads as a
-   heavier board rather than as a mistake. Damage is NOT drawn here for the same reason —
-   see HullGeometry's remarks. *@
-
 <svg class="hull @Class" viewBox="0 0 @HullGeometry.N(_shape.ViewWidth) @HullGeometry.N(_shape.ViewHeight)"
      preserveAspectRatio="none" aria-hidden="true" focusable="false">
     <path class="hull__body" d="@_shape.Outline" />
     <path class="hull__deck" d="@_shape.DeckLine" />
 
-    @* Deck furniture is the first thing to become mud at the size of the side panel's
-       board, so below a certain scale the hull keeps only its silhouette. *@
     @if (!Compact)
     {
         @foreach (var block in _shape.Blocks)
@@ -40,10 +28,8 @@
 
     [Parameter] public bool Vertical { get; set; }
 
-    /// <summary>Drops the deck furniture, for boards too small to read it.</summary>
     [Parameter] public bool Compact { get; set; }
 
-    /// <summary>Modifier classes: <c>hull--sunk</c>, <c>hull--ghost</c>, <c>hull--refused</c>.</summary>
     [Parameter] public string? Class { get; set; }
 
     private HullShape _shape = HullGeometry.For(1, false);

@@ -1,14 +1,8 @@
 @inject Random Random
 
-@* Draws one board from the cells the SERVER described, and reports clicks. It decides
-   nothing — not even whether a cell may be fired at again: that refusal belongs to the
-   server, and letting the click through is what makes it demonstrable (ADR 0005). *@
-
 <div class="board-frame">
     <div class="board" role="group" aria-label="@Label" style="@Template">
 
-        @* Coordinate rulers. Not decoration: naming a cell out loud is how the game has
-           always been played, and the aria-labels below use the same names. *@
         <span class="ruler" aria-hidden="true"></span>
         @for (var x = 0; x < GridSize; x++)
         {
@@ -31,10 +25,6 @@
 
                 @if (Interactive)
                 {
-                    @* Roving tabindex: exactly one cell of the grid is in the tab order, so Tab
-                       steps over the whole board in one press instead of walking GridSize² cells,
-                       and the arrow keys move within it. This is the standard keyboard pattern
-                       for a grid, and it is what makes the game playable without a mouse. *@
                     <button type="button" class="cell @state @(struck ? "is-struck" : null) @(OverHull(cell) ? "over-hull" : null)"
                             aria-label="@LabelFor(cell, state)"
                             @ref="_cellRefs[index]"
@@ -59,13 +49,6 @@
 
     </div>
 
-    @* The hulls, on their own grid stacked exactly over the board. Same template, same gap,
-       same padding — so a ship spanning n columns covers n cells AND the n-1 gutters between
-       them, which is what makes it read as one object instead of n squares.
-
-       It is a SEPARATE grid, never items added to the board: an explicitly placed item makes
-       the board's auto-placement route around it and pushes every following cell one square
-       out of line. That defect shipped once already; this is the shape that cannot have it. *@
     <div class="board-overlay" aria-hidden="true" style="@Template">
         @foreach (var ship in Ships)
         {
@@ -75,9 +58,6 @@
             </span>
         }
 
-        @* Damage is per cell, placed per cell. Putting it inside the hull's viewBox would
-           make it drift by up to a tenth of a cell, because the gutter it has to account for
-           changes with the skin. *@
         @foreach (var (at, state) in Ships.SelectMany(ship => ship.Damage))
         {
             <span class="scar scar--@state"
@@ -93,11 +73,6 @@
     }
 </div>
 
-@* The burst is rendered INSIDE the cell that was struck, never as a grid item of its own.
-   Placing it explicitly in the grid made CSS auto-placement route the following cells
-   around it, which pushed the whole board one square out of line and grew a phantom
-   twelfth row — visible only in the browser, never in a test. As a child of the cell it
-   needs no measuring, survives a resize, and cannot disturb the layout. *@
 @{
     RenderFragment Burst(ImpactMark impact) =>
         @<span @key="impact.Sequence" class="impact impact--@impact.Kind" aria-hidden="true">
@@ -112,39 +87,22 @@
 }
 
 @code {
-    /// <summary>
-    /// The shot to play an impact for. <see cref="ImpactMark.Sequence"/> is what makes a
-    /// repeat of the same cell, or two hits in a row, restart the animation instead of
-    /// leaving the previous one frozen on screen.
-    /// </summary>
     public sealed record ImpactMark(Coordinate At, string Kind, int Sequence);
 
     [Parameter, EditorRequired] public int GridSize { get; set; }
 
-    /// <summary>
-    /// Every cell the player is entitled to see on this board, exactly as the server
-    /// projected it. Duplicates are allowed and the last one wins, which is how a "sunk"
-    /// cell overrides the "hit" that discovered it.
-    /// </summary>
     [Parameter, EditorRequired] public IReadOnlyList<CellDto> Cells { get; set; } = [];
 
     [Parameter, EditorRequired] public string Label { get; set; } = "";
 
     [Parameter] public bool Interactive { get; set; }
 
-    /// <summary>
-    /// The ships to draw a hull for. On the player's own board that is the whole fleet; on
-    /// the opponent's it is only what has been sunk, because that is the only thing the
-    /// server sends cells for (ADR 0001, the secrecy rule).
-    /// </summary>
     [Parameter] public IReadOnlyList<ShipOutline> Ships { get; set; } = [];
 
-    /// <summary>Drops the deck furniture, for a board too small to read it.</summary>
     [Parameter] public bool Compact { get; set; }
 
     [Parameter] public ImpactMark? Impact { get; set; }
 
-    /// <summary>The name stamped across the board when a hull goes down.</summary>
     [Parameter] public string? SunkLabel { get; set; }
 
     [Parameter] public EventCallback<Coordinate> OnCellClick { get; set; }
@@ -154,11 +112,6 @@
     private ElementReference[] _cellRefs = [];
     private int _focused;
 
-    /// <summary>
-    /// Both grids are declared with the SAME explicit template. The ruler track used to be
-    /// <c>auto</c>, which sized itself from its text — fine alone, but the overlay has no
-    /// text, so its <c>auto</c> track collapsed to nothing and every hull sat one track off.
-    /// </summary>
     private string Template =>
         $"grid-template-columns: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));" +
         $"grid-template-rows: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));";
@@ -167,11 +120,6 @@
         ? $"grid-column: {ship.Origin.X + 2}; grid-row: {ship.Origin.Y + 2} / span {ship.Size}"
         : $"grid-column: {ship.Origin.X + 2} / span {ship.Size}; grid-row: {ship.Origin.Y + 2}";
 
-    /// <summary>
-    /// A cell with a hull under it paints no background of its own — otherwise it would hide
-    /// the ship it is sitting on. It keeps its glyph, which is what makes the state readable
-    /// without colour, and rises above the overlay so the glyph stays on top.
-    /// </summary>
     private bool OverHull(Coordinate cell) => _hullCells.Contains(cell);
 
     protected override void OnParametersSet()
@@ -185,22 +133,9 @@
         if (_cellRefs.Length != GridSize * GridSize)
             _cellRefs = new ElementReference[GridSize * GridSize];
 
-        // A smaller grid could otherwise leave the roving tabindex pointing past the end,
-        // and no cell at all would be reachable by Tab.
         _focused = Math.Clamp(_focused, 0, Math.Max(0, _cellRefs.Length - 1));
     }
 
-    /// <summary>
-    /// Puts keyboard focus back on a given cell. The page calls this after an exchange:
-    /// firing swaps the board from buttons to inert cells and back, which REPLACES the
-    /// focused element, so focus would otherwise fall back to the document body and a
-    /// keyboard player would have to tab all the way in again before every shot.
-    ///
-    /// Returns false, and does nothing, while the grid is not interactive — during the
-    /// exchange there is no button to focus. The caller keeps its request pending and tries
-    /// again on the next render rather than dropping it, which is the whole difficulty: the
-    /// first render after a shot is the one where the board is still inert.
-    /// </summary>
     public async Task<bool> FocusCellAsync(Coordinate cell)
     {
         var index = cell.Y * GridSize + cell.X;
@@ -212,11 +147,6 @@
         return true;
     }
 
-    /// <summary>
-    /// Arrow keys move within the grid; Home and End jump to the ends of the current row.
-    /// Enter and Space are not handled here on purpose — a <c>&lt;button&gt;</c> already
-    /// activates on both, and re-implementing that would only risk firing twice.
-    /// </summary>
     private async Task MoveFocusAsync(KeyboardEventArgs args, int index)
     {
         var row = index / GridSize;
@@ -240,12 +170,6 @@
         await _cellRefs[target].FocusAsync();
     }
 
-    /// <summary>
-    /// The debris flung by an impact, as inline custom properties the stylesheet animates.
-    /// Randomness is injected rather than taken from Random.Shared — the same discipline the
-    /// engine follows. Here it only decides where sparks fly, but an exception to that rule
-    /// is not worth arguing for.
-    /// </summary>
     private IEnumerable<string> Shards(string kind)
     {
         var count = kind == "miss" ? 6 : 12;
@@ -265,24 +189,13 @@
         }
     }
 
-    /// <summary>
-    /// CSS never accepts a decimal comma, and this app runs under whatever locale the
-    /// player's browser reports — so the invariant culture is not optional here.
-    /// </summary>
     private static string Css(double value) =>
         value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     private string StateOf(Coordinate cell) => _states.GetValueOrDefault(cell, "unknown");
 
-    /// <summary>Column names as the game says them out loud: A, B, C…</summary>
     private static string Column(int x) => ((char)('A' + x)).ToString();
 
-    /// <summary>
-    /// A glyph per state, so the five states stay distinguishable <b>without colour</b> —
-    /// for a colour-blind player, in high contrast mode, or on a printed screenshot. The
-    /// glyphs are identical in all three skins: a theme changes the material, never the
-    /// information.
-    /// </summary>
     private static string Glyph(string state) => state switch
     {
         "ship" => "■",

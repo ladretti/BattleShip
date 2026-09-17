@@ -1,12 +1,5 @@
 namespace BattleShip.Models;
 
-/// <summary>
-/// Places a fleet at random on the grid by rejection sampling, from a source of
-/// randomness injected through the constructor (never Random.Shared hard-coded: see
-/// the ADR on randomness injection). The only rule that decides whether a placement
-/// is valid is PlacementRules.Validate: this type reimplements neither overlap
-/// detection nor adjacency detection.
-/// </summary>
 public sealed class FleetPlacer(Random random)
 {
     private const int MaxAttemptsPerShip = 500;
@@ -45,8 +38,6 @@ public sealed class FleetPlacer(Random random)
     private ShipPlacement? TryPlaceShip(
         ShipTemplate template, List<ShipPlacement> alreadyPlaced, GameRules rules)
     {
-        // PlacementRules.Validate requires a complete fleet: we therefore describe to it
-        // the partial fleet (ships already placed + candidate) that is being validated.
         List<ShipTemplate> partialFleet =
         [
             .. alreadyPlaced.Select(p => new ShipTemplate(p.Name, p.Size)),

@@ -10,12 +10,6 @@ Content-Type: application/json
 GET {{api}}/games/{{gameId}}
 
 ### Place the fleet
-# Default fleet (GameRules.Default): Carrier 5, Battleship 4, Cruiser 3, Submarine 3,
-# Destroyer 2. These names are the canonical English Battleship nomenclature, a
-# redesignation and NOT a word-for-word translation of the former French names: Cruiser
-# is the size 3 ship, not the size 4 one, and Destroyer is the size 2 ship, not the
-# size 3 one. The sizes (5, 4, 3, 3, 2) are what matters functionally and they have
-# not changed.
 POST {{api}}/games/{{gameId}}/placement
 Content-Type: application/json
 
@@ -38,7 +32,3 @@ Content-Type: application/json
 
 { "games": 200, "seed": 20260915 }
 
-### Note on firing
-# Firing has no HTTP route: none was ever planned for it. It goes exclusively through
-# gRPC-Web (decision ADR 0005, task 14). The demonstration is done from the browser
-# (F12 console).

@@ -4,7 +4,6 @@ namespace BattleShip.Tests.Domain;
 
 public sealed class GameTests
 {
-    // 3x3 grid with a single horizontal destroyer at (0,0)-(1,0).
     private static Game TinyGame()
     {
         var rules = new GameRules(3, [new ShipTemplate("Destroyer", 2)], false, true);
@@ -29,8 +28,6 @@ public sealed class GameTests
     [Fact]
     public void A_shot_on_an_already_shot_cell_is_rejected()
     {
-        // (0,0) is a HIT, so the turn stays with the player (ExtraTurnOnHit).
-        // On a missed shot the expected rejection would be NotYourTurn, not CellAlreadyShot.
         var game = TinyGame();
         game.PlayerFires(new Coordinate(0, 0));
 
@@ -55,7 +52,7 @@ public sealed class GameTests
     public void A_missed_shot_by_the_opponent_gives_the_turn_back_to_the_player()
     {
         var game = TinyGame();
-        game.PlayerFires(new Coordinate(2, 2));   // missed: the turn passes
+        game.PlayerFires(new Coordinate(2, 2));
 
         var result = game.OpponentFires(new Coordinate(2, 2));
 
@@ -123,7 +120,7 @@ public sealed class GameTests
     public void A_player_shot_when_it_is_not_their_turn_is_rejected()
     {
         var game = TinyGame();
-        game.PlayerFires(new Coordinate(2, 2));   // missed: the turn passes
+        game.PlayerFires(new Coordinate(2, 2));
 
         var result = game.PlayerFires(new Coordinate(2, 1));
 
@@ -134,9 +131,6 @@ public sealed class GameTests
     [Fact]
     public void A_shot_on_a_game_that_has_not_started_is_rejected()
     {
-        // GameStatus.Placing is not reachable by any path at this stage: this test forces
-        // the state by reflection to check that the guard in Fire is fail-closed, hence
-        // that it will also reject any state added to the enumeration later on.
         var game = TinyGame();
         typeof(Game).GetProperty(nameof(Game.Status))!
             .SetValue(game, GameStatus.Placing);

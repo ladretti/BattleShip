@@ -48,9 +48,9 @@ public sealed class PlacementRulesTests
     }
 
     [Theory]
-    [InlineData(0, 1)]   // below
-    [InlineData(2, 0)]   // end to end
-    [InlineData(2, 1)]   // diagonal
+    [InlineData(0, 1)]
+    [InlineData(2, 0)]
+    [InlineData(2, 1)]
     public void Two_touching_ships_are_rejected(int x, int y)
     {
         var rules = Small with

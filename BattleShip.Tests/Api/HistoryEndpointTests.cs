@@ -8,21 +8,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace BattleShip.Tests.Api;
 
-/// <summary>
-/// GET /games/{id}/history — the ordered list of every shot of a game, both sides.
-///
-/// The harness (<see cref="Client"/>, <see cref="ReadyGame"/>) is deliberately a copy of
-/// <c>FireGrpcTests</c>'s rather than a shared base class: each test class stands on its
-/// own, and coupling two suites through inheritance for thirty lines buys less than it
-/// costs.
-///
-/// The game is created on "Easy" and the human fleet is placed in known rows. The
-/// OPPONENT's fleet, however, is placed at random by the server, so no test here may assume
-/// the outcome of a given shot: a test that asserted "(5,5) is a miss" would pass or fail
-/// depending on the run. Where the outcome matters — because a miss is what makes the
-/// opponent answer at all ("touche = on rejoue", ADR 0006) — it is obtained by firing until
-/// the server reports one, never by assuming it.
-/// </summary>
 public sealed class HistoryEndpointTests(WebApplicationFactory<Program> factory)
     : IClassFixture<WebApplicationFactory<Program>>
 {
@@ -64,8 +49,6 @@ public sealed class HistoryEndpointTests(WebApplicationFactory<Program> factory)
         Assert.NotNull(history);
         Assert.NotEmpty(history);
 
-        // The player fires first, and the endpoint must preserve that order — a history that
-        // came back sorted by coordinate, or reversed, would still be "not empty".
         Assert.Equal("Human", history[0].By);
         Assert.Equal(5, history[0].X);
         Assert.Equal(5, history[0].Y);
@@ -77,8 +60,6 @@ public sealed class HistoryEndpointTests(WebApplicationFactory<Program> factory)
         var id = await ReadyGame();
         var client = Client();
 
-        // Fire until the server reports a miss. Which cell misses depends on where the
-        // server placed the opponent's fleet, so it is discovered, never assumed.
         var shots = 0;
         string result;
         do
@@ -99,7 +80,6 @@ public sealed class HistoryEndpointTests(WebApplicationFactory<Program> factory)
         Assert.Contains(history, shot => shot.By == "Human");
         Assert.All(history, shot => Assert.Contains(shot.Result, new[] { "miss", "hit", "sunk" }));
 
-        // The opponent only ever answers AFTER the player's miss, never before the first shot.
         Assert.Equal("Human", history[0].By);
     }
 
@@ -109,9 +89,6 @@ public sealed class HistoryEndpointTests(WebApplicationFactory<Program> factory)
         var id = await ReadyGame();
         var client = Client();
 
-        // The opponent's fleet is placed at random, so the only way to be sure something gets
-        // sunk is to fire everywhere. The game stops accepting shots once it is over, which
-        // is why the refusals are swallowed here rather than asserted on.
         for (var y = 0; y < 10; y++)
         {
             for (var x = 0; x < 10; x++)
@@ -122,7 +99,6 @@ public sealed class HistoryEndpointTests(WebApplicationFactory<Program> factory)
                 }
                 catch (Grpc.Core.RpcException)
                 {
-                    // Already shot, or the game has ended: neither is what this test measures.
                 }
             }
         }
@@ -134,13 +110,8 @@ public sealed class HistoryEndpointTests(WebApplicationFactory<Program> factory)
         var sunk = history.Where(s => s.SunkShipName is not null).ToList();
         Assert.NotEmpty(sunk);
 
-        // A ship's name only ever appears on the shot that sank it — never on the hits that
-        // preceded it, which would let a client know a ship was doomed one shot early.
         Assert.All(sunk, shot => Assert.Equal("sunk", shot.Result));
 
-        // Grouped BY SIDE: both fleets carry the same five ship names, so "Carrier" legitimately
-        // appears twice in a game where each side sank the other's. What must never happen is the
-        // same side sinking the same ship twice.
         Assert.Equal(
             sunk.Select(s => (s.By, s.SunkShipName)).Distinct().Count(),
             sunk.Count);

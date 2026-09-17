@@ -22,17 +22,14 @@ public sealed class FleetPlacerTests
         Assert.True(result.IsOk);
         var cells = result.Value.SelectMany(s => s.Cells).ToList();
 
-        // No cell outside the grid.
         Assert.All(cells, c =>
         {
             Assert.InRange(c.X, 0, GameRules.Default.GridSize - 1);
             Assert.InRange(c.Y, 0, GameRules.Default.GridSize - 1);
         });
 
-        // No overlap.
         Assert.Equal(cells.Count, cells.Distinct().Count());
 
-        // No adjacency between two distinct ships.
         foreach (var a in result.Value)
             foreach (var b in result.Value.Where(x => !ReferenceEquals(x, a)))
                 foreach (var ca in a.Cells)

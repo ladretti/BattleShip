@@ -1,6 +1,3 @@
-@* The shot history, and a cursor that replays it. The replay is RENDER ONLY: moving the
-   slider changes what the boards draw and nothing else — no request is sent, no server state
-   is touched. That is why it stays available after the game is over. *@
 
 <details class="drawer">
     <summary>Shot history — @Shots.Count</summary>
@@ -47,10 +44,6 @@
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<ShotDto> Shots { get; set; } = [];
 
-    /// <summary>
-    /// How many shots the boards should draw, or <c>null</c> to draw the live game. The
-    /// parent owns this value; the panel only asks for it to change.
-    /// </summary>
     [Parameter] public int? Cursor { get; set; }
 
     [Parameter] public EventCallback<int?> CursorChanged { get; set; }
@@ -60,8 +53,6 @@
         if (!int.TryParse(args.Value?.ToString(), out var value))
             return;
 
-        // Dragging the cursor all the way to the right is how the player says "show me the
-        // live game again", so it maps back to null rather than to a frozen full history.
         await CursorChanged.InvokeAsync(value >= Shots.Count ? null : value);
     }
 

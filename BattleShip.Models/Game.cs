@@ -1,11 +1,5 @@
 namespace BattleShip.Models;
 
-/// <summary>
-/// State machine of a game. PlayerFires and OpponentFires are two symmetric methods
-/// that share the same firing engine (Fire): only the shooting player and the targeted
-/// board change. It is through OpponentFires that the opponent plays — there is no
-/// other way to make it fire.
-/// </summary>
 public sealed class Game
 {
     private readonly List<ShotRecord> _history = [];
@@ -13,44 +7,13 @@ public sealed class Game
     public Guid Id { get; }
     public GameRules Rules { get; }
 
-    /// <summary>
-    /// Name of the difficulty level the opponent was created with (e.g. "Easy", "Normal",
-    /// "Hard" — see <c>CreateGameInputValidator</c> for the closed set of accepted
-    /// values). Deliberately a name, not an <see cref="IOpponentStrategy"/> instance:
-    /// a name is data, so it survives a future serialization the day persistence leaves
-    /// the backlog, where a strategy instance would not; the front end needs to display
-    /// the game's level, which calls for the data, not the behavior; and it keeps this
-    /// aggregate free of any behavioral object, consistent with a store that only holds
-    /// state. The API layer resolves the actual <see cref="IOpponentStrategy"/> from this
-    /// name, through <c>IOpponentStrategyFactory</c>, at the moment it makes the opponent
-    /// fire — never here.
-    /// </summary>
     public string OpponentDifficulty { get; }
-    // Private setter: only PlaceHumanFleet replaces it, once, to move a Placing game to
-    // InProgress. OpponentBoard has no such setter — the opponent fleet is placed once,
-    // up front, and never replaced.
+
     public Board HumanBoard { get; private set; }
     public Board OpponentBoard { get; }
-    /// <summary>
-    /// Player the next shot belongs to. Once <see cref="Status"/> has moved to
-    /// <see cref="GameStatus.Finished"/>, this value no longer carries a stable
-    /// meaning for designating the winner: depending on
-    /// <see cref="GameRules.ExtraTurnOnHit"/>, it points either to the shooter who has
-    /// just sunk the last ship (the turn stayed with them), or to their opponent (the
-    /// turn switched on a missed shot). This is not a bug — Finished blocks any new
-    /// shot — but a game state DTO must not rely on it to designate the winner.
-    /// </summary>
     public Player CurrentPlayer { get; private set; }
     public GameStatus Status { get; private set; }
 
-    /// <summary>
-    /// Log of the game's shots, in chronological order.
-    ///
-    /// Careful: IReadOnlyList is a view over a mutable List. A cast to List would
-    /// make it possible to bypass the controlled insertion done by Fire() and to
-    /// corrupt the log. This risk is accepted and confined to the domain
-    /// (BattleShip.Models), as it is for Ship.HitCells.
-    /// </summary>
     public IReadOnlyList<ShotRecord> History => _history;
 
     private Game(
@@ -66,58 +29,23 @@ public sealed class Game
         OpponentDifficulty = opponentDifficulty;
     }
 
-    /// <summary>
-    /// <paramref name="opponentDifficulty"/> defaults to "Normal" so that the many
-    /// existing domain tests built around <see cref="Start"/>, which predate
-    /// <see cref="OpponentDifficulty"/>, keep compiling unchanged — this default is a
-    /// backward-compatibility convenience for tests, not a claim that "Normal" is the
-    /// right difficulty for production callers.
-    /// </summary>
     public static Game Start(
-        Guid id, GameRules rules, IReadOnlyList<Ship> humanShips, IReadOnlyList<Ship> opponentShips,
-        string opponentDifficulty = "Normal")
+    Guid id, GameRules rules, IReadOnlyList<Ship> humanShips, IReadOnlyList<Ship> opponentShips,
+    string opponentDifficulty = "Normal")
     {
         var humanBoard = new Board(rules.GridSize, humanShips);
         var opponentBoard = new Board(rules.GridSize, opponentShips);
         return new Game(id, rules, humanBoard, opponentBoard, GameStatus.InProgress, opponentDifficulty);
     }
 
-    /// <summary>
-    /// Creates a game whose human fleet is not placed yet: <see cref="HumanBoard"/> starts
-    /// empty and <see cref="Status"/> is <see cref="GameStatus.Placing"/>. The opponent's
-    /// fleet, by contrast, is placed up front by the server (<see cref="FleetPlacer"/>)
-    /// and never changes afterwards, so it is supplied here just like in
-    /// <see cref="Start"/>. Call <see cref="PlaceHumanFleet"/> to complete the setup and
-    /// move the game to <see cref="GameStatus.InProgress"/>.
-    ///
-    /// <paramref name="opponentDifficulty"/> is required, unlike <see cref="Start"/>'s
-    /// optional parameter of the same name: a game created through the HTTP contract
-    /// always names a difficulty (see <c>CreateGameInputValidator</c>), so there is no
-    /// legacy caller to keep compiling here, and a game without one designated would not
-    /// make sense.
-    /// </summary>
     public static Game Create(
-        Guid id, GameRules rules, IReadOnlyList<Ship> opponentShips, string opponentDifficulty)
+    Guid id, GameRules rules, IReadOnlyList<Ship> opponentShips, string opponentDifficulty)
     {
         var humanBoard = new Board(rules.GridSize, []);
         var opponentBoard = new Board(rules.GridSize, opponentShips);
         return new Game(id, rules, humanBoard, opponentBoard, GameStatus.Placing, opponentDifficulty);
     }
 
-    /// <summary>
-    /// Installs the human player's fleet and moves the game from
-    /// <see cref="GameStatus.Placing"/> to <see cref="GameStatus.InProgress"/>. Refuses
-    /// with <see cref="GameError.InvalidPlacement"/> in two distinct cases that this
-    /// single error deliberately does not distinguish between (see
-    /// <see cref="PlacementRules"/>, which already collapses overlap, out-of-bounds, wrong
-    /// fleet composition and adjacency into the same error): the placement itself may be
-    /// illegal, or the game may no longer be in the phase that accepts one (fleet already
-    /// placed, game already finished). No other <see cref="GameError"/> member describes
-    /// "placement no longer possible" without being misleading: <see cref="GameError.GameAlreadyFinished"/>
-    /// would be wrong for a game merely InProgress, and <see cref="GameError.GameNotStarted"/>
-    /// would say the opposite of what is true here (the game HAS started, which is
-    /// precisely why placing is refused).
-    /// </summary>
     public Result<bool> PlaceHumanFleet(IReadOnlyList<ShipPlacement> placements)
     {
         if (Status != GameStatus.Placing)

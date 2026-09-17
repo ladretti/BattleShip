@@ -67,7 +67,6 @@ public sealed class FireGrpcTests : IClassFixture<WebApplicationFactory<Program>
             Y = 5
         });
 
-        // If the first shot was a hit, the player fires again: the cell is still rejected.
         var ex = await Assert.ThrowsAsync<RpcException>(() =>
             client.FireAsync(new FireRequest
             {

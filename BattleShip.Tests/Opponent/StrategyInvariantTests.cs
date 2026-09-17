@@ -28,17 +28,6 @@ public sealed class StrategyInvariantTests
             var alreadyShot = new HashSet<Coordinate>();
             var shots = new List<ShotRecord>();
 
-            // Guard rail: a game cannot exceed GridSize * GridSize shots, since each
-            // shot consumes a distinct cell — which is precisely what this invariant
-            // guarantees. Beyond that, the strategy makes no more progress.
-            // xUnit imposes no time limit by default (no Timeout is set on this
-            // [Theory]): without this guard rail, a strategy that stops making
-            // progress would block the whole suite without ever producing a failure.
-            //
-            // This guard rail does NOT protect against an infinite loop inside a
-            // single call to NextShot: the assertion below would then never be
-            // reached. The real safeguard against that second case is the absence of
-            // an unbounded loop in NextShot, on the strategies' implementation side.
             var maxShots = rules.GridSize * rules.GridSize;
             var shotsPlayed = 0;
 

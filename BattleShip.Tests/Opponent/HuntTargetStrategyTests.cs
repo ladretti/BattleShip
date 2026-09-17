@@ -60,15 +60,12 @@ public sealed class HuntTargetStrategyTests
 
         var shot = strategy.NextShot(history);
 
-        Assert.Equal(0, (shot.X + shot.Y) % 2);   // back to the hunt phase
+        Assert.Equal(0, (shot.X + shot.Y) % 2);
     }
 
     [Fact]
     public void Two_aligned_hits_make_it_extend_the_line()
     {
-        // Two vertically adjacent hits at (4,4) and (4,5): the ship follows that
-        // axis. The strategy must aim at one end — (4,3) or (4,6) — and never at a
-        // perpendicular neighbor such as (3,4) or (5,5), which cannot belong to the ship.
         var history = History(
             new ShotRecord(new Coordinate(4, 4), ShotResult.Hit, Player.Opponent, null),
             new ShotRecord(new Coordinate(4, 5), ShotResult.Hit, Player.Opponent, null));

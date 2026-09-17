@@ -1,5 +1,3 @@
-@* Pure rendering: this component decides nothing. It draws the cells it is given, reports
-   what the player pointed at, and lets the page own the placement state. *@
 
 <div class="board-frame">
     <div class="placement-grid" role="group" aria-label="Placement grid" style="@Template">
@@ -22,9 +20,6 @@
                 var cell = new Coordinate(column, row);
                 var state = CssFor(cell);
 
-                @* Same roving-tabindex pattern as FiringGrid: Tab steps over the board, arrows
-                   move inside it. Focus also previews, so a keyboard player sees the same green
-                   or red hint a mouse player gets on hover. *@
                 <button type="button"
                         class="cell @state @(OverHull(cell) ? "over-hull" : null)"
                         aria-label="@LabelFor(cell)"
@@ -40,10 +35,6 @@
         }
     </div>
 
-    @* Same overlay as the firing board: the fleet you are laying out is drawn as hulls, not
-       as squares. The ghost is the ship you are about to drop — solid when the rule accepts
-       it, dashed when it does not. The dash is the point: the hint must not depend on colour
-       alone, and the cells underneath keep their ✓ / ✕ glyph for the same reason. *@
     <div class="board-overlay" aria-hidden="true" style="@Template">
         @foreach (var ship in _outlines)
         {
@@ -66,20 +57,10 @@
 @code {
     [Parameter, EditorRequired] public int GridSize { get; set; }
 
-    /// <summary>The ships already laid down, with the cells each one occupies.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<ShipPlacement> Placed { get; set; } = [];
 
-    /// <summary>
-    /// Where the ship being placed would land if the player clicked now, or <c>null</c>
-    /// when nothing is being pointed at or every ship is already placed.
-    /// </summary>
     [Parameter] public ShipPlacement? Preview { get; set; }
 
-    /// <summary>
-    /// Whether <see cref="Preview"/> would be accepted. A comfort, not a guarantee: the
-    /// page computes it with the domain's own rule, and the server decides anyway
-    /// (ADR 0007). A red preview does not prevent the click.
-    /// </summary>
     [Parameter] public bool PreviewIsValid { get; set; }
 
     [Parameter] public EventCallback<Coordinate> OnCellClick { get; set; }
@@ -94,23 +75,16 @@
     private ElementReference[] _cellRefs = [];
     private int _focused;
 
-    /// <summary>Both grids share one explicit template — see FiringGrid for why it is not auto.</summary>
     private string Template =>
         $"grid-template-columns: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));" +
         $"grid-template-rows: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));";
 
-    /// <summary>
-    /// A cell is over a hull when a ship is laid down there, and also while the ghost hovers
-    /// it: both draw a hull underneath, and a cell painting its own background would hide it.
-    /// </summary>
     private bool OverHull(Coordinate cell) => _hullCells.Contains(cell) || _previewCells.Contains(cell);
 
     private static string Slot(Coordinate origin, bool vertical, int size) => vertical
         ? $"grid-column: {origin.X + 2}; grid-row: {origin.Y + 2} / span {size}"
         : $"grid-column: {origin.X + 2} / span {size}; grid-row: {origin.Y + 2}";
 
-    // Recomputed whenever the page hands down new parameters, so the lookups below stay
-    // O(1) per cell instead of rescanning every ship for each of the GridSize² buttons.
     protected override void OnParametersSet()
     {
         _occupied = [];
@@ -174,8 +148,6 @@
 
     private string CssFor(Coordinate cell)
     {
-        // The preview wins over the occupied state on purpose: what matters while pointing
-        // is whether the ship WOULD fit, and an overlap is precisely what must show red.
         if (_previewCells.Contains(cell))
             return PreviewIsValid ? "preview-valid" : "preview-invalid";
 
@@ -184,7 +156,6 @@
 
     private static string Column(int x) => ((char)('A' + x)).ToString();
 
-    /// <summary>A glyph per state, so the grid reads without relying on colour.</summary>
     private static string Glyph(string state) => state switch
     {
         "occupied" => "■",

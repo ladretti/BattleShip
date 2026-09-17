@@ -2,21 +2,6 @@ using BattleShip.Models;
 
 namespace BattleShip.API.Strategies;
 
-/// <summary>
-/// Hard level opponent: for each ship still to be sunk, enumerates every
-/// placement still legal given what is known, counts how many placements go
-/// through each cell, then aims at the cell with the highest score. No
-/// neighborhood heuristic: the concentration of legal placements alone makes the
-/// strategy converge on the ships already hit.
-///
-/// Stateless: rebuilds its decision from ShotHistory on every call, just like
-/// RandomStrategy and HuntTargetStrategy. Randomness arrives through the
-/// constructor, never through Random.Shared, and only serves to break ties
-/// between cells with equal scores.
-///
-/// Every enumeration is bounded by remaining ships x 2 orientations x
-/// GridSize x GridSize origins: no loop runs "until it finds something".
-/// </summary>
 public sealed class DensityStrategy(Random random) : IOpponentStrategy
 {
     private const int UnsunkHitWeight = 10;
@@ -66,13 +51,6 @@ public sealed class DensityStrategy(Random random) : IOpponentStrategy
         {
             var best = positiveCandidates.Max(kv => kv.Value);
 
-            // Explicit sort: the enumeration order of a Dictionary<,> is not
-            // guaranteed by the .NET specification (only stable in practice as long
-            // as no removal takes place). Without this sort, the random draw over
-            // `bestCells` would rest on a non-contractual order: for the same seed,
-            // a runtime change could make random.Next() point at another cell,
-            // silently breaking the reproducibility that task 11 requires (the
-            // legality invariant would keep passing without detecting it).
             var bestCells = positiveCandidates
                 .Where(kv => kv.Value == best)
                 .Select(kv => kv.Key)
@@ -109,7 +87,6 @@ public sealed class DensityStrategy(Random random) : IOpponentStrategy
         {
             for (var y = 0; y < gridSize; y++)
             {
-                // Horizontal.
                 if (x + size <= gridSize)
                 {
                     yield return Enumerable.Range(0, size)
@@ -117,9 +94,6 @@ public sealed class DensityStrategy(Random random) : IOpponentStrategy
                         .ToList();
                 }
 
-                // Vertical. A ship of size 1 would produce the same placement as the
-                // horizontal one: skipping it would change nothing to the score (same
-                // cell, same weight) but avoids counting it twice.
                 if (size > 1 && y + size <= gridSize)
                 {
                     yield return Enumerable.Range(0, size)

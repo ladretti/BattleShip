@@ -47,9 +47,7 @@ else
     }
 
     <div class="stage">
-        @* The hero: the board you act on, at full size. Everything else is smaller on
-           purpose — two equal grids side by side told the player nothing about where to
-           look, and this game is only ever played on one of them. *@
+
         <div class="stage__board">
             <FiringGrid @ref="_opponentGrid"
                         GridSize="game.Opponent.GridSize"
@@ -82,9 +80,6 @@ else
                             Interactive="false" />
             </div>
 
-            @* Hull integrity per ship, rather than a count. It answers the question the
-               player actually has — which ship is about to go — and it is read straight
-               from the cells the server sent. *@
             <ul class="fleet">
                 @foreach (var ship in game.Own.Ships)
                 {
@@ -105,10 +100,6 @@ else
         </aside>
     </div>
 
-    @* The running commentary, and the one region a screen reader listens to. It is rendered
-       UNCONDITIONALLY: a live region that appears and disappears with the state it reports
-       is unreliable — assistive technology must already be observing the node when its text
-       changes. Only the text inside it varies. *@
     <p class="status" role="status" aria-live="polite">
         @if (_firing)
         {
@@ -145,10 +136,6 @@ else
 
     <HistoryPanel Shots="_history" Cursor="_replayCursor" CursorChanged="SetReplayCursor" />
 
-    @* Required by the subject: an EXPECTED gRPC-Web error, demonstrable from the browser.
-       Firing twice at the same cell gives InvalidArgument; this button gives NotFound,
-       which no legitimate click can produce since the page only ever fires at the game it
-       is showing. See README, "Démonstration gRPC-Web". *@
     <details class="drawer">
         <summary>gRPC-Web diagnostics</summary>
         <p class="fleet__note">
@@ -162,53 +149,28 @@ else
 }
 
 @code {
-    /// <summary>
-    /// Shots received since the last read of the board, drawn on top of it so the sequence
-    /// can be played back one cell at a time. They are dropped as soon as the authoritative
-    /// state is re-read — they are an animation, never a second source of truth.
-    /// </summary>
     private readonly List<CellDto> _opponentOverlay = [];
     private readonly List<CellDto> _ownOverlay = [];
 
     private bool _firing;
     private string? _shotError;
 
-    /// <summary>
-    /// What the live region says. Kept after the exchange ends rather than cleared, so a
-    /// player who missed the announcement can still read the last result.
-    /// </summary>
     private string _announcement = "Your move.";
 
-    /// <summary>The whole shot history, re-read after every exchange. Feeds the replay.</summary>
     private IReadOnlyList<ShotDto> _history = [];
 
-    /// <summary>
-    /// How many shots the boards draw, or <c>null</c> for the live game. Purely a rendering
-    /// concern: nothing about it ever reaches the server.
-    /// </summary>
     private int? _replayCursor;
 
     private FiringGrid? _opponentGrid;
 
-    /// <summary>
-    /// The cell to put focus back on once the board has been re-rendered as buttons again.
-    /// Deferred to OnAfterRenderAsync rather than done inline: the element to focus does not
-    /// exist yet at the end of the exchange.
-    /// </summary>
     private Coordinate? _refocus;
 
     private FiringGrid.ImpactMark? _opponentImpact;
     private FiringGrid.ImpactMark? _ownImpact;
     private string? _sunkLabel;
 
-    /// <summary>Counts the run of hits "hit = fire again" has given the player.</summary>
     private int _streak;
 
-    /// <summary>
-    /// Every impact carries one, and it only ever goes up. It is what tells Blazor to build
-    /// a NEW burst element rather than reuse the old one — without it, firing twice at the
-    /// same result would leave the first animation frozen mid-flight.
-    /// </summary>
     private int _impactSequence;
 
     protected override async Task OnInitializedAsync()
@@ -222,9 +184,6 @@ else
         if (_refocus is not { } cell || _opponentGrid is null)
             return;
 
-        // Cleared only once it actually worked. The renders that happen DURING the exchange
-        // draw an inert board, so the first attempt necessarily fails; dropping the request
-        // then would leave focus on the document body, which is the bug this exists to fix.
         if (await _opponentGrid.FocusCellAsync(cell))
             _refocus = null;
     }
@@ -237,7 +196,6 @@ else
         return
         [
             .. game.Opponent.Shots,
-            // Sunk ships come last so their cells override the "hit" that revealed them.
             .. game.Opponent.SunkShips.SelectMany(s => s.Cells),
             .. _opponentOverlay
         ];
@@ -245,8 +203,6 @@ else
 
     private IReadOnlyList<CellDto> OwnCells(GameDto game)
     {
-        // The player's own ships are drawn in every case: they are the player's, so hiding
-        // them during a replay would withhold nothing and only make the replay unreadable.
         if (_replayCursor is { } cursor)
             return
             [
@@ -264,11 +220,6 @@ else
 
     private static CellDto ToCell(ShotDto shot) => new(shot.X, shot.Y, shot.Result);
 
-    /// <summary>
-    /// Your fleet as hulls. Each ship's cells are re-read from what the board is CURRENTLY
-    /// showing — which during a replay is the replayed state, not the live one — so the
-    /// scars on a hull always agree with the cells around it.
-    /// </summary>
     private IReadOnlyList<ShipOutline> OwnHulls(GameDto game)
     {
         var shown = new Dictionary<Coordinate, string>();
@@ -288,8 +239,6 @@ else
                         })
                     ];
 
-                    // Derived, not taken from the live DTO: during a replay the ship may not
-                    // have been sunk yet at the cursor's position.
                     var sunk = cells.All(c => c.State is "hit" or "sunk");
                     return ShipOutline.FromCells(ship.Name, cells, sunk);
                 })
@@ -297,11 +246,6 @@ else
         ];
     }
 
-    /// <summary>
-    /// The opponent's hulls: only the wrecks, because only a sunk ship has cells on the wire
-    /// at all (ADR 0001). An afloat opposing ship has nothing to draw, which is the secrecy
-    /// rule holding by construction rather than by care.
-    /// </summary>
     private static IReadOnlyList<ShipOutline> OpponentHulls(GameDto game) =>
     [
         .. game.Opponent.SunkShips
@@ -311,10 +255,6 @@ else
 
     private void SetReplayCursor(int? cursor) => _replayCursor = cursor;
 
-    /// <summary>
-    /// A failed history read is not worth an error banner: the history is an extra, and the
-    /// game stays entirely playable without it. It is simply left as it was.
-    /// </summary>
     private async Task LoadHistoryAsync()
     {
         if (State.Current is not { } game)
@@ -325,10 +265,6 @@ else
             _history = result.Value;
     }
 
-    /// <summary>
-    /// Read from the board the server sent, not decided here: the game is over and the
-    /// opponent's whole fleet is sunk, so the player is the one still standing.
-    /// </summary>
     private static bool PlayerWon(GameDto game) => game.Opponent.SunkShips.Count == game.Fleet.Count;
 
     private async Task FireAsync(Coordinate at)
@@ -339,16 +275,7 @@ else
         await RunShotAsync(game.Id, at);
     }
 
-    /// <summary>
-    /// The expected-error demonstration: a well-formed but unknown game id, which
-    /// <c>FireRequestValidator</c> lets through on purpose (an unknown game is a business
-    /// refusal, not a malformed request) and which the engine answers with
-    /// <c>GameNotFound</c> → <c>StatusCode.NotFound</c>.
-    /// </summary>
     private async Task FireAtUnknownGameAsync() =>
-        // restoreFocus: false — the shot targets a game that does not exist, so there is no
-        // cell of THIS board it would make sense to move focus to. The player stays on the
-        // diagnostics button they just pressed.
         await RunShotAsync(Guid.NewGuid(), new Coordinate(0, 0), restoreFocus: false);
 
     private async Task RunShotAsync(Guid gameId, Coordinate at, bool restoreFocus = true)
@@ -356,10 +283,6 @@ else
         if (restoreFocus)
             _refocus = at;
 
-        // Cleared BEFORE the call, and left cleared for at least one render. The board
-        // flinches through `:has(.impact--hit)`, and a CSS animation only restarts when the
-        // element starts matching again — so two hits in a row need a frame with no impact
-        // in between, or the second one would land in silence.
         _opponentImpact = null;
         _ownImpact = null;
         _sunkLabel = null;
@@ -377,8 +300,6 @@ else
             _firing = false;
             _streak = 0;
 
-            // A refusal can mean this page is looking at a stale board — someone else's
-            // shot, a restarted API. Re-reading costs one request and removes the doubt.
             await State.RefreshAsync();
             return;
         }
@@ -397,9 +318,6 @@ else
         _announcement = Announce("Your shot", response.PlayerShot);
         StateHasChanged();
 
-        // The response carries a whole sequence — "hit = fire again" (ADR 0006) means the
-        // opponent may answer with several shots in a row. Showing them all at once would
-        // hide what actually happened, so they are unrolled with a short pause.
         foreach (var shot in response.OpponentShots)
         {
             await Task.Delay(520);
@@ -412,8 +330,6 @@ else
 
         await Task.Delay(420);
 
-        // The server is re-read rather than trusted to match what was just drawn: it is the
-        // one that knows which ships are sunk and whether the game is over (ADR 0007).
         await State.RefreshAsync();
         await LoadHistoryAsync();
         _opponentOverlay.Clear();
@@ -429,10 +345,6 @@ else
         }
     }
 
-    /// <summary>
-    /// One sentence per shot, spelled out for a listener: the square named the way the
-    /// rulers name it, and the sunk ship named when there is one.
-    /// </summary>
     private static string Announce(string who, BattleShip.API.Grpc.Shot shot)
     {
         var square = $"{(char)('A' + shot.X)}{shot.Y + 1}";

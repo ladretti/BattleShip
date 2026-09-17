@@ -7,9 +7,6 @@
     <header class="masthead">
         <a class="masthead__name" href="">Battleship</a>
 
-        @* Shown only when there is a game, and read straight from what the server sent.
-           The level is never chosen from here: changing it mid-game would change the
-           opponent under the player's feet. *@
         @if (State.Current is { } game)
         {
             <span class="masthead__state">
@@ -41,8 +38,6 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // The page already applied the stored settings before Blazor booted; this is the one
-        // moment they are read back into C# so the settings panel opens on the right values.
         if (firstRender)
             await Appearance.InitializeAsync();
     }

@@ -18,11 +18,6 @@ public sealed class SecretTests
 
         var dto = game.ToDto();
 
-        // Checked against the Opponent sub-tree only: the two boards share the same
-        // 0..9 coordinate space, so a coordinate can legitimately belong to both
-        // fleets. Searching the whole serialized game for a coordinate string would
-        // flag that overlap as a leak even when nothing leaked — the assertion must
-        // target what the opponent board actually exposes, not the whole payload.
         var exposedByOpponentBoard = dto.Opponent.Shots
             .Concat(dto.Opponent.SunkShips.SelectMany(s => s.Cells))
             .Select(c => new Coordinate(c.X, c.Y))
@@ -34,7 +29,7 @@ public sealed class SecretTests
             .Where(c => !revealed.Contains(c))
             .ToList();
 
-        Assert.NotEmpty(secretCells);   // otherwise the test would prove nothing
+        Assert.NotEmpty(secretCells);
         Assert.Empty(exposedByOpponentBoard.Intersect(secretCells));
     }
 

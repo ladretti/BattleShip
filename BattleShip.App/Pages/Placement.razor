@@ -84,8 +84,6 @@ else
         </aside>
     </div>
 
-    @* The three states. The preview hint is local and advisory; the alert below carries
-       what the SERVER said, which is the only verdict that counts (ADR 0007). *@
     <p class="status" role="status" aria-live="polite">
         @if (IsBusy)
         {
@@ -126,7 +124,6 @@ else
 
     private bool IsBusy => State.State == LoadState.Loading;
 
-    /// <summary>The first ship of the fleet that has not been laid down yet.</summary>
     private ShipTemplateDto? NextShip => State.Current?.Fleet
         .FirstOrDefault(t => _placed.All(p => p.Name != t.Name));
 
@@ -154,8 +151,6 @@ else
 
     private Task PlaceOrRemoveAsync(Coordinate cell)
     {
-        // Clicking a ship takes it back, which is the only way to move one that was put in
-        // the wrong place without clearing the whole fleet.
         var existing = _placed.FirstOrDefault(p => p.Cells().Contains(cell));
         if (existing is not null)
         {
@@ -167,14 +162,8 @@ else
         if (Candidate(cell) is not { } candidate)
             return Task.CompletedTask;
 
-        // Deliberately placed even when the preview says it will not do. The preview is a
-        // comfort; refusing the click here would make the server's own refusal
-        // undemonstrable, and would put a rule in the front (ADR 0007).
         _placed.Add(candidate);
 
-        // Dropped rather than recomputed for the NEXT ship at the same spot: that preview
-        // would sit right on top of the ship just laid down and hide it behind an "invalid"
-        // overlay the player never asked for. It comes back as soon as the pointer moves.
         ClearPreview();
         return Task.CompletedTask;
     }
@@ -191,17 +180,9 @@ else
             Navigation.NavigateTo("/play");
     }
 
-    /// <summary>Where the ship being placed would land, or <c>null</c> if the fleet is complete.</summary>
     private ShipPlacement? Candidate(Coordinate origin) =>
         NextShip is { } next ? new ShipPlacement(next.Name, origin, _orientation, next.Size) : null;
 
-    /// <summary>
-    /// Asks the domain — <see cref="PlacementRules.Validate"/>, the very rule the server
-    /// runs — whether the candidate fits, instead of reimplementing bounds, overlap and
-    /// adjacency in the front. The trick for validating an incomplete fleet is the one
-    /// <c>FleetPlacer</c> already uses: describe to the rule the partial fleet actually
-    /// being checked.
-    /// </summary>
     private void RecomputePreview(Coordinate? origin)
     {
         if (State.Current is not { } game || origin is not { } cell || Candidate(cell) is not { } candidate)
@@ -214,23 +195,6 @@ else
         _previewIsValid = CandidateFits(game, candidate);
     }
 
-    /// <summary>
-    /// Whether the ship being placed would be accepted where it is pointing.
-    ///
-    /// <para>It asks the domain — <see cref="PlacementRules.Validate"/>, the very rule the
-    /// server runs — but asks it about the candidate ALONE and then about the candidate
-    /// PAIRED with each ship already down, never about the whole fleet at once.</para>
-    ///
-    /// <para>That is not a refinement, it is a correction. Validating the whole fleet made
-    /// the preview blame the candidate for a problem it had nothing to do with: drop two
-    /// ships touching each other — which this page deliberately allows, since the server is
-    /// the authority — and from then on every square on the board answered "the ship would
-    /// not fit here", including squares that were perfectly free. Pair by pair, the answer
-    /// is about the candidate and only the candidate.</para>
-    ///
-    /// <para>ExtraTurnOnHit is irrelevant throughout: PlacementRules reads only GridSize,
-    /// Fleet and ShipsMayTouch, which is also why it is not on the wire.</para>
-    /// </summary>
     private bool CandidateFits(GameDto game, ShipPlacement candidate)
     {
         var alone = new GameRules(
@@ -257,11 +221,6 @@ else
         return true;
     }
 
-    /// <summary>
-    /// Whether the ships already laid down are legal among themselves. The page lets the
-    /// player create this situation on purpose, so it has to be able to say so — otherwise
-    /// the only feedback is a refusal from the server after pressing Confirm.
-    /// </summary>
     private bool PlacedFleetClashes(GameDto game)
     {
         if (_placed.Count < 2)

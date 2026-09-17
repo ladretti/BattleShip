@@ -2,16 +2,6 @@ using BattleShip.Models;
 
 namespace BattleShip.API.Strategies;
 
-/// <summary>
-/// Normal level opponent: hunts on the even parity cells, then targets the
-/// neighbors of a hit not yet covered by a sunk ship.
-/// Stateless: rebuilds its decision from ShotHistory on every call, just like
-/// RandomStrategy. Randomness arrives through the constructor, never through Random.Shared.
-///
-/// Every candidate enumeration is bounded by the grid size: no loop runs "until
-/// it finds something". See StrategyInvariantTests for the safety net, which only
-/// detects an absence of progress between two calls.
-/// </summary>
 public sealed class HuntTargetStrategy(Random random) : IOpponentStrategy
 {
     public string Name => "HuntTarget";
@@ -56,10 +46,6 @@ public sealed class HuntTargetStrategy(Random random) : IOpponentStrategy
             }
         }
 
-        // Any ship of size >= 2 necessarily covers an even parity cell: the hunt
-        // can ignore the other half of the grid. Falls back to every cell not yet
-        // shot at if the even parity grid is exhausted while the game is still
-        // running.
         var pool = evenParity.Count > 0 ? evenParity : all;
         return pool[random.Next(pool.Count)];
     }
@@ -67,8 +53,6 @@ public sealed class HuntTargetStrategy(Random random) : IOpponentStrategy
     private static IReadOnlyList<Coordinate> TargetCandidates(
         int gridSize, IReadOnlyList<Coordinate> hits, HashSet<Coordinate> alreadyShot)
     {
-        // If two uncovered hits are aligned, extend the line rather than proposing
-        // a perpendicular neighbor.
         var lineExtensions = new List<Coordinate>();
         for (var i = 0; i < hits.Count; i++)
         {
