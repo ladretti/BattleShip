@@ -53,33 +53,19 @@ historique, statistiques, accessibilité, déploiement…) plutôt que s'en teni
 
 ## 1 bis. État actuel du dépôt
 
-Au 2026-09-15, **l'échafaudage est fait et la conception est arrêtée**. Le dépôt Git est
-`BattleShip/` ; `csharp-school/` est un répertoire **frère**, hors du dépôt rendu — le
-conflit de `.git/` évoqué dans les versions précédentes de ce fichier **n'existe pas** et
-n'appelle aucun ADR.
+Au 2026-09-17, **le socle et trois extensions sont livrés** : partie complète jouable dans le
+navigateur, tir en gRPC-Web avec réponse et erreurs démontrables, trois niveaux d'adversaire
+mesurés, historique et rejeu, accessibilité clavier, trois apparences. `global.json` épingle le
+SDK 10 ; `dotnet build` sans avertissement ; `dotnet test` au vert.
 
-Présent : `BattleShip.slnx` et les quatre projets, avec les références inter-projets posées.
+Le code ne porte **aucun commentaire** (décision du binôme, 2026-09-17) : ce qu'un commentaire
+aurait expliqué se trouve dans `docs/adr/`, `REVUE-IA.md` ou `docs/conformite.md`. Ne pas en
+réintroduire.
 
-Reste à faire avant d'écrire du code métier :
+Conformité au sujet : `docs/conformite.md` (une commande par exigence). Conception :
+`docs/superpowers/specs/2026-09-15-bataille-navale-design.md` et `docs/adr/0001` à `0010`.
 
-- **Copier `global.json` à la racine.** Il est resté dans
-  `csharp-school/Ressources Bataille Navale/` ; le SDK utilisé est donc 10.0.401 **sans
-  épinglage**.
-- **Purger les pages modèle** `Counter.razor` et `Weather.razor` de `BattleShip.App`.
-- **Vérifier le montage gRPC de test** (`WebApplicationFactory` + `GrpcChannel`) avant toute
-  logique de tir : c'est le risque technique principal du projet (ADR 0005).
-
-```bash
-cp "../csharp-school/Ressources Bataille Navale/global.json" .
-dotnet --version                                  # doit afficher 10.x
-dotnet build && dotnet test
-```
-
-Conception et décisions : `docs/superpowers/specs/2026-09-15-bataille-navale-design.md` et
-`docs/adr/0001` à `0007`. Découpage des tâches : `docs/superpowers/plans/`.
-
-Pas de base de données imposée : l'état de partie est en mémoire par défaut. La
-persistance est une piste de backlog, pas une contrainte du socle.
+L'état de partie est en mémoire ; la persistance reste du backlog.
 
 ---
 

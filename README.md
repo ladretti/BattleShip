@@ -1,11 +1,7 @@
 # Bataille Navale — C# / ASP.NET Core
 
-TP d'autonomie — Cours C# ASP.NET (HTS Learning, Christophe MOMMER).
-
-> **État au 2026-09-16 : le socle et les trois extensions du backlog sont livrés.**
-> Une partie complète se joue dans le navigateur, de la création à la victoire, au clavier
-> comme à la souris. La démonstration gRPC-Web ci-dessous a été déroulée et ses preuves sont
-> dans `docs/demo/`. Ce qui reste ouvert est dit, sans détour, en « Limites connues ».
+TP d'autonomie C# ASP.NET (HTS Learning, Christophe MOMMER). **État au 2026-09-17 : le socle et les trois extensions
+du backlog sont livrés ; une partie complète se joue dans le navigateur, de la création à la victoire.**
 
 ## Binôme
 
@@ -14,240 +10,140 @@ TP d'autonomie — Cours C# ASP.NET (HTS Learning, Christophe MOMMER).
 
 ## Prérequis
 
-- **.NET SDK 10.x**. Vérifier avec `dotnet --version` ; la version épinglée est dans
-  `global.json` à la racine.
-- Un navigateur récent (la démonstration gRPC-Web passe par la console F12).
-- **Pour HTTPS seulement** — certificat de développement *approuvé*, pas seulement présent :
-
-  ```bash
-  dotnet dev-certs https --check --trust
-  ```
-
-  Un certificat « found » mais « not trusted » fait échouer la connexion sans qu'aucune
-  réponse n'arrive, ce que le navigateur rapporte comme un échec CORS trompeur. En HTTP,
-  ce prérequis ne s'applique pas.
+- **.NET SDK 10.x** — vérifier avec `dotnet --version` ; version épinglée par `global.json`.
+- Un navigateur récent : la démonstration gRPC-Web se lit dans la console F12.
+- **HTTPS seulement** : certificat de développement *approuvé* — `dotnet dev-certs https --check --trust`.
 
 ## Lancer le projet
 
-L'API et le front sont deux applications distinctes, à lancer dans **deux terminaux**.
-Les deux projets ont deux profils de lancement, `http` et `https` ; **`dotnet run` sans
-option prend le premier, c'est-à-dire `http`.** Prendre le même des deux côtés.
-
-### En HTTP — aucun certificat requis
+L'API et le front sont deux applications distinctes, à lancer dans **deux terminaux**. Chaque projet a deux profils,
+`http` et `https` ; `dotnet run` sans option prend le premier, `http`. **Prendre le même profil des deux côtés.**
 
 ```bash
-# Terminal 1 — l'API
-dotnet run --project BattleShip.API          # http://localhost:5184
+# HTTP (profil par défaut, aucun certificat) — terminal 1, puis terminal 2
+dotnet run --project BattleShip.API                          # http://localhost:5184
+dotnet run --project BattleShip.App                          # http://localhost:5210  ← ouvrir
 
-# Terminal 2 — le front Blazor WebAssembly
-dotnet run --project BattleShip.App          # http://localhost:5210
-```
-
-Ouvrir ensuite <http://localhost:5210>.
-
-### En HTTPS — exige le certificat de développement **approuvé**
-
-```bash
-dotnet dev-certs https --check --trust       # doit dire « trusted », pas seulement « found »
-
+# HTTPS (certificat approuvé requis) — terminal 1, puis terminal 2
 dotnet run --project BattleShip.API --launch-profile https   # https://localhost:7050
-dotnet run --project BattleShip.App --launch-profile https   # https://localhost:7073
+dotnet run --project BattleShip.App --launch-profile https   # https://localhost:7073  ← ouvrir
 ```
 
-Ouvrir ensuite <https://localhost:7073>.
-
-> **Ne pas mélanger les deux.** Le front choisit l'adresse de l'API qui correspond à son
-> propre schéma (`wwwroot/appsettings.json`, section `Api`), parce qu'une page servie en
-> https ne peut pas appeler une API en http — le navigateur le bloque comme contenu mixte,
-> quoi que dise CORS. Lancer le front en https alors que l'API tourne en http ne peut donc
-> pas marcher, et inversement.
->
-> Si une requête échoue avec « **échec de la requête CORS** » et un **code d'état `(null)`**,
-> le problème n'est **pas** CORS : un vrai refus CORS renvoie un code d'état. `(null)` veut
-> dire qu'aucune réponse n'est arrivée — serveur non démarré, mauvais profil, ou certificat
-> non approuvé.
-
-> Ne pas lancer `dotnet build` pendant que ces deux commandes tournent : le front servirait
-> un `index.html` pointant sur des ressources qui n'existent plus. Voir « Limites connues ».
-
-L'API et le front étant sur des origines distinctes, CORS est configuré côté API pour
-autoriser explicitement les **deux** origines du front (`Cors:Origins` dans
-`appsettings.Development.json`), ainsi que les en-têtes gRPC-Web.
+> **Ne pas mélanger les deux schémas.** Une page https ne peut pas appeler une API http, et le front prend l'adresse
+> de l'API d'après son propre schéma (`wwwroot/appsettings.json`, section `Api`). Un « échec CORS » avec un code
+> d'état **`(null)`** n'est pas un refus CORS — un refus renvoie un code : `(null)` veut dire qu'aucune réponse n'est
+> arrivée (serveur non démarré, mauvais profil, certificat non approuvé). L'API autorise explicitement les deux
+> origines du front (`Cors:Origins`) et expose les en-têtes gRPC-Web.
 
 ## Vérifier
 
 ```bash
-dotnet build
-dotnet test
-dotnet format          # avant tout commit
+dotnet build      # 0 avertissement
+dotnet test       # 145 tests
+dotnet format     # avant tout commit
 ```
 
-Essais manuels des endpoints HTTP : `api.http` à la racine.
-**`api.http` ne couvre pas le tir**, qui passe exclusivement par gRPC-Web (ADR 0005).
+Essais manuels des endpoints HTTP : `api.http` à la racine — `@api = http://localhost:5184`,
+`@apiHttps = https://localhost:7050`. **Le tir n'y figure pas** : il passe par gRPC-Web (ADR 0005).
 
 ## Règles du jeu retenues
 
 | Règle | Valeur |
 |---|---|
 | Grille | paramétrable, défaut **10×10** |
-| Flotte | paramétrable, défaut **5-4-3-3-2** : `Carrier` 5, `Battleship` 4, `Cruiser` 3, `Submarine` 3, `Destroyer` 2 |
+| Flotte | paramétrable, défaut **5-4-3-3-2** — noms canoniques du jeu : `Carrier`, `Battleship`, `Cruiser`, `Submarine`, `Destroyer` |
 | Navires adjacents | **interdits**, diagonales comprises |
 | Enchaînement des tours | **touche = on rejoue** |
-| Placement du joueur | **manuel**, validé côté serveur |
-| Placement de l'adversaire | automatique |
-
-Les noms de la flotte suivent la nomenclature canonique du jeu *Battleship* ; ce n'est **pas une
-traduction** des noms français (`Cruiser` fait 3 cases, pas 4 comme le « Croiseur » ; `Destroyer`
-en fait 2). Seuls les noms changent : les tailles restent 5-4-3-3-2.
-
-Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible avec parité),
-**Difficile** (densité probabiliste).
+| Placement | joueur **manuel**, validé côté serveur ; adversaire automatique |
+| Niveaux d'adversaire | **Facile** aléatoire, **Normal** chasse/cible, **Difficile** densité — 95,7 / 52,6 / 41,2 coups en moyenne (mesurés, revue 2) |
 
 ## Fonctionnalités livrées
 
-- **Partie complète contre l'ordinateur**, de la création à la victoire ou la défaite, puis
-  création d'une autre partie sans recharger la page.
-- **Placement manuel** de la flotte dans le navigateur. La prévisualisation verte/rouge
-  appelle `PlacementRules.Validate`, la règle même qu'exécute le serveur — mais elle ne
-  **bloque pas** le clic : c'est le serveur qui refuse (débordement, chevauchement,
-  adjacence), et son motif est affiché tel quel.
+- **Partie complète** contre l'ordinateur, de la création à la fin — **le serveur désigne le vainqueur**
+  (`GameDto.Winner`) — puis nouvelle partie sans recharger la page.
+- **Placement manuel** de la flotte : prévisualisation verte/rouge côté front, refus motivé côté serveur (débordement,
+  chevauchement, adjacence).
 - **Trois niveaux d'adversaire** remplaçables, choisis à la création.
-- **Tir en gRPC-Web** (`BattleService/Fire`) ; création, état, placement et historique en
-  HTTP. Le tir n'a **aucune** route HTTP, par décision (ADR 0005).
+- **Tir en gRPC-Web** (`BattleService/Fire`) ; création, état, placement et historique en HTTP.
 - **FluentValidation** sur toutes les entrées serveur, HTTP et gRPC, appelée explicitement.
-- Les trois états — chargement, succès, échec — rendus sur chaque page : couper l'API affiche
-  un motif exploitable et laisse l'interface utilisable.
-- **Le secret** : le front ne reçoit jamais la position d'un navire adverse encore à flot, et
-  l'adversaire ne voit jamais la grille du joueur — le type `ShotHistory` qu'il reçoit ne
-  porte aucun chemin vers un `Board` (vérifié par réflexion, `REVUE-IA.md` revue 1).
-- **Historique et rejeu** : la liste ordonnée des coups des deux camps, et un curseur qui
-  rejoue la partie. Le rejeu est un **rendu seul** — il n'émet aucune requête et ne touche
-  jamais l'état serveur.
-- **Trois apparences commutables à tout moment** depuis *Settings* — *Hydrographic* (carte
-  marine, les coups sont de l'encre), *Steel* (tôle peinte, les coups brûlent), *Tabletop*
-  (le jeu en plastique, les coups sont des pions). Plus un réglage **Impacts : complet ou
-  calme**. Les deux sont mémorisés entre deux visites. Une apparence change la matière,
-  jamais la structure ni les glyphes (ADR 0009).
-- **Page d'accueil illustrée** : une action navale vue depuis l'eau — horizon, mer qui
-  dérive, notre navire au premier plan, l'adversaire qui encaisse puis riposte. Dessinée en
-  SVG plutôt que photographiée, donc elle suit les trois apparences sans un seul fichier
-  d'image. `aria-hidden`, aucun point de tabulation, et figée sur une image en mode calme
-  comme sous `prefers-reduced-motion`. Les trois niveaux y sont présentés par leurs
-  **nombres mesurés**, pas par des adjectifs.
-- **Coques dessinées**, pas des carrés : chaque navire est une silhouette continue qui
-  franchit les gouttières entre ses cases, générée par géométrie plutôt que par des images
-  (une fonction au lieu de trente fichiers). Les dégâts se marquent sur la coque, une épave
-  garde sa silhouette. Le placement montre la coque qu'on pose, avec un fantôme à contour
-  plein si la règle l'accepte et pointillé sinon (ADR 0010).
-- **Chorégraphie d'impact** : anneaux de choc, débris projetés, le plateau qui tressaille sur
-  une touche ou un coulé — jamais sur un manqué — et un tampon quand une coque descend.
-- **Accessibilité** : les deux grilles se jouent au clavier seul (tabindex roving, flèches,
-  `Début`/`Fin`, `Entrée` pour agir, `R` pour pivoter), une région `aria-live` annonce chaque
-  coup, chaque état porte un **glyphe** en plus de sa couleur — **le même dans les trois
-  apparences** — et les contrastes sont mesurés dans les trois.
-- Tests métier et tests d'intégration : **142 tests**, `dotnet test`.
+- Les **trois états** — chargement, succès, échec — sur chaque page : couper l'API affiche un motif exploitable et
+  laisse l'interface utilisable.
+- **Le secret** : aucune position adverse non découverte n'atteint le front, et l'adversaire ne reçoit aucun chemin
+  vers la grille du joueur (`ShotHistory`, revue 1).
+- **Historique et rejeu** : coups ordonnés des deux camps et curseur de rejeu, rendu seul, sans requête ni effet sur
+  l'état serveur.
+- **Trois apparences** commutables (*Hydrographic*, *Steel*, *Tabletop*) et un réglage **Impacts complet ou calme**,
+  mémorisés entre deux visites (ADR 0009).
+- **Coques dessinées en SVG** par géométrie, franchissant les gouttières entre les cases ; dégâts marqués sur la
+  coque, épave conservée (ADR 0010).
+- **Page d'accueil illustrée** en SVG, `aria-hidden`, figée en mode calme et sous `prefers-reduced-motion`.
+- **Accessibilité** : les deux grilles au clavier seul (flèches, `Début`/`Fin`, `Entrée`, `R`), région `aria-live`, un
+  **glyphe** par état en plus de la couleur, contrastes mesurés.
 
 ## Démonstration gRPC-Web
 
-À faire dans le navigateur, avec la console F12 ouverte sur l'onglet **Réseau**. Filtrer sur
-`Fire` pour ne garder que les appels gRPC-Web.
+Dans le navigateur, console F12 ouverte sur l'onglet **Réseau**, filtre `Fire`.
 
-1. Créer une partie (`/`), poser les cinq navires en cliquant sur la grille, puis
-   **Confirm fleet**.
-2. **Réponse attendue** — cliquer une case vierge de « Their waters » : un
-   `POST /battleship.BattleService/Fire` apparaît, en `HTTP 200`, `Content-Type:
-   application/grpc-web`. Le coup s'affiche sur la grille, puis la riposte adverse se déroule
-   coup par coup sur « Your fleet ».
-3. **Erreur attendue nº 1** — cliquer **la même case** : la page affiche « You have already
-   fired at that cell », et l'appel revient avec `grpc-status: 3` (`InvalidArgument`),
+1. Créer une partie (`/`), poser les cinq navires, puis **Confirm fleet**.
+2. **Réponse attendue** — cliquer une case vierge de « Their waters » : un `POST /battleship.BattleService/Fire` en
+   `HTTP 200`, `application/grpc-web` ; le coup s'affiche, puis la riposte adverse se déroule.
+3. **Erreur attendue nº 1** — recliquer **la même case** : `grpc-status: 3` (`InvalidArgument`),
    `grpc-message: CellAlreadyShot`.
-4. **Erreur attendue nº 2** — déplier **gRPC-Web diagnostics** en bas de la page de jeu, puis
-   **Fire at an unknown game** : `grpc-status: 5` (`NotFound`),
-   `grpc-message: GameNotFound`.
+4. **Erreur attendue nº 2** — déplier **gRPC-Web diagnostics** en bas de la page de jeu, puis **Fire at an unknown
+   game** : `grpc-status: 5` (`NotFound`), `grpc-message: GameNotFound`.
 
-> **Point à comprendre pour lire l'onglet Réseau** : une erreur gRPC-Web revient en
-> **`HTTP 200`**. Le statut voyage dans les *trailers* (`grpc-status`, `grpc-message`), pas
-> dans le code HTTP. C'est pour cela que la politique CORS de l'API expose explicitement ces
-> en-têtes — sans cela le navigateur les masquerait et le client ne pourrait pas distinguer
-> les deux erreurs ci-dessus l'une de l'autre.
-
-### Preuves
-
-Le scénario a été déroulé et capturé dans `docs/demo/` :
+> Une erreur gRPC-Web revient en **`HTTP 200`** : le statut voyage dans les *trailers* (`grpc-status`,
+> `grpc-message`), pas dans le code HTTP — d'où l'exposition explicite de ces en-têtes par CORS.
 
 | Preuve | Contenu |
 |---|---|
 | `docs/demo/01-fire-success.png` | le tir accepté |
 | `docs/demo/02-invalid-argument.png` | `InvalidArgument` / `CellAlreadyShot` |
 | `docs/demo/03-not-found.png` | `NotFound` / `GameNotFound` |
-| `docs/demo/grpc-web-trace.md` | la trace réseau des trois appels, avec les `grpc-status` |
+| `docs/demo/grpc-web-trace.md` | la trace réseau des trois appels et leurs `grpc-status` |
 
 ## Arbitrages du backlog
 
-**Retenu**, par ordre d'attaque :
+**Retenu** — duel d'IA mesuré (`BattleShip.API/Benchmark/StrategyBenchmark.cs`, preuve chiffrée que les trois niveaux
+diffèrent) ; historique et rejeu (`GET /games/{id}/history` et le panneau de rejeu) ; accessibilité (clavier,
+annonces, glyphes, contrastes).
 
-1. **Duel d'IA + mesure** — **livré et mesuré** : N parties par stratégie à graine fixe, nombre
-   moyen de coups (`BattleShip.API/Benchmark/StrategyBenchmark.cs`). C'est la preuve chiffrée que
-   les trois niveaux diffèrent réellement ; les chiffres sont en « Limites connues ».
-2. **Historique des coups + rejeu** — **livré** : `GET /games/{id}/history` et le panneau de
-   rejeu de la page de jeu, curseur compris.
-3. **Accessibilité** — **livré pour l'essentiel** : clavier, annonces, glyphes, contrastes
-   mesurés. Voir « Limites connues » pour ce qui reste.
+**Écarté** :
 
-**Écarté du socle**, et pourquoi :
-
-- **Persistance SQLite / EF** — travail d'infrastructure qui ne sert ni le moteur ni
-  l'adversaire. `IGameStore` rend le changement local le jour où il devient utile.
-- **Multijoueur** — gestion de sessions et de temps réel hors périmètre.
+- **Persistance SQLite / EF** — infrastructure qui ne sert ni le moteur ni l'adversaire ; `IGameStore` rend le
+  changement local le jour où il devient utile.
+- **Multijoueur** — sessions et temps réel hors périmètre.
 - **Déploiement** — coût sans valeur ajoutée pour l'évaluation.
-- **Placement automatique du joueur** — écarté au profit du placement manuel, qui offre une
-  bien meilleure démonstration de la validation côté serveur.
+- **Placement automatique du joueur** — le placement manuel démontre mieux la validation serveur.
 
 ## Limites connues
 
-- **Le niveau Difficile est écrasant.** `DensityStrategy` combinée à « touche = on rejoue »
-  enchaîne typiquement 4 à 5 coups dès qu'elle touche ; le joueur perdra presque
-  systématiquement. C'est le résultat attendu de la combinaison de règles, pas un défaut.
-  **Le niveau Normal est le mode jouable ; le niveau Difficile est une démonstration de
-  l'algorithme.**
-- Les nombres moyens de coups par niveau sont **mesurés** (200 parties par stratégie, graine
-  20260915, `GameRules.Default` avec non-adjacence) : `Random` 95,7, `HuntTarget` 52,6,
-  `Density` 41,2 coups. L'ordre attendu est confirmé et `Density` reste sous le seuil de 55
-  coups fixé avant mesure (`docs/adr/0003-strategie-adversaire.md`, `REVUE-IA.md` revue 2).
-  Ces chiffres ne portent que sur cette composition de flotte et cette taille de grille.
-- L'état de partie est **en mémoire** : redémarrer l'API perd les parties en cours. Le front
-  ne conserve pas non plus l'identifiant de partie : **recharger la page perd la partie en
-  cours** (ADR 0007, réexamen).
-- Le tir n'est pas testable depuis `api.http` (conséquence assumée de l'ADR 0005).
-- **Reconstruire pendant que `dotnet run` tourne casse le front.** Les empreintes des fichiers
-  de `_framework/` changent, l'`index.html` servi pointe alors sur des ressources absentes et
-  la page reste blanche avec un `404` sur `dotnet.<hash>.js` en console. Remède : arrêter puis
-  relancer `dotnet run --project BattleShip.App`. Constaté pendant la mise au point de la
-  démonstration.
-- **Les polices viennent de Google Fonts.** Sans réseau, la pile de secours s'applique : le
-  jeu reste lisible mais les trois apparences se ressemblent davantage, les réglages d'axes
-  variables n'ayant plus de support.
-- **Accessibilité — ce qui reste.** Les contrastes ont été calculés (rapport WCAG 2.1) mais
-  **aucun lecteur d'écran réel n'a été essayé** : les annonces sont vérifiées au niveau du DOM,
-  pas à l'oreille. Les flèches ne suppriment pas le défilement de la page (Blazor ne permet pas
-  de `preventDefault` conditionnel sans interop JS, et l'annuler pour toutes les touches
-  emprisonnerait `Tab`). La grille du joueur n'est pas focalisable : elle est lue par son
-  `aria-label` case par case, pas parcourue.
-- Le rejeu ne rejoue que les **coups** : il ne reconstitue pas l'état « coulé » des navires
-  intermédiaires, chaque case gardant le résultat que le serveur a donné à ce coup-là.
-- La sérialisation JSON du front repose sur la réflexion. Elle est vérifiée en développement ;
-  son comportement sous **publication trimmée** (`dotnet publish` en Release) n'a pas été
+- **Le niveau Difficile est écrasant** : la densité probabiliste combinée à « touche = on rejoue » enchaîne 4 à 5 coups
+  dès qu'elle touche. **Normal est le mode jouable, Difficile une démonstration d'algorithme** (ADR 0006).
+- Les moyennes (200 parties par stratégie, graine 20260915) ne valent que pour cette flotte et cette grille ;
+  `Density` reste sous le seuil de 55 coups fixé avant mesure (revue 2).
+- **État en mémoire** : redémarrer l'API perd les parties, et le front ne conserve pas l'identifiant, donc **recharger
+  la page perd la partie en cours** (ADR 0007).
+- **Reconstruire pendant que `dotnet run` tourne casse le front** : les empreintes de `_framework/` changent, la page
+  reste blanche avec un `404` sur `dotnet.<hash>.js`. Remède : relancer `dotnet run --project BattleShip.App`.
+- **Les polices viennent de Google Fonts** : sans réseau, la pile de secours s'applique et les trois apparences se
+  ressemblent davantage.
+- **Accessibilité** : les contrastes sont calculés, mais **aucun lecteur d'écran réel n'a été essayé** ; les flèches
+  ne suppriment pas le défilement de la page ; la grille du joueur est lue case par case, pas parcourue.
+- Le rejeu ne rejoue que les **coups** : il ne reconstitue pas l'état « coulé » intermédiaire.
+- La sérialisation JSON du front repose sur la réflexion ; son comportement sous **publication trimmée** n'a pas été
   éprouvé.
 
 ## Documentation
 
 | Document | Contenu |
 |---|---|
+| `docs/conformite.md` | une ligne par exigence du sujet, avec sa commande de contrôle |
 | `docs/superpowers/specs/2026-09-15-bataille-navale-design.md` | conception d'ensemble |
 | `docs/superpowers/plans/` | plan d'implémentation découpé en tâches |
-| `docs/demo/` | preuves de la démonstration gRPC-Web (captures + trace réseau) |
+| `docs/demo/` | preuves de la démonstration gRPC-Web |
 | `docs/adr/` | décisions d'architecture (0001 à 0010) |
 | `PROMPTS.md` | échanges décisifs avec l'IA |
-| `REVUE-IA.md` | revues argumentées des propositions de l'IA |
+| `REVUE-IA.md` | six revues argumentées des propositions de l'IA |
 | `CONTEXTE-IA.md` | contexte du projet |
 | `CLAUDE.md` | cadre de travail de l'IA sur ce dépôt |
