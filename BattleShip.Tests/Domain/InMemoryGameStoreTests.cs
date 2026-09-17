@@ -199,7 +199,8 @@ public sealed class InMemoryGameStoreTests
         var store = new InMemoryGameStore();
         var game = GameOnDefaultGrid();
         store.Save(game);
-        store.Mutate(game.Id, g => g.PlayerFires(new Coordinate(0, 0)));
+        var shot = store.Mutate(game.Id, g => g.PlayerFires(new Coordinate(0, 0)));
+        Assert.True(shot.IsOk);
 
         var result = store.ReadEvents(game.Id, 0);
 
@@ -214,12 +215,21 @@ public sealed class InMemoryGameStoreTests
         var store = new InMemoryGameStore();
         var game = GameOnDefaultGrid();
         store.Save(game);
-        store.Mutate(game.Id, g => g.PlayerFires(new Coordinate(0, 0)));
-        store.Mutate(game.Id, g => g.PlayerFires(new Coordinate(1, 1)));
+
+        var firstShot = store.Mutate(game.Id, g => g.CurrentPlayer == Player.Human
+            ? g.PlayerFires(new Coordinate(0, 0))
+            : g.OpponentFires(new Coordinate(0, 0)));
+        Assert.True(firstShot.IsOk);
+
+        var secondShot = store.Mutate(game.Id, g => g.CurrentPlayer == Player.Human
+            ? g.PlayerFires(new Coordinate(1, 1))
+            : g.OpponentFires(new Coordinate(1, 1)));
+        Assert.True(secondShot.IsOk);
 
         var all = store.ReadEvents(game.Id, 0).Value;
         var tail = store.ReadEvents(game.Id, 2).Value;
 
+        Assert.True(tail.Count > 1, "The tail must contain more than one event or truncation cannot be detected.");
         Assert.Equal(all.Count - 2, tail.Count);
         Assert.Equal(2, tail[0].Sequence);
     }
