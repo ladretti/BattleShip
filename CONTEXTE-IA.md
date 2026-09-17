@@ -28,9 +28,9 @@ l'adversaire, la garantie tient dans le type `ShotHistory`).
 
 ## Commandes, ports et environnement
 
-SDK 10.0.401 épinglé par `global.json`. Profil par défaut `http` : API `http://localhost:5184`, front
-`http://localhost:5210` ; profil `https` : `7050` et `7073`. Ne pas mélanger les schémas. Lancement,
-vérification et démonstration gRPC-Web : `README.md`.
+SDK 10.0.100 `latestFeature` (`global.json`), soit 10.0.401 en pratique. Profil par défaut `http` : API
+`http://localhost:5184`, front `http://localhost:5210` ; profil `https` : `7050` et `7073`. Ne pas mélanger
+les schémas. Lancement, vérification et démonstration gRPC-Web : `README.md`.
 
 ## Conventions et méthode de collaboration
 
