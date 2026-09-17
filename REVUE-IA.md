@@ -1,9 +1,9 @@
 # Revues de propositions IA
 
-Six revues, chacune étayée par une exécution dont le résultat attendu avait été énoncé **avant** de
+Sept revues, chacune étayée par une exécution dont le résultat attendu avait été énoncé **avant** de
 lancer la commande — une proposition acceptée exige une preuve autant qu'une proposition rejetée.
-**Bilan : six revues, toutes closes : 2 acceptées, 3 adaptées, 1 rejetée** (la revue 2, confirmée
-par la mesure, compte parmi les acceptées).
+**Bilan : sept revues, toutes closes : 2 acceptées, 3 adaptées, 1 rejetée, 1 corrigée** (la revue 2,
+confirmée par la mesure, compte parmi les acceptées).
 
 ## Revue 1 — Aucune exception par tour d'adversaire (ADR 0004) — acceptée
 
@@ -40,9 +40,9 @@ types de `ShotHistory`, pas contre un plateau reçu par constructeur.
 **Proposition** : pour justifier les trois niveaux, l'IA a avancé des moyennes de littérature (≈ 96
 aléatoire, ≈ 65-60 chasse/cible, ≈ 42 densité), reprises en **hypothèse** par l'ADR 0003.
 
-**Hypothèse à vérifier** : ces valeurs viennent d'une grille 10×10 **sans** non-adjacence, que l'ADR
-0006 impose — ce qui donne plus d'information à la densité. Pour que le périmètre à trois niveaux
-tienne, il suffit que l'**ordre** soit respecté.
+**Hypothèse à vérifier** : ces valeurs viennent d'une littérature portant sur une grille 10×10
+**sans** la règle de non-adjacence que l'ADR 0006 impose ici — ce qui donne plus d'information à la
+densité. Pour que le périmètre à trois niveaux tienne, il suffit que l'**ordre** soit respecté.
 
 **Expérience** : `dotnet test --filter "FullyQualifiedName~StrategyBenchmark" --logger
 "console;verbosity=detailed"`, sur `StrategyBenchmark.Run(GameRules.Default, games: 200, seed:
@@ -109,11 +109,11 @@ lecture ramenée à `Find` — donc qu'il expose le risque que `IGameStore.cs` d
 `Game.History` et `Board.ReceivedShots`.
 
 **Expérience** : lecture ramenée à `store.Find(id)`, puis `dotnet test --filter
-"Concurrent_fires_and_reads..."` sur quatre conceptions de plus en plus agressives (jusqu'à grille
-300×300, 1920 tirs, salve de 300 tirs libérés par une même `Barrier`), chacune instrumentée pour
-horodater les `_history.Add` et les `Where(...).Select(...).ToList()` réels. Attendu : au moins une
-conception fait échouer le test. Erreur détectable : un retour de `Read` à `Find` dans un endpoint
-qui énumère une partie.
+"Concurrent_fires_and_reads_on_the_same_game_never_return_500_or_corrupt_state"` sur quatre
+conceptions de plus en plus agressives (jusqu'à grille 300×300, 1920 tirs, salve de 300 tirs libérés
+par une même `Barrier`), chacune instrumentée pour horodater les `_history.Add` et les
+`Where(...).Select(...).ToList()` réels. Attendu : au moins une conception fait échouer le test.
+Erreur détectable : un retour de `Read` à `Find` dans un endpoint qui énumère une partie.
 
 **Observation, première tentative — négative** : les **quatre conceptions restent vertes** malgré
 **224 chevauchements** mesurés à l'horloge sur une exécution, pour un coût de 4-6 s (suite de ≈ 5 s
@@ -147,11 +147,11 @@ dont la moitié isolée reste verte 3/3 à 800 tirs et encore 3/3 à 4 800 tirs.
 effet parce qu'en Blazor WebAssembly il n'y a qu'une portée — exact, mais la question est autre : le
 code est-il correct *par construction*, ou parce que l'hébergeur rend le défaut inoffensif ?
 
-**Expérience** : `dotnet run --file lifetimes.cs` (scratchpad référençant `BattleShip.App`)
-construit le conteneur avec `BuildServiceProvider(validateScopes: true)` — ce que Blazor WebAssembly
-n'active jamais — sur les **vrais types du projet**, pour les deux enregistrements. Attendu : le
-plan lève une `InvalidOperationException`, tout en `Scoped` se résout. Erreur détectable : le
-contrôle ne peut réussir des deux côtés.
+**Expérience** : `dotnet run --file lifetimes.cs` (scratchpad, réf. `BattleShip.App`) construit le
+conteneur avec `BuildServiceProvider(validateScopes: true)` — ce que Blazor WebAssembly n'active
+jamais — sur les **vrais types du projet**, pour les deux enregistrements. Attendu : le plan lève
+une `InvalidOperationException`, tout en `Scoped` se résout. Erreur détectable : une dépendance
+captive (Singleton consommant un Scoped) qui ne se manifeste que grâce à l'hébergeur WebAssembly.
 
 **Observation** : plan → `Cannot consume scoped service 'System.Net.Http.HttpClient' from singleton
 'BattleShip.App.Services.GameState'.` ; livré (tout `Scoped`) → `resolved GameState`. Conforme à
@@ -197,3 +197,19 @@ client et serveur sont compilés ensemble, et le découplage n'achèterait aucun
 (premier usage côté front) ; ADR 0008. Limites : rien n'empêche d'ajouter demain un attribut
 `System.Text.Json` sur ces records et de faire entrer JSON dans le domaine — aucun test ne garde
 cette frontière, seule la revue le fait ; la publication *trimmée* n'a pas été éprouvée.
+
+## Revue 7 — Le vainqueur déduit par le front — rejetée puis corrigée
+
+**Proposition** : `Play.razor`, `PlayerWon(game) => game.Opponent.SunkShips.Count ==
+game.Fleet.Count` (commit `ed4cb56`) : la victoire est une règle calculée côté client. **Hypothèse à
+vérifier** : la diapo 36 exige que le moteur identifie le gagnant, l'ADR 0007 que le front ne décide
+aucune règle ; les deux sont violées si `Game` ne porte pas de vainqueur. **Expérience** : `grep -rn
+Winner BattleShip.Models/` — attendu si conforme : au moins une propriété ; erreur détectable : une
+règle de fin de partie qui n'existe que dans l'interface. **Observation** : 0 occurrence. Après
+correction, `The_shooter_who_sinks_the_last_ship_is_the_winner` et
+`A_game_played_to_the_end_finishes_with_the_player_as_winner` au vert ; le second, lancé avec
+`"Opponent"` à la place de `"Human"`, échoue (`Expected: Opponent / Actual: Human`) — il discrimine.
+**Décision** : corrigée — `Game.Winner : Player?`, `GameDto.Winner : string?`, front qui lit la
+donnée. **Preuves et limites** : commits `5948009` (moteur et contrat) et `0d873f9` (partie
+complète) ; limite : `FireResponse` (gRPC) ne porte pas le vainqueur, la page relit l'état par HTTP
+après chaque échange.

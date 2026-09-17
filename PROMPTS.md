@@ -50,14 +50,14 @@ DTO vivaient dans `BattleShip.API`. **Prompt** : « /superpowers:executing-plans
 @docs/superpowers/plans/2026-09-15-bataille-navale.md — reprends le plan à partir de la tâche 16. »
 **Réponse** : avant d'écrire une ligne, l'IA a relevé que le plan ne dit pas d'où le front tire `GameDto` et a
 **posé la question au binôme** au lieu de trancher : recopier les records (dérive silencieuse) ou les déplacer
-dans `Models` (définition unique).
+dans `Models/Contracts` (définition unique).
 **Décision** : déplacement accepté (ADR 0008), `DtoMappings` restant dans l'API ; deux propositions du plan
 **rejetées** : les durées de vie DI (`GameState` `Singleton` dépendant d'un client `Scoped` — dépendance
 captive, revue 5) et `Adopt(GameDto)`, retiré avant commit faute d'usage (YAGNI).
 **Vérification** : renommage d'une propriété puis `dotnet build BattleShip.App` (la copie compilerait — revue
-6) ; `BuildServiceProvider(validateScopes: true)` ; Chrome piloté par DevTools → attendu préflight puis `POST
-/games` en `201`, observé `OPTIONS 204`, `POST 201`, console vide ; API arrêtée → message d'échec et page
-toujours utilisable, comme attendu.
+6) ; `BuildServiceProvider(validateScopes: true)` — attendu : le plan lève, le livré résout ; observé : conforme
+(revue 5) ; Chrome piloté par DevTools → attendu préflight puis `POST /games` en `201`, observé `OPTIONS 204`,
+`POST 201`, console vide ; API arrêtée → message d'échec et page toujours utilisable, comme attendu.
 **Preuve / limite** : commit `fe16e5b` (contrat déplacé) ;
 commit `d037bcf` (tâche 16) ; limite : Chrome lancé avec `--ignore-certificate-errors`, la confiance faite au
 certificat de développement n'est donc pas établie.
@@ -115,9 +115,9 @@ fort.
 une apparence change le substrat, jamais le balisage ni le glyphe d'une case. Bootstrap retiré, principale
 cause du rendu « gabarit ».
 **Vérification** : `node contrast.mjs` sur les trois palettes → attendu toutes paires ≥ 4,5:1, observé **cinq
-échecs** (3,82 / 4,21 / 4,49 / 4,35 / 4,35), corrigés puis remesurés ; glyphes identiques dans les trois skins ;
-et un défaut qu'aucun test ne voit, trouvé au navigateur : une douzième ligne fantôme (`gridTemplateRows` =
-12 au lieu de 11), corrigée en rendant la gerbe dans la case touchée.
+échecs** (3,82 / 4,21 / 4,49 / 4,35 / 4,35), corrigés puis remesurés ; glyphes identiques dans les trois
+apparences ; et un défaut qu'aucun test ne voit, trouvé au navigateur : une douzième ligne fantôme
+(`gridTemplateRows` = 12 au lieu de 11), corrigée en rendant la gerbe dans la case touchée.
 **Preuve / limite** : commit `499d046` ; `docs/demo/` régénéré, les captures précédentes étant devenues
 fausses ; limite : la refonte n'est couverte par **aucun test automatisé**.
 
@@ -157,3 +157,19 @@ attendu zéro élément focalisable, observé `0`.
 **Preuve / limite** : commit `31b1407` (démonstration, rejetée) ;
 commit `31073e1` (illustration retenue) ; limite : la scène n'est couverte par aucun test ; leçon : ne pas
 juger un thème sur un JPEG compressé, une couleur se vérifie par `getComputedStyle`.
+
+## 2026-09-17 — Code sans commentaires, audit de conformité, livrables condensés
+
+**Outil** : Claude Code (claude-fable-5-1). **Contexte** : 142/142 tests, ~1 500 lignes de commentaires,
+livrables de 639 et 746 lignes. **Prompt** : « retire tous les commentaires du code (je n'aime pas les
+commentaires typiques de l'IA) ; vérifie que tout ce qui est demandé dans le support et toutes ses bonnes
+pratiques sont respectés ; mets à jour les fichiers IA et raccourcis-les — trop longs, on ne les lira pas ».
+**Réponse** : strip par Roslyn (trivia de commentaire seuls) + regex pour Razor/CSS/proto ; audit diapo par
+diapo dans `docs/conformite.md` ; trois écarts : le `.http` du gabarit, **aucun vainqueur** dans le moteur ni le
+contrat (diapo 36, déduit par le front), aucun test d'intégration ne menant une partie à `Finished`.
+**Décision** : acceptée — commentaires retirés y compris la documentation XML ; `Game.Winner` et
+`GameDto.Winner` ajoutés en TDD ; test de partie complète par gRPC-Web ajouté. **Vérification** : `dotnet build`
+(0 warning), `dotnet test` (142 → 145), greps de résidus à 0, `docs/conformite.md` rejouable ligne à ligne.
+**Preuve / limite** : commits `9c4550f` (commentaires), `5948009` (vainqueur), `0d873f9` (partie complète),
+`d4ca64b` (conformité) ; limite : les greps de conventions détectent les formes, pas l'intention — la lisibilité
+sans commentaire n'est établie que par relecture.
