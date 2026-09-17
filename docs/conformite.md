@@ -20,3 +20,9 @@ assumé, non corrigé.
 | Tests métier et d'intégration (6, 39) | `BattleShip.Tests/Domain`, `/Api`, `/Opponent` | `dotnet test` | 142 tests au 2026-09-17 (avant les tâches 6-7) |
 | Livrables IA (11, 62) | `PROMPTS.md`, `docs/adr/`, `REVUE-IA.md`, `README.md` | `ls` | présents ; condensés le 2026-09-17 |
 | Historique Git exploitable (62) | `git log` | `git log --format=%s \| grep -vcE '^(feat\|fix\|docs\|test\|chore\|refactor): '` | 1 écart : le commit initial `init` (limite) |
+
+## Spécifications du jeu (diapos 36, 37, 38, 46)
+
+| Exigence | Preuve dans le dépôt | Commande de contrôle | Constat |
+|---|---|---|---|
+| Identifier la fin de partie **et le gagnant** (36) | `Game.Winner`, `GameDto.Winner` | `dotnet test --filter The_shooter_who_sinks_the_last_ship_is_the_winner` | **corrigé le 2026-09-17** : le vainqueur était déduit par le front |

@@ -16,4 +16,5 @@ public sealed record ShipTemplateDto(string Name, int Size);
 
 public sealed record GameDto(
     Guid Id, string Status, string CurrentPlayer, OwnBoardDto Own, OpponentBoardDto Opponent,
-    string OpponentDifficulty, IReadOnlyList<ShipTemplateDto> Fleet, bool ShipsMayTouch);
+    string OpponentDifficulty, IReadOnlyList<ShipTemplateDto> Fleet, bool ShipsMayTouch,
+    string? Winner);

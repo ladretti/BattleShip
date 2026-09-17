@@ -13,6 +13,7 @@ public sealed class Game
     public Board OpponentBoard { get; }
     public Player CurrentPlayer { get; private set; }
     public GameStatus Status { get; private set; }
+    public Player? Winner { get; private set; }
 
     public IReadOnlyList<ShotRecord> History => _history;
 
@@ -87,7 +88,10 @@ public sealed class Game
             CurrentPlayer = shooter == Player.Human ? Player.Opponent : Player.Human;
 
         if (target.AllSunk)
+        {
             Status = GameStatus.Finished;
+            Winner = shooter;
+        }
 
         return result;
     }

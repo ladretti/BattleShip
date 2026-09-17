@@ -140,4 +140,27 @@ public sealed class GameTests
         Assert.False(result.IsOk);
         Assert.Equal(GameError.GameNotStarted, result.Error);
     }
+
+    [Fact]
+    public void An_unfinished_game_has_no_winner()
+    {
+        var game = TinyGame();
+
+        game.PlayerFires(new Coordinate(0, 0));
+
+        Assert.Equal(GameStatus.InProgress, game.Status);
+        Assert.Null(game.Winner);
+    }
+
+    [Fact]
+    public void The_shooter_who_sinks_the_last_ship_is_the_winner()
+    {
+        var game = TinyGame();
+        game.PlayerFires(new Coordinate(0, 0));
+
+        game.PlayerFires(new Coordinate(1, 0));
+
+        Assert.Equal(GameStatus.Finished, game.Status);
+        Assert.Equal(Player.Human, game.Winner);
+    }
 }

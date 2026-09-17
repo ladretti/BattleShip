@@ -265,7 +265,7 @@ else
             _history = result.Value;
     }
 
-    private static bool PlayerWon(GameDto game) => game.Opponent.SunkShips.Count == game.Fleet.Count;
+    private static bool PlayerWon(GameDto game) => game.Winner == "Human";
 
     private async Task FireAsync(Coordinate at)
     {
