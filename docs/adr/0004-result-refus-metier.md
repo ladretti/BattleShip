@@ -86,7 +86,7 @@ Le choix se joue donc sur la lisibilité et sur la traduction vers les façades.
 
 ## Vérification et réexamen
 
-**Constaté** (2026-09-16, `REVUE-IA.md` revue 2) : sur 200 parties par stratégie et pour les
+**Constaté** (2026-09-16, `REVUE-IA.md` revue 1) : sur 200 parties par stratégie et pour les
 trois niveaux — **37 903 tirs d'adversaire** —, le moteur n'a émis **aucun** refus métier
 pendant un tour d'adversaire. L'affirmation « aucune exception n'est levée par tour
 d'adversaire » n'est donc plus une analyse structurelle mais une mesure, et le micro-benchmark

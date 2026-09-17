@@ -56,7 +56,7 @@ historique, statistiques, accessibilité, déploiement…) plutôt que s'en teni
 Au 2026-09-15, **l'échafaudage est fait et la conception est arrêtée**. Le dépôt Git est
 `BattleShip/` ; `csharp-school/` est un répertoire **frère**, hors du dépôt rendu — le
 conflit de `.git/` évoqué dans les versions précédentes de ce fichier **n'existe pas** et
-n'appelle aucun ADR (voir `REVUE-IA.md`, revue 1).
+n'appelle aucun ADR.
 
 Présent : `BattleShip.slnx` et les quatre projets, avec les références inter-projets posées.
 

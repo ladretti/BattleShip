@@ -72,14 +72,14 @@ acceptée doit être étayée par un contrôle reproductible dans `REVUE-IA.md`.
 ## Vérifications réalisées et limites connues
 
 **Réalisé** : l'état du dépôt a été confronté à l'exécution et `CLAUDE.md` § 1 bis s'est
-révélé périmé sur trois points (`REVUE-IA.md`, revue 1).
+révélé périmé sur trois points, constatés par exécution le 2026-09-15.
 
 **Non vérifié à ce jour** :
 
 - les nombres moyens de coups par stratégie — hypothèses issues de la littérature, sur une
-  grille sans règle de non-adjacence (revue 3) ;
+  grille sans règle de non-adjacence (revue 2) ;
 - l'absence d'exception levée pendant les tours de l'adversaire, qui fonde l'argument de
-  l'ADR 0004 (revue 2) ;
+  l'ADR 0004 (revue 1) ;
 - le montage `WebApplicationFactory` + `GrpcChannel`, principal risque technique du projet,
   traité en premier dans le plan d'implémentation.
 

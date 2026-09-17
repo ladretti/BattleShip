@@ -119,7 +119,7 @@ Trois niveaux d'adversaire : **Facile** (aléatoire), **Normal** (chasse/cible a
   un motif exploitable et laisse l'interface utilisable.
 - **Le secret** : le front ne reçoit jamais la position d'un navire adverse encore à flot, et
   l'adversaire ne voit jamais la grille du joueur — le type `ShotHistory` qu'il reçoit ne
-  porte aucun chemin vers un `Board` (vérifié par réflexion, `REVUE-IA.md` revue 2).
+  porte aucun chemin vers un `Board` (vérifié par réflexion, `REVUE-IA.md` revue 1).
 - **Historique et rejeu** : la liste ordonnée des coups des deux camps, et un curseur qui
   rejoue la partie. Le rejeu est un **rendu seul** — il n'émet aucune requête et ne touche
   jamais l'état serveur.
@@ -213,7 +213,7 @@ Le scénario a été déroulé et capturé dans `docs/demo/` :
 - Les nombres moyens de coups par niveau sont **mesurés** (200 parties par stratégie, graine
   20260915, `GameRules.Default` avec non-adjacence) : `Random` 95,7, `HuntTarget` 52,6,
   `Density` 41,2 coups. L'ordre attendu est confirmé et `Density` reste sous le seuil de 55
-  coups fixé avant mesure (`docs/adr/0003-strategie-adversaire.md`, `REVUE-IA.md` revue 3).
+  coups fixé avant mesure (`docs/adr/0003-strategie-adversaire.md`, `REVUE-IA.md` revue 2).
   Ces chiffres ne portent que sur cette composition de flotte et cette taille de grille.
 - L'état de partie est **en mémoire** : redémarrer l'API perd les parties en cours. Le front
   ne conserve pas non plus l'identifiant de partie : **recharger la page perd la partie en

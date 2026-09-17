@@ -91,7 +91,7 @@ Vérifié à l'implémentation (tâche 14) :
   `HashSet<Coordinate>.ToList()` — `Board.ReceivedShots` — qui course une écriture
   concurrente ; pas l'`InvalidOperationException` d'un `List<T>`, annoncée mais non observée
   à ce volume). Verrou rétabli : 5/5 au vert, ~400 ms chacune ; suite complète 133/133 en
-  ~4 s. Voir `REVUE-IA.md`, revue 5, pour le détail chiffré des deux tentatives.
+  ~4 s. Voir `REVUE-IA.md`, revue 4, pour le détail chiffré des deux tentatives.
 - Non encore fait : la capture de la console réseau du navigateur montrant l'appel et
   l'erreur (nécessite l'interface Blazor, hors périmètre de la tâche 14).
 

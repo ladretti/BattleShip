@@ -83,7 +83,7 @@ moitié de la grille. Une ligne de filtre, et elle s'explique en une phrase.
   Résultat attendu avant exécution : `RandomStrategy` > `HuntTargetStrategy` >
   `DensityStrategy`. Si l'ordre n'est pas respecté, une stratégie est fautive.
 
-### Nombre moyen de coups — mesuré (tâche 11, REVUE-IA.md revue 3)
+### Nombre moyen de coups — mesuré (tâche 11, REVUE-IA.md revue 2)
 
 Mesuré avec `StrategyBenchmark.Run(GameRules.Default, games: 200, seed: 20260915)`
 (`BattleShip.API/Benchmark/StrategyBenchmark.cs`), donc sur la grille 10×10, la flotte
@@ -107,7 +107,7 @@ quelle ; la mesure réelle s'en approche malgré tout, `HuntTargetStrategy` fais
 (52,6 contre ≈ 60-65 attendu par analogie), vraisemblablement grâce au filtre de parité qui
 élimine la moitié de la grille dès la phase de chasse. Ces chiffres portent sur une seule
 composition de flotte et une seule taille de grille ; ils ne disent rien d'une grille réduite
-ou d'une flotte différente (limite consignée dans `REVUE-IA.md`, revue 3).
+ou d'une flotte différente (limite consignée dans `REVUE-IA.md`, revue 2).
 
 ## Références
 
