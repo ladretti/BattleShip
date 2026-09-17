@@ -93,28 +93,32 @@ Cette totalité est l'invariant central du design, et elle est testable (§ 6, t
 Un tir produit un ou deux événements : `ShotFired`, suivi de `GameEnded` si ce tir a coulé le
 dernier navire d'un camp. `Decide` renvoie donc une **liste**, jamais un événement seul.
 
-### 2.3 Ce qui disparaît — et ce qui reste
+### 2.3 Ce qui change : `Board` et `Ship` deviennent l'accumulateur du repli
 
-Ce sont les **champs privés** qui disparaissent, pas les propriétés publiques.
+C'est le point le plus facile à énoncer de travers, alors il est explicité.
 
-| membre | aujourd'hui | après |
+Les `HashSet` mutés **ne disparaissent pas**. Les supprimer priverait `Ship.HitCells` et
+`Ship.IsSunk` de leur support, casserait la surface publique du domaine, et détruirait le filet
+de vérification du § 6.1. Ils changent de **statut**.
+
+| élément | aujourd'hui | après |
 |---|---|---|
-| `Board._receivedShots` | champ `HashSet` muté | **supprimé** |
-| `Board.ReceivedShots` | lit le champ | **conservé**, calculé sur l'état replié |
-| `Ship._hitCells` | champ `HashSet` muté | **supprimé** |
-| `Ship.HitCells` | lit le champ | **conservé**, calculé sur l'état replié |
-| `Ship.IsSunk` | `_hitCells.Count == Size` | **conservé**, calculé sur l'état replié |
-| `Board.Fire` | trois écritures | un unique `ShotFired` ajouté au journal |
+| `Game._history` (`List<ShotRecord>`) | vérité **parallèle** aux plateaux | **remplacé** par `Game._events` |
+| `Board._receivedShots` | vérité parallèle à `_history` | **conservé** — devient l'accumulateur du repli |
+| `Ship._hitCells` | idem | **conservé** — idem |
+| `Board.Fire(at, by)` | décide **et** mute | **scindé** : `Decide` pur, `Apply` total |
+| surface publique de `Board`, `Ship`, `Game` | — | **inchangée** |
 
-Cette distinction est ce qui rend la vérification du § 6.1 possible : la surface publique du
-domaine est préservée à l'identique, donc les tests existants restent un filet valide. Seule la
-**dérivation** change — une seule source de vérité pour toutes les lectures.
+La duplication supprimée n'est donc pas celle des `HashSet`, c'est celle des **sources de
+vérité**. Aujourd'hui `_history` et les plateaux sont deux vérités écrites en parallèle par la
+même méthode, et deux lectures différentes puisent dans l'une ou l'autre. Après, il n'y a qu'une
+seule vérité — le journal — et les plateaux en sont le **produit**, reconstructibles à tout
+moment.
 
-Coût assumé : ces propriétés passent d'une lecture en O(1) à un calcul sur le journal. Sur une
-grille 10×10, un journal plafonne à ~200 entrées et une flotte à 5 navires. Si un profilage
-montrait un coût réel, la réponse serait un état replié **mis en cache** dans `Game`, invalidé
-à chaque ajout — pas un retour à l'état dupliqué. Ce cache n'est pas fait d'avance : ce serait
-optimiser un problème non mesuré.
+C'est précisément ce qui rend `Fold(events.Take(n))` possible : construire des plateaux neufs à
+partir de `GameCreated` et `HumanFleetPlaced`, puis y rejouer les *n* premiers `ShotFired`.
+L'état « coulé » à l'étape *n* est alors celui qu'avaient réellement les navires à l'étape *n*,
+et non l'état final projeté en arrière — ce qui est exactement le bug documenté.
 
 ### 2.4 Ce qui n'est PAS fait
 
@@ -255,7 +259,7 @@ les champs de toutes les variantes en nullable. Moins élégant, sûr, et décid
 ```
               BattleShip.Models
               +--------------------------+
-              |  Fold(events) -> State   |
+              |  Fold(events) -> Game    |
               +--------------------------+
                  ^                    ^
                  |                    |
@@ -267,6 +271,12 @@ les champs de toutes les variantes en nullable. Moins élégant, sûr, et décid
 
 Aucune seconde machine à états à maintenir, donc aucune dérive silencieuse possible entre ce
 que le serveur calcule et ce que le front affiche.
+
+`Fold` rend un **`Game`**, pas un type de vue dédié. Conséquence pratique vérifiée :
+`BattleShip.App` référence `BattleShip.Models` et **rien d'autre**, donc le front lit directement
+`game.HumanBoard.Ships` et `game.OpponentBoard.Ships.Where(s => s.IsSunk)` sur l'état replié.
+Aucun besoin de déplacer `DtoMappings` hors de `BattleShip.API`, et aucune logique de projection
+dupliquée côté front.
 
 ### 5.2 Une fonction, deux entrées, sortie correcte dans les deux cas
 
