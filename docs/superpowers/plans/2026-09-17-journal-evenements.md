@@ -614,6 +614,27 @@ public sealed class GameFoldTests
     }
 
     [Fact]
+    public void Folding_the_same_prefix_twice_gives_the_same_state()
+    {
+        var game = PlayedGame(seed: 33, shots: 40);
+        var prefix = game.Events.Take(game.Events.Count / 2).ToList();
+
+        var first = GameFold.Fold(game.Id, prefix);
+        var second = GameFold.Fold(game.Id, prefix);
+
+        Assert.Equal(first.Status, second.Status);
+        Assert.Equal(first.CurrentPlayer, second.CurrentPlayer);
+        Assert.Equal(first.HumanBoard.ReceivedShots, second.HumanBoard.ReceivedShots);
+        Assert.Equal(first.OpponentBoard.ReceivedShots, second.OpponentBoard.ReceivedShots);
+        Assert.Equal(
+            first.OpponentBoard.Ships.Select(s => s.HitCells.Count),
+            second.OpponentBoard.Ships.Select(s => s.HitCells.Count));
+        Assert.Equal(
+            first.HumanBoard.Ships.Select(s => s.IsSunk),
+            second.HumanBoard.Ships.Select(s => s.IsSunk));
+    }
+
+    [Fact]
     public void Folding_every_prefix_of_a_valid_journal_never_throws()
     {
         var game = PlayedGame(seed: 33, shots: 40);
@@ -649,6 +670,10 @@ public sealed class GameFoldTests
 ```
 
 `A_ship_is_not_reported_sunk_before_the_shot_that_sank_it` **est le test 2 de la spec** — celui qui doit échouer sur le code actuel. Voir l'étape 2.
+
+`Folding_the_same_prefix_twice_gives_the_same_state` **est le test décisif du design**, placé ici et non en tâche 2 parce que le risque vit dans `Fold`, pas dans `ShipSnapshot`. Si les événements portaient des `Ship` vivants, le premier repli muterait les navires du journal et le second partirait d'un état déjà touché : les deux appels rendraient des `HitCells` différents. C'est le seul contrôle du plan qui échouerait sur cette conception. Les tests de la tâche 2, eux, n'instancient aucun événement et ne discriminent pas ce risque — relecture du 2026-09-17.
+
+Noter le contraste avec `Folding_every_prefix_never_throws`, juste en dessous : celui-ci ne constate qu'une absence d'exception et **resterait vert** sur le design fautif. Les deux sont utiles, mais un seul prouve.
 
 - [ ] **Étape 2 : exécuter pour vérifier que ça échoue, et consigner pourquoi**
 
