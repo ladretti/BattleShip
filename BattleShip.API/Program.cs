@@ -28,6 +28,7 @@ builder.Services.AddSingleton<IOpponentStrategyFactory, OpponentStrategyFactory>
 builder.Services.AddScoped<IValidator<CreateGameInput>, CreateGameInputValidator>();
 builder.Services.AddScoped<IValidator<PlacementInput>, PlacementInputValidator>();
 builder.Services.AddScoped<IValidator<FireRequest>, FireRequestValidator>();
+builder.Services.AddScoped<IValidator<EventQuery>, EventQueryValidator>();
 
 var app = builder.Build();
 

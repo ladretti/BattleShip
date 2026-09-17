@@ -61,6 +61,26 @@ public static class GameEndpoints
             var result = store.Read(id, game => game.History.ToDto());
             return result.IsOk ? TypedResults.Ok(result.Value) : TypedResults.NotFound();
         });
+
+        app.MapGet("/games/{id:guid}/events", async Task<IResult> (
+            Guid id, int? from, IValidator<EventQuery> validator, IGameStore store) =>
+        {
+            var query = new EventQuery(from ?? 0);
+            var check = await validator.ValidateAsync(query);
+            if (!check.IsValid)
+                return TypedResults.ValidationProblem(check.ToDictionary());
+
+            var status = store.Read(id, game => game.Status);
+            if (!status.IsOk)
+                return TypedResults.NotFound();
+
+            var events = store.ReadEvents(id, query.From);
+            if (!events.IsOk)
+                return TypedResults.NotFound();
+
+            return TypedResults.Ok(
+                EventProjection.ForPlayer(events.Value, status.Value == GameStatus.Finished));
+        });
     }
 
     private static Result<IReadOnlyList<ShipPlacement>> ToShipPlacements(PlacementInput input, GameRules rules)
