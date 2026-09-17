@@ -20,18 +20,22 @@ dérive déjà les cases reçues **depuis cet historique**. Mais en parallèle, 
 et `Ship._hitCells` stockent la même information sous forme mutable.
 
 ```
-  Board.Fire(at)
+  Game.Fire(at)                          Game.cs
     |
-    +--> _receivedShots.Add(at)       \
-    +--> ship._hitCells.Add(at)        |  trois écritures du même fait
-    +--> Game._history.Add(record)    /
+    +--> Board.Fire(at)                  Board.cs
+    |      |
+    |      +--> _receivedShots.Add(at)      \  deux écritures
+    |      +--> ship._hitCells.Add(at)      /  dans Board
+    |
+    +--> _history.Add(record)            Game.cs:85  <- la troisième
 
   Ship.IsSunk        <- dérivé de _hitCells
   ToOwnBoardDto      <- dérivé de _history     <-- déjà le repli
 ```
 
-Un même fait est écrit à trois endroits, et deux lectures puisent dans deux sources
-différentes. C'est cette duplication que le journal supprime.
+Un même tir écrit donc le même fait à **trois endroits** — deux depuis `Board.Fire`, un
+depuis `Game.Fire` qui l'appelle — et deux lectures puisent dans deux sources différentes.
+C'est cette duplication que le journal supprime.
 
 **Le refactor n'ajoute pas une couche, il en retire une.** C'est l'argument central de
 l'ADR 0011 : ici l'event sourcing est une simplification, pas une cérémonie.
@@ -59,11 +63,13 @@ demandé.
 ```csharp
 public abstract record GameEvent(int Sequence);
 
+public sealed record ShipSnapshot(string Name, int Size, IReadOnlyList<Coordinate> Cells);
+
 public sealed record GameCreated(int Sequence, GameRules Rules,
-    IReadOnlyList<Ship> OpponentShips, string Difficulty) : GameEvent(Sequence);
+    IReadOnlyList<ShipSnapshot> OpponentShips, string Difficulty) : GameEvent(Sequence);
 
 public sealed record HumanFleetPlaced(int Sequence,
-    IReadOnlyList<Ship> Ships) : GameEvent(Sequence);
+    IReadOnlyList<ShipSnapshot> Ships) : GameEvent(Sequence);
 
 public sealed record ShotFired(int Sequence, Coordinate At, Player By,
     ShotResult Result, string? SunkShipName) : GameEvent(Sequence);
@@ -73,6 +79,42 @@ public sealed record GameEnded(int Sequence, Player Winner) : GameEvent(Sequence
 
 `ShotFired` porte le **résultat** du tir, pas seulement son intention. C'est ce qui permet au
 repli de ne consulter aucun plateau pour savoir si un coup a touché.
+
+### 2.1 bis Pourquoi `ShipSnapshot` et non `Ship`
+
+C'est le piège le plus coûteux du design, et il a été trouvé en relecture après une première
+rédaction fautive.
+
+`Ship` est **mutable** : il porte `_hitCells`, que `TryHit` remplit. Et `Board` copie la
+**liste** qu'on lui donne, pas les objets (`Ships { get; } = [.. ships]`). Un événement qui
+porterait `IReadOnlyList<Ship>` partagerait donc ses instances avec le plateau :
+
+```
+  GameCreated(seq, rules, opponentShips, diff)
+                             |
+                             |  MÊMES instances
+                             v
+  Game.OpponentBoard.Ships --+
+        |
+        |  chaque tir appelle ship.TryHit() -> mute _hitCells
+        v
+  l'événement « déjà arrivé » change rétroactivement
+```
+
+Deux conséquences, la seconde étant fatale :
+
+1. Le journal cesse d'être en ajout seul : un fait enregistré se modifie après coup.
+2. **`Fold` se contamine lui-même.** Replier un préfixe mute les `Ship` du journal, donc le
+   repli suivant démarre d'un état déjà touché. Le rejeu devient faux — et
+   `Folding_every_prefix_never_throws` resterait **vert**, puisqu'il ne constate qu'une absence
+   d'exception. Un test au vert sur un système cassé.
+
+`ShipSnapshot` est une donnée pure : nom, taille, cases. Il **ne peut pas** porter d'état de
+touche. `Fold` construit des `Ship` neufs à partir des instantanés, à chaque repli.
+
+C'est exactement le geste de l'**ADR 0003** pour `ShotHistory` — « l'invariant tient dans le
+type, pas dans la relecture ». Ici l'invariant « un événement ne change jamais » est porté par
+le type, et non par la discipline de celui qui écrit `Fold`.
 
 `Sequence` est un entier contigu à partir de 0, propre à une partie. Il sert le rang de
 lecture incrémentale (§ 4.2) et le curseur de rejeu (§ 5.1).

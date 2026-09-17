@@ -227,7 +227,8 @@ public sealed class GameEventTests
     public void Every_event_is_a_game_event()
     {
         var rules = GameRules.Default;
-        var fleet = new FleetPlacer(new Random(11)).PlaceAll(rules).Value;
+        IReadOnlyList<ShipSnapshot> fleet =
+            [.. new FleetPlacer(new Random(11)).PlaceAll(rules).Value.Select(ShipSnapshot.Of)];
 
         GameEvent[] events =
         [
@@ -239,8 +240,44 @@ public sealed class GameEventTests
 
         Assert.Equal([0, 1, 2, 3], events.Select(e => e.Sequence));
     }
+
+    [Fact]
+    public void A_snapshot_does_not_share_hit_state_with_the_ship_it_came_from()
+    {
+        var ship = new Ship("Destroyer", 2, [new Coordinate(0, 0), new Coordinate(0, 1)]);
+        var snapshot = ShipSnapshot.Of(ship);
+
+        ship.TryHit(new Coordinate(0, 0));
+
+        var rebuilt = snapshot.ToShip();
+
+        Assert.True(ship.HitCells.Count == 1);
+        Assert.Empty(rebuilt.HitCells);
+        Assert.Equal(ship.Cells, rebuilt.Cells);
+    }
+
+    [Fact]
+    public void Two_ships_rebuilt_from_the_same_snapshot_are_independent()
+    {
+        var snapshot = new ShipSnapshot(
+            "Destroyer", 2, [new Coordinate(0, 0), new Coordinate(0, 1)]);
+
+        var first = snapshot.ToShip();
+        var second = snapshot.ToShip();
+
+        first.TryHit(new Coordinate(0, 0));
+
+        Assert.Single(first.HitCells);
+        Assert.Empty(second.HitCells);
+    }
 }
 ```
+
+**Ces deux derniers tests sont le cœur de la tâche**, pas un supplément. `Ship` est mutable et `Board` ne copie que la liste qu'on lui donne (`Ships { get; } = [.. ships]`), jamais les objets. Un événement qui porterait des `Ship` partagerait donc ses instances avec le plateau : l'événement « déjà arrivé » se mettrait à jour rétroactivement, et `Fold` se contaminerait lui-même — replier un préfixe salirait le journal, donc le repli suivant partirait d'un état déjà touché.
+
+Le détail qui rend ce piège redoutable : le test `Folding_every_prefix_never_throws` de la tâche 4 resterait **vert**, puisqu'il ne constate qu'une absence d'exception. Ces deux tests-ci sont les seuls à discriminer.
+
+`ShipSnapshot` est une donnée pure qui **ne peut pas** porter d'état de touche : l'invariant tient dans le type et non dans la vigilance de qui écrit `Fold`. C'est le geste de l'ADR 0003 pour `ShotHistory`.
 
 - [ ] **Étape 2 : exécuter pour vérifier que ça échoue**
 
@@ -254,15 +291,22 @@ namespace BattleShip.Models;
 
 public abstract record GameEvent(int Sequence);
 
+public sealed record ShipSnapshot(string Name, int Size, IReadOnlyList<Coordinate> Cells)
+{
+    public static ShipSnapshot Of(Ship ship) => new(ship.Name, ship.Size, [.. ship.Cells]);
+
+    public Ship ToShip() => new(Name, Size, Cells);
+}
+
 public sealed record GameCreated(
     int Sequence,
     GameRules Rules,
-    IReadOnlyList<Ship> OpponentShips,
+    IReadOnlyList<ShipSnapshot> OpponentShips,
     string Difficulty) : GameEvent(Sequence);
 
 public sealed record HumanFleetPlaced(
     int Sequence,
-    IReadOnlyList<Ship> Ships) : GameEvent(Sequence);
+    IReadOnlyList<ShipSnapshot> Ships) : GameEvent(Sequence);
 
 public sealed record ShotFired(
     int Sequence,
@@ -642,7 +686,7 @@ Dans `Game.Create` et `Game.Start`, enregistrer les événements d'ouverture. Aj
 
 ```csharp
         var game = new Game(id, rules, humanBoard, opponentBoard, GameStatus.Placing, opponentDifficulty);
-        game.Record(seq => new GameCreated(seq, rules, opponentShips, opponentDifficulty));
+        game.Record(seq => new GameCreated(seq, rules, Snapshots(opponentShips), opponentDifficulty));
         return game;
 ```
 
@@ -650,16 +694,25 @@ Dans `Game.Create` et `Game.Start`, enregistrer les événements d'ouverture. Aj
 
 ```csharp
         var game = new Game(id, rules, humanBoard, opponentBoard, GameStatus.InProgress, opponentDifficulty);
-        game.Record(seq => new GameCreated(seq, rules, opponentShips, opponentDifficulty));
-        game.Record(seq => new HumanFleetPlaced(seq, humanShips));
+        game.Record(seq => new GameCreated(seq, rules, Snapshots(opponentShips), opponentDifficulty));
+        game.Record(seq => new HumanFleetPlaced(seq, Snapshots(humanShips)));
         return game;
 ```
 
 `PlaceHumanFleet` — après `Status = GameStatus.InProgress;` :
 
 ```csharp
-        Record(seq => new HumanFleetPlaced(seq, validation.Value));
+        Record(seq => new HumanFleetPlaced(seq, Snapshots(validation.Value)));
 ```
+
+Et la fabrique d'instantanés, privée à `Game` :
+
+```csharp
+    private static IReadOnlyList<ShipSnapshot> Snapshots(IReadOnlyList<Ship> ships) =>
+        [.. ships.Select(ShipSnapshot.Of)];
+```
+
+**Ne jamais passer un `Ship` vivant à un événement** : l'événement partagerait l'instance avec le plateau et se modifierait rétroactivement à chaque tir (voir § 2.1 bis de la spec).
 
 `Fire` — remplacer le corps après les gardes d'état :
 
@@ -700,7 +753,11 @@ public static class GameFold
         if (events[0] is not GameCreated created)
             throw new InvalidOperationException("A journal must open with a GameCreated event.");
 
-        var game = Game.Create(id, created.Rules, created.OpponentShips, created.Difficulty);
+        var game = Game.Create(
+            id,
+            created.Rules,
+            [.. created.OpponentShips.Select(s => s.ToShip())],
+            created.Difficulty);
 
         foreach (var next in events.Skip(1))
             game.Replay(next);
@@ -720,7 +777,7 @@ Ajouter à `Game` la méthode de repli, **interne au domaine** et totale :
         switch (next)
         {
             case HumanFleetPlaced placed:
-                HumanBoard = new Board(Rules.GridSize, placed.Ships);
+                HumanBoard = new Board(Rules.GridSize, [.. placed.Ships.Select(s => s.ToShip())]);
                 Status = GameStatus.InProgress;
                 break;
 
@@ -1005,20 +1062,27 @@ public sealed class EventsEndpointTests
 
         Assert.NotEqual(GameStatus.Finished, game.Status);
 
-        var payload = await (await client.GetAsync($"/games/{game.Id}/events"))
-            .Content.ReadAsStringAsync();
+        var events = await (await client.GetAsync($"/games/{game.Id}/events"))
+            .Content.ReadFromJsonAsync<List<GameEventDto>>();
 
-        var revealed = game.OpponentBoard.ReceivedShots;
-        var secret = game.OpponentBoard.Ships
-            .SelectMany(s => s.Cells)
-            .Where(c => !revealed.Contains(c))
-            .ToList();
+        Assert.NotNull(events);
 
-        Assert.NotEmpty(secret);
+        var created = events!.OfType<GameCreatedDto>().Single();
+        Assert.Empty(created.OpponentShips);
 
-        var compact = payload.Replace(" ", "").Replace("\n", "");
-        foreach (var cell in secret)
-            Assert.DoesNotContain($"\"x\":{cell.X},\"y\":{cell.Y}", compact);
+        var exposedCells = events
+            .SelectMany(e => e switch
+            {
+                GameCreatedDto c => c.OpponentShips.SelectMany(s => s.Cells),
+                HumanFleetPlacedDto p => p.Ships.SelectMany(s => s.Cells),
+                _ => []
+            })
+            .Select(c => new Coordinate(c.X, c.Y))
+            .ToHashSet();
+
+        var humanCells = game.HumanBoard.Ships.SelectMany(s => s.Cells).ToHashSet();
+
+        Assert.Equal(humanCells, exposedCells);
     }
 
     [Fact]
@@ -1054,6 +1118,10 @@ public sealed class EventsEndpointTests
 `RemoveAll<T>` vient de `Microsoft.Extensions.DependencyInjection.Extensions`. Si le `using` manque, l'ajouter.
 
 Le troisième test s'appuie sur « `touche = on rejoue` » (`GameRules.Default.ExtraTurnOnHit`) : après un tir en (0,0), c'est encore au joueur si ça a touché, et à l'adversaire sinon. Dans les deux cas la partie n'est pas finie, ce que l'assertion vérifie explicitement plutôt que de le supposer.
+
+**Pourquoi le test n'inspecte pas la charge utile brute.** La tentation serait de chercher `"x":3,"y":4` dans le JSON. **Ce contrôle serait faux** : les deux flottes occupent le *même* espace de coordonnées 0–9, donc une case du navire du joueur — légitimement transmise par `HumanFleetPlaced` — coïncide très souvent avec une case secrète adverse. Le test signalerait des fuites inexistantes, et la première « correction » serait d'affaiblir l'assertion.
+
+L'assertion retenue est structurelle et exacte : **l'ensemble des cases de navires exposées par le flux est exactement l'ensemble des cases du joueur.** Ni plus (aucune fuite), ni moins (le joueur voit bien sa propre flotte). Elle échoue si `OpponentShips` n'est pas vidé, et elle échoue aussi si la censure devient si large qu'elle emporte la flotte du joueur.
 
 - [ ] **Étape 2 : exécuter pour vérifier que ça échoue**
 
@@ -1130,13 +1198,15 @@ public static class EventProjection
             nameof(source), source, "Unknown event type.")
     };
 
-    private static IReadOnlyList<ShipDto> ToShipDtos(IReadOnlyList<Ship> ships) =>
+    private static IReadOnlyList<ShipDto> ToShipDtos(IReadOnlyList<ShipSnapshot> ships) =>
         [.. ships.Select(s => new ShipDto(
             s.Name, s.Size,
             [.. s.Cells.Select(c => new CellDto(c.X, c.Y, "ship"))],
-            s.IsSunk))];
+            IsSunk: false))];
 }
 ```
+
+`IsSunk: false` n'est pas un raccourci : un instantané de placement décrit la flotte **au moment où elle est posée**, où rien n'est coulé. L'état « coulé » à un instant donné se lit sur le repli des `ShotFired`, pas sur l'instantané.
 
 `DtoMappings.ToState` est déjà `internal` et vit dans le même assembly — aucune modification nécessaire.
 
@@ -1513,9 +1583,9 @@ Les DTO d'événements doivent redevenir des `GameEvent` du domaine pour être r
         _ => null
     };
 
-    private static IReadOnlyList<Ship> ToShips(IReadOnlyList<ShipDto> ships) =>
-        [.. ships.Select(s => new Ship(
-            s.Name, s.Size, s.Cells.Select(c => new Coordinate(c.X, c.Y))))];
+    private static IReadOnlyList<ShipSnapshot> ToShips(IReadOnlyList<ShipDto> ships) =>
+        [.. ships.Select(s => new ShipSnapshot(
+            s.Name, s.Size, [.. s.Cells.Select(c => new Coordinate(c.X, c.Y))]))];
 
     private static ShotResult ResultOf(string state) => state switch
     {
