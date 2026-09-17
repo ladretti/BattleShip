@@ -1,4 +1,5 @@
-@api = https://localhost:7050
+@api = http://localhost:5184
+@apiHttps = https://localhost:7050
 
 ### Create a game
 POST {{api}}/games
