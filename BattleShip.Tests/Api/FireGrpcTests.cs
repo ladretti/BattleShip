@@ -1,10 +1,12 @@
 using System.Net.Http.Json;
+using BattleShip.Models;
 using BattleShip.Models.Contracts;
 using BattleShip.API.Grpc;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BattleShip.Tests.Api;
 
@@ -128,5 +130,30 @@ public sealed class FireGrpcTests : IClassFixture<WebApplicationFactory<Program>
         } while (reply.PlayerShot.Result != "miss" && x < 10);
 
         Assert.NotEmpty(reply.OpponentShots);
+    }
+
+    [Fact]
+    public async Task A_game_played_to_the_end_finishes_with_the_player_as_winner()
+    {
+        var id = await ReadyGame();
+        var store = _factory.Services.GetRequiredService<IGameStore>();
+        var targets = store.Read(id, game => game.OpponentBoard.Ships.SelectMany(s => s.Cells).ToList()).Value;
+        var client = Client();
+        FireResponse? last = null;
+
+        foreach (var cell in targets)
+        {
+            last = await client.FireAsync(new FireRequest { GameId = id.ToString(), X = cell.X, Y = cell.Y });
+        }
+
+        Assert.Equal("Finished", last!.Status);
+        var final = await _factory.CreateClient().GetFromJsonAsync<GameDto>($"/games/{id}");
+        Assert.Equal("Finished", final!.Status);
+        Assert.Equal("Human", final.Winner);
+        Assert.Equal(final.Fleet.Count, final.Opponent.SunkShips.Count);
+
+        var refused = await Assert.ThrowsAsync<RpcException>(() =>
+            client.FireAsync(new FireRequest { GameId = id.ToString(), X = 9, Y = 9 }).ResponseAsync);
+        Assert.Equal(StatusCode.FailedPrecondition, refused.StatusCode);
     }
 }

@@ -26,3 +26,4 @@ assumé, non corrigé.
 | Exigence | Preuve dans le dépôt | Commande de contrôle | Constat |
 |---|---|---|---|
 | Identifier la fin de partie **et le gagnant** (36) | `Game.Winner`, `GameDto.Winner` | `dotnet test --filter The_shooter_who_sinks_the_last_ship_is_the_winner` | **corrigé le 2026-09-17** : le vainqueur était déduit par le front |
+| Partie complète de la création à la victoire, aucun coup après la fin (5, 38) | `FireGrpcTests.A_game_played_to_the_end_finishes_with_the_player_as_winner` | `dotnet test --filter A_game_played_to_the_end` | **ajouté le 2026-09-17** ; `FailedPrecondition` sur le tir suivant |
