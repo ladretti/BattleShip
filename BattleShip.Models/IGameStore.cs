@@ -9,4 +9,6 @@ public interface IGameStore
     Result<T> Mutate<T>(Guid id, Func<Game, Result<T>> change);
 
     Result<T> Read<T>(Guid id, Func<Game, T> projection);
+
+    Result<IReadOnlyList<GameEvent>> ReadEvents(Guid id, int fromSequence);
 }

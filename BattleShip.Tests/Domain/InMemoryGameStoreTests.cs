@@ -181,4 +181,59 @@ public sealed class InMemoryGameStoreTests
         Assert.True(ra.IsOk);
         Assert.True(rb.IsOk);
     }
+
+    [Fact]
+    public void ReadEvents_on_a_missing_game_returns_GameNotFound()
+    {
+        var store = new InMemoryGameStore();
+
+        var result = store.ReadEvents(Guid.NewGuid(), 0);
+
+        Assert.False(result.IsOk);
+        Assert.Equal(GameError.GameNotFound, result.Error);
+    }
+
+    [Fact]
+    public void ReadEvents_from_zero_returns_the_whole_journal()
+    {
+        var store = new InMemoryGameStore();
+        var game = GameOnDefaultGrid();
+        store.Save(game);
+        store.Mutate(game.Id, g => g.PlayerFires(new Coordinate(0, 0)));
+
+        var result = store.ReadEvents(game.Id, 0);
+
+        Assert.True(result.IsOk);
+        Assert.Equal(game.Events.Count, result.Value.Count);
+        Assert.Equal(0, result.Value[0].Sequence);
+    }
+
+    [Fact]
+    public void ReadEvents_from_n_is_inclusive_and_returns_exactly_the_tail()
+    {
+        var store = new InMemoryGameStore();
+        var game = GameOnDefaultGrid();
+        store.Save(game);
+        store.Mutate(game.Id, g => g.PlayerFires(new Coordinate(0, 0)));
+        store.Mutate(game.Id, g => g.PlayerFires(new Coordinate(1, 1)));
+
+        var all = store.ReadEvents(game.Id, 0).Value;
+        var tail = store.ReadEvents(game.Id, 2).Value;
+
+        Assert.Equal(all.Count - 2, tail.Count);
+        Assert.Equal(2, tail[0].Sequence);
+    }
+
+    [Fact]
+    public void ReadEvents_past_the_end_returns_an_empty_list_and_not_an_error()
+    {
+        var store = new InMemoryGameStore();
+        var game = GameOnDefaultGrid();
+        store.Save(game);
+
+        var result = store.ReadEvents(game.Id, 9_999);
+
+        Assert.True(result.IsOk);
+        Assert.Empty(result.Value);
+    }
 }

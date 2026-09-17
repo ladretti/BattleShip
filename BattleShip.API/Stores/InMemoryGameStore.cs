@@ -38,4 +38,19 @@ public sealed class InMemoryGameStore : IGameStore
             return Result<T>.Ok(projection(game));
         }
     }
+
+    public Result<IReadOnlyList<GameEvent>> ReadEvents(Guid id, int fromSequence)
+    {
+        var gameLock = _locks.GetOrAdd(id, static _ => new object());
+        lock (gameLock)
+        {
+            if (!_games.TryGetValue(id, out var game))
+                return Result<IReadOnlyList<GameEvent>>.Fail(GameError.GameNotFound);
+
+            IReadOnlyList<GameEvent> tail =
+                [.. game.Events.Where(e => e.Sequence >= fromSequence)];
+
+            return Result<IReadOnlyList<GameEvent>>.Ok(tail);
+        }
+    }
 }
