@@ -715,6 +715,8 @@ Ajouter à `Game` la méthode de repli, **interne au domaine** et totale :
 ```csharp
     internal void Replay(GameEvent next)
     {
+        _events.Add(next);
+
         switch (next)
         {
             case HumanFleetPlaced placed:
@@ -744,15 +746,11 @@ Ajouter à `Game` la méthode de repli, **interne au domaine** et totale :
     }
 ```
 
-`Replay` est `internal` : `BattleShip.Tests` y accède via `InternalsVisibleTo`. Ajouter dans `BattleShip.Models.csproj` :
+`Replay` est `internal` et **rien à ajouter au `.csproj`** : `GameFold` vit dans le même assembly que `Game`, donc il y accède directement, et aucun test de ce plan n'appelle `Replay` en direct.
 
-```xml
-  <ItemGroup>
-    <InternalsVisibleTo Include="BattleShip.Tests" />
-  </ItemGroup>
-```
+**Attention au piège — c'est le point le plus subtil de la tâche** : `Replay` ajoute l'événement tel quel à `_events` (`_events.Add(next)`), mais n'appelle **jamais** `Record`. `Record` recalcule un rang depuis `_events.Count` et créerait un second événement ; `Add` préserve le rang d'origine.
 
-**Attention au piège** : `Replay` ne doit **pas** réenregistrer d'événement — sinon le repli double le journal. C'est pourquoi il n'appelle jamais `Record`.
+Sans ce `Add`, le `Game` rendu par `Fold` n'aurait qu'un seul événement — son propre `GameCreated` — donc `Fold(events).Events != events` et `Fold(events).History` serait **vide**. Aucun test de ce plan ne l'attraperait, et la tâche 8 fonctionnerait par accident.
 
 - [ ] **Étape 5 : exécuter pour vérifier que ça passe**
 
@@ -767,7 +765,7 @@ Expected: **154 tests au vert**. Si `HttpEndpointsTests` ou `FireGrpcTests` éch
 ```bash
 dotnet format
 git add BattleShip.Models/Game.cs BattleShip.Models/Events/GameFold.cs \
-        BattleShip.Models/BattleShip.Models.csproj BattleShip.Tests/Domain/GameFoldTests.cs
+        BattleShip.Tests/Domain/GameFoldTests.cs
 git commit -m "feat: le journal devient la source de vérité de Game
 
 Game._history (List<ShotRecord>) est remplacé par Game._events. History
@@ -932,21 +930,53 @@ La tâche la plus risquée du plan : c'est ici qu'une fuite du secret est possib
 
 - [ ] **Étape 1 : écrire les tests qui échouent**
 
+**Deux contraintes du dépôt, vérifiées avant d'écrire ce plan, qui dictent la forme de ces tests :**
+
+1. Il n'existe **pas** de route HTTP de tir. Le tir est **exclusivement en gRPC-Web** (ADR 0005). Les seules routes HTTP sont `/games`, `/games/{id}`, `/games/{id}/placement`, `/games/{id}/history`.
+2. Un test piloté par HTTP **ne peut pas connaître la flotte adverse** — c'est précisément le secret qu'on vérifie. Il ne pourrait donc pas affirmer qu'une position n'a pas fuité.
+
+D'où la forme retenue : **injecter un store pré-rempli**, ce qui est la justification littérale de l'ADR 0002 (« les tests d'intégration doivent pouvoir injecter un store pré-rempli »). Le test connaît alors la flotte et devient réellement discriminant.
+
 ```csharp
 using System.Net;
 using System.Net.Http.Json;
+using BattleShip.API.Stores;
 using BattleShip.Models;
 using BattleShip.Models.Contracts;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BattleShip.Tests.Api;
 
-public sealed class EventsEndpointTests(BattleShipApiFactory factory)
-    : IClassFixture<BattleShipApiFactory>
+public sealed class EventsEndpointTests
 {
+    private static (HttpClient Client, IGameStore Store) Seeded()
+    {
+        var store = new InMemoryGameStore();
+
+        var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IGameStore>();
+                services.AddSingleton<IGameStore>(store);
+            }));
+
+        return (factory.CreateClient(), store);
+    }
+
+    private static Game PlayableGame()
+    {
+        var rules = GameRules.Default;
+        var human = new FleetPlacer(new Random(41)).PlaceAll(rules).Value;
+        var opponent = new FleetPlacer(new Random(42)).PlaceAll(rules).Value;
+        return Game.Start(Guid.NewGuid(), rules, human, opponent);
+    }
+
     [Fact]
     public async Task An_unknown_game_returns_404()
     {
-        var client = factory.CreateClient();
+        var (client, _) = Seeded();
 
         var response = await client.GetAsync($"/games/{Guid.NewGuid()}/events");
 
@@ -956,9 +986,11 @@ public sealed class EventsEndpointTests(BattleShipApiFactory factory)
     [Fact]
     public async Task A_negative_from_is_rejected()
     {
-        var client = factory.CreateClient();
+        var (client, store) = Seeded();
+        var game = PlayableGame();
+        store.Save(game);
 
-        var response = await client.GetAsync($"/games/{Guid.NewGuid()}/events?from=-1");
+        var response = await client.GetAsync($"/games/{game.Id}/events?from=-1");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -966,55 +998,62 @@ public sealed class EventsEndpointTests(BattleShipApiFactory factory)
     [Fact]
     public async Task During_a_game_no_unsunk_opposing_ship_cell_crosses_the_wire()
     {
-        var (client, id, opponentFleet) = await StartedGameAsync();
+        var (client, store) = Seeded();
+        var game = PlayableGame();
+        game.PlayerFires(new Coordinate(0, 0));
+        store.Save(game);
 
-        await client.PostAsJsonAsync($"/games/{id}/shots", new { X = 0, Y = 0 });
+        Assert.NotEqual(GameStatus.Finished, game.Status);
 
-        var payload = await (await client.GetAsync($"/games/{id}/events")).Content.ReadAsStringAsync();
-        var events = await (await client.GetAsync($"/games/{id}/events"))
-            .Content.ReadFromJsonAsync<List<GameEventDto>>();
+        var payload = await (await client.GetAsync($"/games/{game.Id}/events"))
+            .Content.ReadAsStringAsync();
 
-        Assert.NotNull(events);
-
-        var revealed = events!.OfType<ShotFiredDto>()
-            .Select(e => new Coordinate(e.X, e.Y))
-            .ToHashSet();
-
-        var secret = opponentFleet
+        var revealed = game.OpponentBoard.ReceivedShots;
+        var secret = game.OpponentBoard.Ships
             .SelectMany(s => s.Cells)
             .Where(c => !revealed.Contains(c))
             .ToList();
 
         Assert.NotEmpty(secret);
 
+        var compact = payload.Replace(" ", "").Replace("\n", "");
         foreach (var cell in secret)
-            Assert.DoesNotContain($"\"x\":{cell.X},\"y\":{cell.Y}", payload.Replace(" ", ""));
+            Assert.DoesNotContain($"\"x\":{cell.X},\"y\":{cell.Y}", compact);
     }
 
     [Fact]
     public async Task After_the_game_ends_the_full_journal_is_served()
     {
-        var (client, id, opponentFleet) = await FinishedGameAsync();
+        var (client, store) = Seeded();
+        var game = PlayableGame();
 
-        var events = await (await client.GetAsync($"/games/{id}/events"))
+        foreach (var cell in game.OpponentBoard.Ships.SelectMany(s => s.Cells).ToList())
+        {
+            game.PlayerFires(cell);
+            if (game.Status == GameStatus.Finished)
+                break;
+        }
+
+        Assert.Equal(GameStatus.Finished, game.Status);
+        store.Save(game);
+
+        var events = await (await client.GetAsync($"/games/{game.Id}/events"))
             .Content.ReadFromJsonAsync<List<GameEventDto>>();
 
         Assert.NotNull(events);
 
         var created = events!.OfType<GameCreatedDto>().Single();
 
-        Assert.Equal(opponentFleet.Count, created.OpponentShips.Count);
+        Assert.Equal(game.OpponentBoard.Ships.Count, created.OpponentShips.Count);
     }
 }
 ```
 
 **Les deux derniers tests forment la paire délibérée du § 6.2 de la spec** : chacun seul est satisfait par une implémentation fausse. Le troisième passerait avec un endpoint qui ne renvoie rien ; le quatrième passerait avec un endpoint qui ne censure jamais. Ne jamais n'en garder qu'un.
 
-Les fabriques `StartedGameAsync` et `FinishedGameAsync` se calquent sur celles de `HttpEndpointsTests.cs` et `FireGrpcTests.cs`. **Les lire avant d'écrire** :
+`RemoveAll<T>` vient de `Microsoft.Extensions.DependencyInjection.Extensions`. Si le `using` manque, l'ajouter.
 
-Run: `sed -n '1,60p' BattleShip.Tests/Api/HttpEndpointsTests.cs`
-
-Réutiliser la `BattleShipApiFactory` existante ; si elle porte un autre nom dans ce dépôt, reprendre celui-là.
+Le troisième test s'appuie sur « `touche = on rejoue` » (`GameRules.Default.ExtraTurnOnHit`) : après un tir en (0,0), c'est encore au joueur si ça a touché, et à l'adversaire sinon. Dans les deux cas la partie n'est pas finie, ce que l'assertion vérifie explicitement plutôt que de le supposer.
 
 - [ ] **Étape 2 : exécuter pour vérifier que ça échoue**
 
@@ -1141,16 +1180,20 @@ Dans `GameEndpoints.MapGameEndpoints`, après la route `/history` :
             if (!check.IsValid)
                 return TypedResults.ValidationProblem(check.ToDictionary());
 
+            var status = store.Read(id, game => game.Status);
+            if (!status.IsOk)
+                return TypedResults.NotFound();
+
             var events = store.ReadEvents(id, query.From);
             if (!events.IsOk)
                 return TypedResults.NotFound();
 
-            var status = store.Read(id, game => game.Status);
-            var gameIsOver = status.IsOk && status.Value == GameStatus.Finished;
-
-            return TypedResults.Ok(EventProjection.ForPlayer(events.Value, gameIsOver));
+            return TypedResults.Ok(
+                EventProjection.ForPlayer(events.Value, status.Value == GameStatus.Finished));
         });
 ```
+
+**L'ordre des deux lectures compte.** `Read` et `ReadEvents` prennent le verrou séparément, donc une partie peut se terminer entre les deux. Lire `Status` **en premier** est l'ordre conservateur : dans la fenêtre de course, on censure une partie tout juste finie au lieu de révéler la flotte d'une partie encore en cours. L'inverse serait une fuite du secret.
 
 Dans `BattleShip.API/Program.cs`, à côté des validateurs existants :
 
