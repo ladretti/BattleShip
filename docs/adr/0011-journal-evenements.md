@@ -8,9 +8,10 @@ Accepté — 2026-09-17
 Le moteur fait déjà, sans que ce soit une décision assumée, la moitié d'un event sourcing.
 `Game._history` est une liste ordonnée de `ShotRecord`, et `DtoMappings.ToOwnBoardDto` en
 dérive déjà les cases reçues. En parallèle, `Board._receivedShots` et `Ship._hitCells` portent
-le **même fait** sous forme de `HashSet` mutables : `Board.Fire` écrit donc un même tir à trois
-endroits, et deux lectures différentes puisent dans deux sources différentes qui ne sont
-synchronisées que par discipline, pas par construction.
+le **même fait** sous forme de `HashSet` mutables : un tir écrit donc le même fait à trois
+endroits — `Board._receivedShots` et `Ship._hitCells` depuis `Board.Fire`, puis `Game._history`
+depuis `Game.Fire` qui l'appelle — et deux lectures différentes puisent dans deux sources
+différentes qui ne sont synchronisées que par discipline, pas par construction.
 
 Cette duplication n'est pas seulement esthétique : elle est la cause du bug documenté au
 `README.md`, « le rejeu ne rejoue que les coups : il ne reconstitue pas l'état "coulé"
@@ -48,17 +49,31 @@ Option A. Le journal devient la source de vérité unique du domaine.
 ```csharp
 public abstract record GameEvent(int Sequence);
 
+public sealed record ShipSnapshot(string Name, int Size, IReadOnlyList<Coordinate> Cells);
+
 public sealed record GameCreated(int Sequence, GameRules Rules,
-    IReadOnlyList<Ship> OpponentShips, string Difficulty) : GameEvent(Sequence);
+    IReadOnlyList<ShipSnapshot> OpponentShips, string Difficulty) : GameEvent(Sequence);
 
 public sealed record HumanFleetPlaced(int Sequence,
-    IReadOnlyList<Ship> Ships) : GameEvent(Sequence);
+    IReadOnlyList<ShipSnapshot> Ships) : GameEvent(Sequence);
 
 public sealed record ShotFired(int Sequence, Coordinate At, Player By,
     ShotResult Result, string? SunkShipName) : GameEvent(Sequence);
 
 public sealed record GameEnded(int Sequence, Player Winner) : GameEvent(Sequence);
 ```
+
+Les événements portent `ShipSnapshot`, jamais `Ship`. `Ship` est **mutable** (`_hitCells`,
+rempli par `TryHit`) et `Board` ne copie que la liste qu'on lui donne, pas les objets
+(`Ships { get; } = [.. ships]`) : un événement qui porterait des `Ship` partagerait ses
+instances avec le plateau, et l'événement « déjà arrivé » se mettrait à jour rétroactivement à
+chaque tir. Pire, `Fold` se contaminerait lui-même — replier un préfixe muterait les `Ship` du
+journal, donc le repli suivant partirait d'un état déjà touché, et le rejeu deviendrait faux
+sans qu'aucun test ne le voie (un test de totalité ne constate qu'une absence d'exception).
+`ShipSnapshot(Name, Size, Cells)` est une donnée pure qui ne peut porter aucun état de touche ;
+`Fold` construit des `Ship` neufs à partir des instantanés à chaque repli. C'est exactement le
+geste de l'**ADR 0003** pour `ShotHistory` : l'invariant — ici, « un événement ne change
+jamais » — tient dans le type, pas dans la discipline de qui écrit `Fold`.
 
 Deux fonctions séparent strictement les deux registres de l'ADR 0004 :
 
@@ -123,8 +138,13 @@ vraie et reste écrite au `README.md`.
   son verrou par partie n'est pas touché. 0004 (`Result<T>` pour les refus) est **appliqué plus
   strictement** : `Decide`/`Apply` rend la séparation refus/anomalie visible dans la signature de
   deux fonctions distinctes plutôt que dans une seule méthode `Board.Fire` qui faisait les deux à
-  la fois. 0007 (état Blazor) et 0008 (contrat partagé dans `Models`) ne changent pas : c'est 0008
-  qui permet à `Fold` d'être partagé tel quel entre `BattleShip.API` et `BattleShip.App`.
+  la fois. 0008 (contrat partagé dans `Models`) ne change pas : c'est lui qui permet à `Fold`
+  d'être partagé tel quel entre `BattleShip.API` et `BattleShip.App`. 0007 (état Blazor) n'est
+  **pas** inchangé : sa condition de réexamen — « une reprise de partie après rechargement du
+  navigateur entrait au périmètre : il faudrait alors persister l'identifiant de partie côté
+  client » — est précisément ce que programme la spec § 5.3 (identifiant en `localStorage`,
+  relu au démarrage). Cette reprise satisfait donc la condition de réexamen de l'ADR 0007 et
+  devra y être consignée en amendement au moment où elle sera codée.
 - Aucun contrat HTTP existant ne change de forme : `GET /games/{id}` devient `Fold(events)` mais
   rend le même DTO, `GET /games/{id}/history` devient une projection du journal filtrée sur
   `ShotFired`. Un nouveau `GET /games/{id}/events?from={n}` sert le flux incrémental censuré. Cette
@@ -165,5 +185,8 @@ vraie et reste écrite au `README.md`.
 - ADR 0001 (représentation de l'état) — précisé
 - ADR 0002 (`IGameStore`, verrou par partie) — étendu d'un membre de lecture
 - ADR 0004 (`Result<T>` pour les refus métier) — appliqué plus strictement
-- ADR 0007 (état côté Blazor) et ADR 0008 (contrat partagé dans `Models`) — inchangés, ce dernier
-  rend le repli partageable entre serveur et front
+- ADR 0008 (contrat partagé dans `Models`) — inchangé, il rend le repli partageable entre
+  serveur et front
+- ADR 0007 (état côté Blazor) — non inchangé : sa condition de réexamen (persister
+  l'identifiant de partie pour une reprise après rechargement) est atteinte par la spec § 5.3,
+  à consigner en amendement
