@@ -158,6 +158,7 @@ else
     private string _announcement = "Your move.";
 
     private IReadOnlyList<ShotDto> _history = [];
+    private IReadOnlyList<GameEvent> _events = [];
 
     private int? _replayCursor;
 
@@ -246,12 +247,48 @@ else
         ];
     }
 
-    private static IReadOnlyList<ShipOutline> OpponentHulls(GameDto game) =>
-    [
-        .. game.Opponent.SunkShips
-            .Select(ship => ShipOutline.FromCells(ship.Name, ship.Cells, isSunk: true))
-            .OfType<ShipOutline>()
-    ];
+    private Game? ReplayedGame(int cursor)
+    {
+        if (_events.Count == 0)
+            return null;
+
+        var shots = 0;
+        var upTo = new List<GameEvent>();
+
+        foreach (var next in _events)
+        {
+            if (next is ShotFired && shots++ >= cursor)
+                break;
+
+            upTo.Add(next);
+        }
+
+        return GameFold.Fold(State.Current!.Id, upTo);
+    }
+
+    private IReadOnlyList<ShipOutline> OpponentHulls(GameDto game)
+    {
+        if (_replayCursor is { } cursor && ReplayedGame(cursor) is { } replayed)
+        {
+            return
+            [
+                .. replayed.OpponentBoard.Ships
+                    .Where(s => s.IsSunk)
+                    .Select(s => ShipOutline.FromCells(
+                        s.Name,
+                        [.. s.Cells.Select(c => new CellDto(c.X, c.Y, "sunk"))],
+                        isSunk: true))
+                    .OfType<ShipOutline>()
+            ];
+        }
+
+        return
+        [
+            .. game.Opponent.SunkShips
+                .Select(ship => ShipOutline.FromCells(ship.Name, ship.Cells, isSunk: true))
+                .OfType<ShipOutline>()
+        ];
+    }
 
     private void SetReplayCursor(int? cursor) => _replayCursor = cursor;
 
@@ -260,10 +297,58 @@ else
         if (State.Current is not { } game)
             return;
 
-        var result = await Api.GetHistoryAsync(game.Id);
-        if (result.IsOk)
-            _history = result.Value;
+        var result = await Api.GetEventsAsync(game.Id);
+        if (!result.IsOk)
+            return;
+
+        _events = [.. result.Value.Select(ToDomainEvent).OfType<GameEvent>()];
+        _history = [.. _events.OfType<ShotFired>()
+            .Select(e => new ShotDto(e.At.X, e.At.Y, StateOf(e.Result), e.By.ToString(), e.SunkShipName))];
     }
+
+    private static GameEvent? ToDomainEvent(GameEventDto dto) => dto switch
+    {
+        GameCreatedDto created => new GameCreated(
+            created.Sequence,
+            GameRules.Default with
+            {
+                GridSize = created.GridSize,
+                Fleet = [.. created.Fleet.Select(f => new ShipTemplate(f.Name, f.Size))],
+                ShipsMayTouch = created.ShipsMayTouch
+            },
+            ToShips(created.OpponentShips),
+            created.Difficulty),
+
+        HumanFleetPlacedDto placed => new HumanFleetPlaced(placed.Sequence, ToShips(placed.Ships)),
+
+        ShotFiredDto shot => new ShotFired(
+            shot.Sequence, new Coordinate(shot.X, shot.Y),
+            Enum.Parse<Player>(shot.By), ResultOf(shot.Result), shot.SunkShipName),
+
+        GameEndedDto ended => new GameEnded(ended.Sequence, Enum.Parse<Player>(ended.Winner)),
+
+        _ => null
+    };
+
+    private static IReadOnlyList<ShipSnapshot> ToShips(IReadOnlyList<ShipDto> ships) =>
+        [.. ships.Select(s => new ShipSnapshot(
+            s.Name, s.Size, [.. s.Cells.Select(c => new Coordinate(c.X, c.Y))]))];
+
+    private static ShotResult ResultOf(string state) => state switch
+    {
+        "miss" => ShotResult.Miss,
+        "hit" => ShotResult.Hit,
+        "sunk" => ShotResult.Sunk,
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown shot state.")
+    };
+
+    private static string StateOf(ShotResult result) => result switch
+    {
+        ShotResult.Miss => "miss",
+        ShotResult.Hit => "hit",
+        ShotResult.Sunk => "sunk",
+        _ => throw new ArgumentOutOfRangeException(nameof(result), result, "Unknown shot result.")
+    };
 
     private static bool PlayerWon(GameDto game) => game.Winner == "Human";
 

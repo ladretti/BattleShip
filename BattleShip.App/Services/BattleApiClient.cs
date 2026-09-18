@@ -124,6 +124,32 @@ public sealed class BattleApiClient(HttpClient http)
         }
     }
 
+    public async Task<ApiResult<IReadOnlyList<GameEventDto>>> GetEventsAsync(
+    Guid id, int from = 0, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await http.GetAsync($"games/{id}/events?from={from}", cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return ApiResult<IReadOnlyList<GameEventDto>>.Fail(
+                    $"Game {id} no longer exists on the server.");
+
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<IReadOnlyList<GameEventDto>>.Fail(
+                    await DescribeFailureAsync(response, cancellationToken));
+
+            var events = await response.Content
+                .ReadFromJsonAsync<List<GameEventDto>>(cancellationToken);
+
+            return ApiResult<IReadOnlyList<GameEventDto>>.Ok(events ?? []);
+        }
+        catch (Exception exception) when (IsCommunicationFailure(exception))
+        {
+            return ApiResult<IReadOnlyList<GameEventDto>>.Fail(Describe(exception));
+        }
+    }
+
     private sealed record ProblemBody(string? Title, string? Error, Dictionary<string, string[]>? Errors);
 
     private static async Task<string> DescribeFailureAsync(
