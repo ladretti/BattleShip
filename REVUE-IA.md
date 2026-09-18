@@ -299,7 +299,9 @@ sans avoir été identifié comme tel, était le test 5,
 
 **Scénario, résultat attendu puis observé** : dans les trois cas, le résultat attendu **avant** la
 relecture indépendante était « le test discrimine la conception fautive de l'honnête » ; l'observé a
-été négatif pour `Folding_the_same_prefix_twice` (les deux passent) et positif après correction pour
+été négatif pour le test aujourd'hui nommé `Folding_a_prefix_rebuilds_exactly_the_hits_of_that_prefix`
+— alors encore intitulé `Folding_the_same_prefix_twice`, ce que le renommage a corrigé puisque la
+comparaison « deux replis identiques » était justement la moitié inerte (les deux passent) — et positif après correction pour
 R15 (`IsOk` vérifié sur chaque `Mutate`) et R16 (égalité d'ensembles). **Erreur que chaque contrôle
 peut désormais détecter** : un repli qui mute le journal plutôt que de le rejouer (test 5) ; une
 troncature silencieuse du flux d'événements (R15, après correction) ; une révélation de flotte aux

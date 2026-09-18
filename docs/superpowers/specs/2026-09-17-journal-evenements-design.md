@@ -393,9 +393,16 @@ invariant de totalité passerait presque toujours sans rien prouver.
 
 - Le comportement de la sérialisation polymorphe sous publication trimmée reste inconnu, comme
   aujourd'hui pour le reste du front.
-- La totalité de `Apply` est établie sur des journaux **engendrés par `Game.Fire`** (qui s'appuie
-  sur `Board.Decide` pour la validation). Un journal forgé à la main hors de ces chemins n'est pas
-  couvert, et n'a pas à l'être : seul `Game.Fire` écrit dans le journal.
+- La totalité de `Apply` est établie sur des journaux **engendrés par les chemins de commande de
+  `Game`** — `Start` / `Create`, `PlaceHumanFleet`, et `Fire` (qui s'appuie sur `Board.Decide` pour
+  la validation). Un journal forgé à la main hors de ces chemins n'est pas couvert, et n'a pas à
+  l'être : ce sont les seuls à écrire dans le journal. `Replay` y ajoute aussi, mais uniquement des
+  événements déjà produits par eux, et sous contrôle de contiguïté des rangs.
+
+  > **Correction du 2026-09-18** : la version précédente affirmait « seul `Game.Fire` écrit dans le
+  > journal ». C'était faux — `_events` est alimenté depuis cinq endroits de `Game.cs` (lignes 44,
+  > 45, 55, 70, 96, 105 via `Record`, et 120 via `Replay`). L'argument porté par la phrase reste
+  > valide ; seule l'énumération était erronée.
 
 ---
 
