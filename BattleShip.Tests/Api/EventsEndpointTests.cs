@@ -115,5 +115,33 @@ public sealed class EventsEndpointTests
         var created = events!.OfType<GameCreatedDto>().Single();
 
         Assert.Equal(game.OpponentBoard.Ships.Count, created.OpponentShips.Count);
+
+        var exposedOpponentCells = created.OpponentShips
+            .SelectMany(s => s.Cells)
+            .Select(c => new Coordinate(c.X, c.Y))
+            .ToHashSet();
+
+        var trueOpponentCells = game.OpponentBoard.Ships
+            .SelectMany(s => s.Cells)
+            .ToHashSet();
+
+        Assert.Equal(trueOpponentCells, exposedOpponentCells);
+    }
+
+    [Fact]
+    public async Task A_from_beyond_the_journal_length_returns_an_empty_list()
+    {
+        var (client, store) = Seeded();
+        var game = PlayableGame();
+        store.Save(game);
+
+        var response = await client.GetAsync($"/games/{game.Id}/events?from=9999");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var events = await response.Content.ReadFromJsonAsync<List<GameEventDto>>();
+
+        Assert.NotNull(events);
+        Assert.Empty(events!);
     }
 }
