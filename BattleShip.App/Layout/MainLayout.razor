@@ -39,7 +39,10 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
+        {
             await Appearance.InitializeAsync();
+            await State.InitializeAsync();
+        }
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);

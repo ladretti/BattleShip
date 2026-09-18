@@ -10,7 +10,7 @@ public enum LoadState
     Failed
 }
 
-public sealed class GameState(BattleApiClient api)
+public sealed class GameState(BattleApiClient api, GameSessionStorage session)
 {
     public GameDto? Current { get; private set; }
 
@@ -19,6 +19,25 @@ public sealed class GameState(BattleApiClient api)
     public string? ErrorMessage { get; private set; }
 
     public event Action? OnChange;
+
+    public async Task InitializeAsync()
+    {
+        if (Current is not null)
+            return;
+
+        var id = await session.ReadAsync();
+        if (id is null)
+            return;
+
+        var result = await api.GetGameAsync(id.Value);
+        if (!result.IsOk)
+        {
+            await session.ClearAsync();
+            return;
+        }
+
+        await SetCurrentAsync(result.Value);
+    }
 
     public async Task CreateAsync(int gridSize, string difficulty)
     {
@@ -32,8 +51,7 @@ public sealed class GameState(BattleApiClient api)
             return;
         }
 
-        Current = result.Value;
-        Transition(LoadState.Ready, null);
+        await SetCurrentAsync(result.Value);
     }
 
     public async Task RefreshAsync()
@@ -52,8 +70,7 @@ public sealed class GameState(BattleApiClient api)
             return;
         }
 
-        Current = result.Value;
-        Transition(LoadState.Ready, null);
+        await SetCurrentAsync(result.Value);
     }
 
     public async Task PlaceFleetAsync(IReadOnlyList<ShipPlacementInput> ships)
@@ -82,7 +99,18 @@ public sealed class GameState(BattleApiClient api)
             return;
         }
 
-        Current = reread.Value;
+        await SetCurrentAsync(reread.Value);
+    }
+
+    private async Task SetCurrentAsync(GameDto game)
+    {
+        Current = game;
+
+        if (game.Status == "Finished")
+            await session.ClearAsync();
+        else
+            await session.SaveAsync(game.Id);
+
         Transition(LoadState.Ready, null);
     }
 

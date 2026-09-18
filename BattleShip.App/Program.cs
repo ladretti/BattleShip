@@ -27,6 +27,7 @@ builder.Services.AddScoped<BattleApiClient>();
 builder.Services.AddScoped<GameState>();
 
 builder.Services.AddScoped<AppearanceState>();
+builder.Services.AddScoped<GameSessionStorage>();
 builder.Services.AddScoped(_ => Random.Shared);
 
 builder.Services.AddScoped(_ => GrpcChannel.ForAddress(apiBaseAddress, new GrpcChannelOptions
