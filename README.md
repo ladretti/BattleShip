@@ -1,7 +1,8 @@
 # Bataille Navale — C# / ASP.NET Core
 
-TP d'autonomie C# ASP.NET (HTS Learning, Christophe MOMMER). **État au 2026-09-17 : le socle et les trois extensions
-du backlog sont livrés ; une partie complète se joue dans le navigateur, de la création à la victoire.**
+TP d'autonomie C# ASP.NET (HTS Learning, Christophe MOMMER). **État au 2026-09-18 : le socle, les trois
+extensions du 2026-09-17 et le journal d'événements (ADR 0011) sont livrés ; une partie complète se joue dans
+le navigateur, de la création à la victoire, avec rejeu fidèle et reprise après rechargement.**
 
 ## Binôme
 
@@ -39,7 +40,7 @@ dotnet run --project BattleShip.App --launch-profile https   # https://localhost
 
 ```bash
 dotnet build      # 0 avertissement
-dotnet test       # 145 tests
+dotnet test       # 169 tests
 dotnet format     # avant tout commit
 ```
 
@@ -74,6 +75,14 @@ Essais manuels des endpoints HTTP : `api.http` à la racine — `@api = http://l
   l'état serveur.
 - **Trois apparences** commutables (*Hydrographic*, *Steel*, *Tabletop*) et un réglage **Impacts complet ou calme**,
   mémorisés entre deux visites (ADR 0009).
+- **Journal d'événements** (`GET /games/{id}/events`) comme source de vérité unique du moteur (ADR 0011) : un
+  seul fait écrit une seule fois, plutôt que trois écritures dupliquées à chaque tir.
+- **Rejeu fidèle** : le curseur reconstitue l'état « coulé » réellement atteint à chaque instant, y compris en
+  cours de partie sur un journal censuré — plus seulement la liste des coups.
+- **Révélation de la flotte adverse en fin de partie** : le journal expose les positions adverses une fois
+  `GameEnded` reçu, jamais avant.
+- **Reprise après rechargement de page** : l'identifiant de la partie en cours survit à un rechargement
+  (`localStorage`), avec repli propre si la partie n'existe plus côté serveur.
 - **Coques dessinées en SVG** par géométrie, franchissant les gouttières entre les cases ; dégâts marqués sur la
   coque, épave conservée (ADR 0010).
 - **Page d'accueil illustrée** en SVG, `aria-hidden`, figée en mode calme et sous `prefers-reduced-motion`.
@@ -111,7 +120,11 @@ annonces, glyphes, contrastes).
 **Écarté** :
 
 - **Persistance SQLite / EF** — infrastructure qui ne sert ni le moteur ni l'adversaire ; `IGameStore` rend le
-  changement local le jour où il devient utile.
+  changement local le jour où il devient utile. Le journal d'événements (ADR 0011) l'a rendue **triviale à
+  ajouter** (il suffirait de la sérialiser) — écartée quand même, par décision du binôme, faute de besoin réel.
+- **Concurrence optimiste** (`Append(id, expectedVersion, events)`, la forme « canonique » de l'event sourcing)
+  — examinée puis écartée à l'ADR 0011 : elle résout un problème déjà résolu par le verrou par partie de
+  l'ADR 0002, testé et correct dans un store mono-processus en mémoire.
 - **Multijoueur** (sessions et temps réel) et **déploiement** — hors périmètre, sans valeur ajoutée pour l'évaluation.
 - **Placement automatique du joueur** — le placement manuel démontre mieux la validation serveur.
 
@@ -121,14 +134,20 @@ annonces, glyphes, contrastes).
   dès qu'elle touche. **Normal est le mode jouable, Difficile une démonstration d'algorithme** (ADR 0006).
 - Les moyennes (200 parties par stratégie, graine 20260915) ne valent que pour cette flotte et cette grille ;
   `Density` reste sous le seuil de 55 coups fixé avant mesure (revue 2).
-- **État en mémoire** : redémarrer l'API perd les parties, et le front ne conserve pas l'identifiant, donc **recharger
-  la page perd la partie en cours** (ADR 0007).
+- **État en mémoire** : redémarrer l'API perd les parties — la persistance est restée hors périmètre par
+  décision du binôme (arbitrages du backlog ci-dessus), alors que le journal d'événements la rendrait triviale.
+- **`localStorage` est partagé par ORIGINE, pas par onglet** : un second onglet restaure la même partie que le
+  premier et les deux pilotent le même identifiant en parallèle — désynchronisation d'affichage dès que l'un des
+  deux tire. `sessionStorage` isolerait par onglet au prix de ne pas survivre à la fermeture de l'onglet ;
+  arbitrage non tranché par le binôme.
 - **Reconstruire pendant que `dotnet run` tourne casse le front** : les empreintes de `_framework/` changent, la page
   reste blanche avec un `404` sur `dotnet.<hash>.js`. Remède : relancer `dotnet run --project BattleShip.App`.
 - **Polices Google Fonts** : sans réseau, la pile de secours s'applique et les trois apparences se ressemblent.
 - **Accessibilité** : les contrastes sont calculés, mais **aucun lecteur d'écran réel n'a été essayé** ; les flèches
   ne suppriment pas le défilement de la page ; la grille du joueur est lue case par case, pas parcourue.
-- Le rejeu ne rejoue que les **coups** : il ne reconstitue pas l'état « coulé » intermédiaire.
+- La révélation de la flotte adverse en fin de partie est couverte par un test d'intégration
+  (`After_the_game_ends_the_full_journal_is_served`) mais **n'a pas été jouée à l'écran** — terminer une partie
+  manuellement demande une vingtaine de tirs.
 - La sérialisation JSON du front repose sur la réflexion ; son comportement sous **publication trimmée** est inconnu.
 
 ## Code généré
@@ -148,8 +167,8 @@ annonces, glyphes, contrastes).
 | `docs/superpowers/specs/2026-09-15-bataille-navale-design.md` | conception d'ensemble |
 | `docs/superpowers/plans/` | plan d'implémentation découpé en tâches |
 | `docs/demo/` | preuves de la démonstration gRPC-Web |
-| `docs/adr/` | décisions d'architecture (0001 à 0010) |
+| `docs/adr/` | décisions d'architecture (0001 à 0011) |
 | `PROMPTS.md` | échanges décisifs avec l'IA |
-| `REVUE-IA.md` | sept revues argumentées des propositions de l'IA |
+| `REVUE-IA.md` | neuf revues argumentées des propositions de l'IA |
 | `CONTEXTE-IA.md` | contexte du projet |
 | `CLAUDE.md` | cadre de travail de l'IA sur ce dépôt |

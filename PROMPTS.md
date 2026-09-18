@@ -202,3 +202,35 @@ sérialisation des records polymorphes en Blazor WASM est **inconnue** et se tra
 avant d'écrire le contrat ; une première rédaction de la spec affirmait à tort qu'« aucun contrat public ne
 change » alors que `Board.ReceivedShots` et `Ship.HitCells` sont publiques — corrigé en conservant ces
 propriétés, calculées sur l'état replié.
+
+## 2026-09-18 — Implémentation du journal d'événements, tâches 0 à 8
+
+**Contexte** : spec et ADR 0011 écrits la veille ; neuf tâches à exécuter en TDD, avec un plan auto-relu
+signalant deux paires de tâches à risque (Board → Game/Fold sur la pureté de `Decide`, Game/Fold → censure du
+front sur la flotte adverse censurée en cours de partie). **Prompt** : « /superpowers:executing-plans
+@docs/superpowers/plans/2026-09-17-journal-evenements.md », dispatché tâche par tâche avec relecture
+indépendante après chaque implémentation.
+**Réponse** : le spike de la tâche 1 a tranché la question ouverte de la sérialisation avant d'écrire le
+contrat — `[JsonPolymorphic]` + `[JsonDerivedType]` fonctionnent en .NET 10, sortie observée `count=2
+first=ShotFiredDto second=GameEndedDto` (projet console jetable, pas `dotnet run --file` : contrainte
+d'outillage assumée, sans conséquence sur la conclusion). Les événements portent des `ShipSnapshot` immuables,
+jamais des `Ship` vivants (R7) : sans cela, `Fold` se serait contaminé lui-même en mutant les mêmes instances
+à chaque repli.
+**Décision** : le plan est suivi avec des écarts documentés en temps réel dans `progress.md` plutôt qu'après
+coup — 18 décisions numérotées (R1 à R18), dont R7 (Critique, requalifié après vérification dans le code) et
+R18 (régression front trouvée par le contrôleur, seul défaut du chantier situé dans le code livré et non dans
+les tests ou la spec). Sur ces 18 décisions, **six portent sur des tests incapables de discriminer une
+conception correcte d'une conception fautive**, contre un seul défaut de code de production — ratio à charge
+de la conception des tests, pas de l'implémentation (détail : revue 9).
+**Vérification** : `dotnet test` mesuré après chaque tâche, croissant sans régression — 145 (ligne de base) →
+148 → 150 → 155 → 160 → 164 → 168 → **169** (front, aucun projet de tests dédié, attendu) ; `dotnet build`
+0 avertissement à chaque étape. Vérification navigateur du 2026-09-18, serveurs relancés sur le build courant :
+bout-en-bout HTTP de `/events` (17 cases exposées = exactement celles du joueur en cours de partie, `from=9999`
+→ `200` + liste vide, `from=-1` → `400`, id inconnu → `404`) ; reprise après rechargement de page constatée à
+l'écran (flotte redessinée, 5 navires à 0 touche) ; balayage du curseur de rejeu sur une partie en cours
+(Submarine coulé au tir 7) montrant la coque apparaître **exactement** au coup qui l'a coulée et ne jamais
+disparaître — la régression R18 est morte à l'écran, pas seulement en test.
+**Preuve / limite** : commits `d488e8d`..`fa5422b` (ADR 0011 à la tâche 8) ; `progress.md` (journal complet des
+18 rulings). Limite dite telle quelle : la révélation de la flotte adverse **après** `GameEnded` n'a **pas**
+été jouée à l'écran — finir une partie manuellement demande une vingtaine de tirs — et repose sur le seul test
+d'intégration `After_the_game_ends_the_full_journal_is_served`.

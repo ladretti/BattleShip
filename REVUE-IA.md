@@ -1,8 +1,8 @@
 # Revues de propositions IA
 
-Sept revues, chacune étayée par une exécution dont le résultat attendu avait été énoncé **avant** de
+Neuf revues, chacune étayée par une exécution dont le résultat attendu avait été énoncé **avant** de
 lancer la commande — une proposition acceptée exige une preuve autant qu'une proposition rejetée.
-**Bilan : sept revues, toutes closes : 2 acceptées, 3 adaptées, 1 rejetée, 1 corrigée** (la revue 2,
+**Bilan : neuf revues, toutes closes : 4 acceptées, 3 adaptées, 1 rejetée, 1 corrigée** (la revue 2,
 confirmée par la mesure, compte parmi les acceptées).
 
 ## Revue 1 — Aucune exception par tour d'adversaire (ADR 0004) — acceptée
@@ -213,3 +213,103 @@ correction, `The_shooter_who_sinks_the_last_ship_is_the_winner` et
 donnée. **Preuves et limites** : commits `5948009` (moteur et contrat) et `0d873f9` (partie
 complète) ; limite : `FireResponse` (gRPC) ne porte pas le vainqueur, la page relit l'état par HTTP
 après chaque échange.
+
+## Revue 8 — La censure par champ de `/events` — acceptée
+
+**Proposition** : `BattleShip.API/Contracts/EventProjection.cs:20`, `gameIsOver ? ToShipDtos(...) :
+[]` — l'événement `GameCreated` est toujours émis, seul son champ `OpponentShips` est vidé tant que
+la partie n'est pas finie (commit `e195467`, § 3 de la spec du 2026-09-17).
+
+**Hypothèse à vérifier** : aucune position d'un navire adverse **non coulé** ne franchit
+`GET /games/{id}/events` pendant la partie, et **toutes** les positions le franchissent après
+`GameEnded`. Une seule des deux moitiés ne suffit à rien : un flux qui ne révèle jamais rien
+« passerait » la première moitié en trichant sur la seconde, et un flux qui révèle tout en
+permanence passerait la seconde en trichant sur la première. **Pouvoir discriminant** : la paire.
+
+**Expérience** : sonde de fuite dispatchée à la relecture de la tâche 6 — comparaison structurelle
+de l'ensemble des cases de navire exposées par le flux contre l'ensemble exact des cases du joueur,
+à trois instants (mi-partie, mi-partie avec `from=1` pour sauter `GameCreated`, partie finie), plus
+une fenêtre de course simulée entre la lecture de `Status` et `ReadEvents`. Attendu, énoncé avant
+exécution : 0 case adverse non coulée exposée tant que `Status != Finished`, toutes exposées après.
+Erreur détectable : un champ oublié dans un des quatre DTO dérivés, ou une lecture de `Status` après
+`ReadEvents` qui laisserait passer une partie terminée entre-temps sans révéler.
+
+**Observation** : mi-partie, **17 cases exposées = exactement celles du joueur, 0/15 cases adverses
+fuitées** ; même résultat avec `from=1` (0/15) — seul `GameCreated` porte le secret, aucun autre
+événement ne le réintroduit ; partie finie, **32 cases = joueur ∪ adverse**, révélation complète ;
+fenêtre de course simulée (`Status` lu avant le tir final, `ReadEvents` après) : 0/15, le drapeau
+reste à `false` — l'ordre retenu **sous**-révèle, jamais l'inverse. Confirmé ensuite en conditions
+réelles hors mémoire (bout-en-bout HTTP, serveur relancé sur le build courant) : `opponentShips`
+pendant la partie = `[]`, 17 cases exposées = exactement celles du joueur.
+
+**Décision** : **acceptée**. La censure par champ tient à l'exécution, pas seulement à la lecture du
+code, et la re-relecture confirme que `ForPlayer` fait un `Select` (jamais un `Where`) — autant de
+DTO que d'événements reçus, `Sequence` préservés un à un, donc aucune suppression d'événement ne
+masque la censure elle-même.
+
+**Preuves et limites** : commit `e195467` (censure), `f1720bd` (durcissement, R17) ; journal de
+chantier `progress.md` § tâche 6, sonde de fuite et vérification navigateur du 2026-09-18. Limites :
+la censure est vérifiée sur le canal HTTP `/events` ; le canal gRPC n'expose aucun événement et
+n'est pas couvert par ces tests. Un point reste **non vérifié à l'écran** : la révélation après
+`GameEnded` (branche « partie finie ») n'a été jouée manuellement à aucun moment — terminer une
+partie demande une vingtaine de tirs — et repose sur le seul test d'intégration
+`After_the_game_ends_the_full_journal_is_served`.
+
+## Revue 9 — « Un test au vert ne prouve rien s'il ne peut pas échouer » — acceptée
+
+**Constat** : sur les 18 décisions numérotées du chantier journal d'événements (`progress.md`), **six
+portaient sur un test incapable de réfuter ce qu'il prétendait vérifier** — pas sur le code de
+production. C'est le résultat le plus fort du chantier et il se lit dans les nombres, pas dans une
+impression.
+
+**Le cas central** : `Folding_the_same_prefix_twice_gives_the_same_state`
+(`BattleShip.Tests/Domain/GameFoldTests.cs`) avait été désigné dans la relecture de la tâche 4 comme
+« le seul contrôle qui échouerait sur la conception fautive » — un `GameFold.Fold` qui repliait les
+événements sur les `Ship` **du plateau joué** plutôt que sur des `Ship` neufs. Une relecture
+indépendante a compilé la conception fautive et mesuré :
+
+```
+TEST3 sur conception HONNÊTE passe = True
+TEST3 sur conception FAUTIVE  passe = True   <-- aurait dû être False
+```
+
+**Hypothèse à vérifier** (formulée après coup, faute de l'avoir été avant) : le test suppose que le
+premier repli part de `Ship` propres et que c'est le second repli qui hérite d'un état déjà sali.
+Faux — les `Ship` du journal sont les instances du plateau **déjà joué**, déjà saturées ; `TryHit`
+est monotone et idempotent, donc repli n°1 == repli n°2 **sur n'importe quelle conception**, honnête
+ou fautive. Le contrôle ne pouvait structurellement pas discriminer. Le test qui discriminait déjà,
+sans avoir été identifié comme tel, était le test 5,
+`A_ship_is_not_reported_sunk_before_the_shot_that_sank_it` (même fichier) : HONNÊTE `True`, FAUTIVE
+`False`.
+
+**Deux autres cas, les plus parlants** :
+
+- **R15** — une fixture de `ReadEvents_from_n_is_inclusive...` tirait deux coups sans vérifier leurs
+  `Result` ; le premier était un `Miss`, donc le tour passait à l'adversaire et le second tir humain
+  était **refusé** (`NotYourTurn`) en silence. Le journal produit ne comptait que 3 événements sur 4
+  attendus et un `tail` d'un seul élément — le test prouvait encore l'inclusivité (une implémentation
+  exclusive aurait rendu 0), mais plus rien contre une troncature ; un `.Take(1)` serait passé au vert.
+- **R16** — le test de révélation de fin de partie comparait `game.OpponentBoard.Ships.Count` à
+  `created.OpponentShips.Count` : un **compte**, pas un **contenu**. Une projection révélant le bon
+  nombre de navires avec des cases fausses, dupliquées ou décalées passait au vert. Corrigé en
+  égalité structurelle d'ensembles de cases, symétrique de la sonde de fuite de la revue 8.
+
+**Scénario, résultat attendu puis observé** : dans les trois cas, le résultat attendu **avant** la
+relecture indépendante était « le test discrimine la conception fautive de l'honnête » ; l'observé a
+été négatif pour `Folding_the_same_prefix_twice` (les deux passent) et positif après correction pour
+R15 (`IsOk` vérifié sur chaque `Mutate`) et R16 (égalité d'ensembles). **Erreur que chaque contrôle
+peut désormais détecter** : un repli qui mute le journal plutôt que de le rejouer (test 5) ; une
+troncature silencieuse du flux d'événements (R15, après correction) ; une révélation de flotte aux
+cases fausses avec le bon compte (R16, après correction).
+
+**Décision** : **acceptée** comme conclusion du chantier, à consigner sans l'édulcorer :
+**`Result<T>` (ADR 0004) élimine les anomalies non traitées, mais rien dans son type n'oblige un
+test à vérifier le `Result` qu'il obtient.** La discipline de l'ADR 0004 porte sur le code de
+production ; elle ne protège pas automatiquement les tests qui l'exercent — c'est une vérification
+distincte, et humaine.
+
+**Preuves et limites** : `progress.md`, rulings R10 (rétracté), R14, R15, R16 ; commits `3462e5a`
+(tâche 4), `c383fd3` (tâche 5, R15), `f1720bd` (tâche 6, R16). Limites : le chiffre « six sur 18 »
+compte les décisions numérotées du journal de chantier, pas une mesure indépendante sur l'ensemble
+du dépôt ; les trois autres cas (R10 initial, R11 sur `Fold([])`, R13 sur l'égalité par référence)
+ne sont pas détaillés ici par souci de densité.
