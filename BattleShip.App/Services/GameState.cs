@@ -36,6 +36,9 @@ public sealed class GameState(BattleApiClient api, GameSessionStorage session)
             return;
         }
 
+        if (Current is not null)
+            return;
+
         await SetCurrentAsync(result.Value);
     }
 

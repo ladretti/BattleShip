@@ -99,31 +99,6 @@ public sealed class BattleApiClient(HttpClient http)
         }
     }
 
-    public async Task<ApiResult<IReadOnlyList<ShotDto>>> GetHistoryAsync(
-    Guid id, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var response = await http.GetAsync($"games/{id}/history", cancellationToken);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
-                return ApiResult<IReadOnlyList<ShotDto>>.Fail($"Game {id} no longer exists on the server.");
-
-            if (!response.IsSuccessStatusCode)
-                return ApiResult<IReadOnlyList<ShotDto>>.Fail(
-                    await DescribeFailureAsync(response, cancellationToken));
-
-            var history = await response.Content
-                .ReadFromJsonAsync<List<ShotDto>>(cancellationToken);
-
-            return ApiResult<IReadOnlyList<ShotDto>>.Ok(history ?? []);
-        }
-        catch (Exception exception) when (IsCommunicationFailure(exception))
-        {
-            return ApiResult<IReadOnlyList<ShotDto>>.Fail(Describe(exception));
-        }
-    }
-
     public async Task<ApiResult<IReadOnlyList<GameEventDto>>> GetEventsAsync(
     Guid id, int from = 0, CancellationToken cancellationToken = default)
     {

@@ -1,7 +1,8 @@
 # ADR 0007 : Gestion de l'état côté Blazor
 
 ## Statut et date
-Accepté — 2026-09-15 — amendé 2026-09-16 (revue 5) : durée de vie `Scoped`
+Accepté — 2026-09-15 — amendé 2026-09-16 (revue 5) : durée de vie `Scoped` — amendé 2026-09-18 :
+condition de réexamen satisfaite, reprise de partie livrée (ADR 0011)
 
 ## Contexte
 
@@ -49,6 +50,15 @@ partie courante et expose un événement `OnChange` ; les composants s'y abonnen
   qu'une page figée.
 - À réexaminer si une reprise de partie après rechargement du navigateur entrait au périmètre : il
   faudrait alors persister l'identifiant de partie côté client.
+
+### Amendement 2026-09-18 : condition de réexamen satisfaite
+
+La reprise de partie après rechargement est livrée (ADR 0011, tâche 7, commit `69e2e2d`) :
+l'identifiant de la partie en cours est écrit dans `localStorage` par `GameSessionStorage` et relu
+au démarrage par `GameState.InitializeAsync`. Une partie disparue côté serveur (id inconnu) est un
+cas normal, non bloquant : le client efface l'identifiant et repart de l'accueil. `GameState` ne
+reconstitue toujours aucune donnée que le serveur n'a pas renvoyée — le principe du secret du jeu
+(§ Conséquences) n'est pas affecté par cet ajout.
 
 ## Références
 

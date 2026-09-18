@@ -126,14 +126,20 @@ l'**ADR 0004**, plus stricte qu'aujourd'hui.
 
 | | rôle | peut refuser ? | registre d'erreur |
 |---|---|---|---|
-| `Decide(command)` | valider contre l'état courant, produire les événements | **oui** | `Result<IReadOnlyList<GameEvent>>` — case rejouée, hors grille, partie finie, placement invalide |
+| `Board.Decide(Coordinate)` | valider un tir contre l'état du plateau visé (hors grille, case déjà tirée) | **oui** | `Result<ShotOutcome>` |
+| `Game.Fire(...)` | valider le tour et l'état de la partie, puis dériver de la décision du plateau un ou deux `GameEvent` | **oui** | `Result<ShotRecord>` — journal alimenté par effet de bord |
 | `Apply(state, event)` | replier l'événement dans l'état | **jamais** | exception si l'impossible survient |
 
 `Apply` est **total** : il ne peut pas échouer, parce qu'un événement est un fait déjà arrivé.
 Cette totalité est l'invariant central du design, et elle est testable (§ 6, test 1).
 
 Un tir produit un ou deux événements : `ShotFired`, suivi de `GameEnded` si ce tir a coulé le
-dernier navire d'un camp. `Decide` renvoie donc une **liste**, jamais un événement seul.
+dernier navire d'un camp. C'est `Game.Fire` qui les dérive, jamais un événement seul à la fois.
+
+**Correction du 2026-09-18** : cette section décrivait initialement un `Decide` unique de niveau
+partie rendant `Result<IReadOnlyList<GameEvent>>`. Le code livré sépare la validation par plateau
+(`Board.Decide`, `Result<ShotOutcome>`) de la construction des événements par la partie
+(`Game.Fire`). Voir l'amendement correspondant de l'ADR 0011.
 
 ### 2.3 Ce qui change : `Board` et `Ship` deviennent l'accumulateur du repli
 
@@ -387,9 +393,9 @@ invariant de totalité passerait presque toujours sans rien prouver.
 
 - Le comportement de la sérialisation polymorphe sous publication trimmée reste inconnu, comme
   aujourd'hui pour le reste du front.
-- La totalité de `Apply` est établie sur des journaux **engendrés par `Decide`**. Un journal
-  forgé à la main hors de ces chemins n'est pas couvert, et n'a pas à l'être : seul `Decide`
-  écrit dans le journal.
+- La totalité de `Apply` est établie sur des journaux **engendrés par `Game.Fire`** (qui s'appuie
+  sur `Board.Decide` pour la validation). Un journal forgé à la main hors de ces chemins n'est pas
+  couvert, et n'a pas à l'être : seul `Game.Fire` écrit dans le journal.
 
 ---
 

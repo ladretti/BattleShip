@@ -1,7 +1,8 @@
 # Revues de propositions IA
 
-Neuf revues, chacune étayée par une exécution dont le résultat attendu avait été énoncé **avant** de
-lancer la commande — une proposition acceptée exige une preuve autant qu'une proposition rejetée.
+Neuf revues ; huit ont vu leur résultat attendu énoncé **avant** de lancer la commande — une
+proposition acceptée exige une preuve autant qu'une proposition rejetée. La neuvième (revue 9) est
+une reconstruction faite après coup, et le dit elle-même dans son propre texte.
 **Bilan : neuf revues, toutes closes : 4 acceptées, 3 adaptées, 1 rejetée, 1 corrigée** (la revue 2,
 confirmée par la mesure, compte parmi les acceptées).
 
@@ -258,11 +259,13 @@ partie demande une vingtaine de tirs — et repose sur le seul test d'intégrati
 ## Revue 9 — « Un test au vert ne prouve rien s'il ne peut pas échouer » — acceptée
 
 **Constat** : sur les 18 décisions numérotées du chantier journal d'événements (`progress.md`), **six
-portaient sur un test incapable de réfuter ce qu'il prétendait vérifier** — pas sur le code de
-production. C'est le résultat le plus fort du chantier et il se lit dans les nombres, pas dans une
-impression.
+portaient sur un test incapable de réfuter ce qu'il prétendait vérifier**. Trois commits ont bien
+touché du code de production (`d981451`, `3462e5a`, `fa5422b` — R7, R11/R12, R18), mais un seul
+défaut y était **observable à l'exécution** (R18) ; R7, R11 et R12 étaient des durcissements
+trouvés avant qu'un appelant existe. C'est le résultat le plus fort du chantier et il se lit dans
+les nombres, pas dans une impression.
 
-**Le cas central** : `Folding_the_same_prefix_twice_gives_the_same_state`
+**Le cas central** : `Folding_a_prefix_rebuilds_exactly_the_hits_of_that_prefix`
 (`BattleShip.Tests/Domain/GameFoldTests.cs`) avait été désigné dans la relecture de la tâche 4 comme
 « le seul contrôle qui échouerait sur la conception fautive » — un `GameFold.Fold` qui repliait les
 événements sur les `Ship` **du plateau joué** plutôt que sur des `Ship` neufs. Une relecture
@@ -309,7 +312,7 @@ production ; elle ne protège pas automatiquement les tests qui l'exercent — c
 distincte, et humaine.
 
 **Preuves et limites** : `progress.md`, rulings R10 (rétracté), R14, R15, R16 ; commits `3462e5a`
-(tâche 4), `c383fd3` (tâche 5, R15), `f1720bd` (tâche 6, R16). Limites : le chiffre « six sur 18 »
-compte les décisions numérotées du journal de chantier, pas une mesure indépendante sur l'ensemble
-du dépôt ; les trois autres cas (R10 initial, R11 sur `Fold([])`, R13 sur l'égalité par référence)
-ne sont pas détaillés ici par souci de densité.
+(tâche 4), `c383fd3` (tâche 5, R15), `f1720bd` (tâche 6, R16). Le chiffre « six » est le compteur
+que le journal de chantier tient lui-même sur ses propres occurrences (R10 = 3e défaut de mes
+tests, R14 = 4e, R15 = 5e, R16 = 6e — les deux premiers ne sont pas détaillés ici par souci de
+densité) ; ce n'est pas une mesure indépendante sur l'ensemble du dépôt.

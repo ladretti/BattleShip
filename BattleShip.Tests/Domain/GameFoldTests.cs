@@ -76,7 +76,7 @@ public sealed class GameFoldTests
     }
 
     [Fact]
-    public void Folding_the_same_prefix_twice_gives_the_same_state()
+    public void Folding_a_prefix_rebuilds_exactly_the_hits_of_that_prefix()
     {
         var (game, _) = PlayedGame(seed: 33, shots: 40);
         var prefix = game.Events.Take(game.Events.Count / 2).ToList();

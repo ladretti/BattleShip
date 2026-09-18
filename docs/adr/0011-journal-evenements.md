@@ -75,12 +75,21 @@ sans qu'aucun test ne le voie (un test de totalité ne constate qu'une absence d
 geste de l'**ADR 0003** pour `ShotHistory` : l'invariant — ici, « un événement ne change
 jamais » — tient dans le type, pas dans la discipline de qui écrit `Fold`.
 
-Deux fonctions séparent strictement les deux registres de l'ADR 0004 :
+Deux fonctions séparent strictement les deux registres de l'ADR 0004, réparties entre le plateau
+et la partie :
 
 | | rôle | peut refuser ? | registre d'erreur |
 |---|---|---|---|
-| `Decide(command)` | valider contre l'état courant, produire les événements | oui | `Result<IReadOnlyList<GameEvent>>` |
-| `Apply(state, event)` | replier un événement déjà arrivé dans l'état | jamais | exception si l'impossible survient |
+| `Board.Decide(Coordinate)` | valider un tir contre l'état du plateau visé (hors grille, case déjà tirée) | oui | `Result<ShotOutcome>` |
+| `Game.Fire(...)` | vérifier le tour et l'état de la partie, puis dériver de la décision du plateau un ou deux `GameEvent` (`ShotFired`, et `GameEnded` si ce tir coule le dernier navire) | oui | `Result<ShotRecord>` ; le journal est alimenté par effet de bord |
+| `Board.Apply` / `Game.Replay` | replier un événement déjà arrivé dans l'état | jamais | exception si l'impossible survient |
+
+**Correction du 2026-09-18** : la version acceptée le 2026-09-17 décrivait un unique `Decide` de
+niveau partie rendant `Result<IReadOnlyList<GameEvent>>`. Le code livré (`BattleShip.Models/Board.cs`,
+`Game.cs`) sépare la validation (`Board.Decide`, par plateau) de la construction des événements
+(`Game.Fire`, qui appelle `Decide` puis enregistre `ShotFired` et, le cas échéant, `GameEnded`). La
+séparation refus métier / anomalie de l'ADR 0004 n'est pas remise en cause : seule la répartition
+entre les deux méthodes était mal documentée. La spec de conception est corrigée au même moment.
 
 `Apply` est **total** : un événement est un fait déjà arrivé, il ne se refuse pas — c'est
 l'invariant central, et il est testable (repli de tout préfixe d'un journal valide). `ShotFired`

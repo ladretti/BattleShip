@@ -99,10 +99,12 @@ public sealed class InMemoryGameStoreTests
         using var start = new Barrier(fireThreadCount + readThreadCount);
         var stillFiring = fireThreadCount;
         var exceptions = new ConcurrentBag<Exception>();
+        var successfulShots = new int[fireThreadCount];
         var threads = new List<Thread>(fireThreadCount + readThreadCount);
 
         for (var t = 0; t < fireThreadCount; t++)
         {
+            var threadIndex = t;
             var cells = safeCells.Skip(t * shotsPerFireThread).Take(shotsPerFireThread).ToList();
             threads.Add(new Thread(() =>
             {
@@ -111,9 +113,11 @@ public sealed class InMemoryGameStoreTests
                 {
                     foreach (var at in cells)
                     {
-                        store.Mutate(game.Id, g => g.CurrentPlayer == Player.Human
+                        var shot = store.Mutate(game.Id, g => g.CurrentPlayer == Player.Human
                             ? g.PlayerFires(at)
                             : g.OpponentFires(at));
+                        if (shot.IsOk)
+                            successfulShots[threadIndex]++;
                     }
                 }
                 catch (Exception ex)
@@ -142,12 +146,15 @@ public sealed class InMemoryGameStoreTests
                             var opponentShots = g.History.Where(s => s.By == Player.Human).Select(s => s.At).ToList();
                             var humanBoardReceived = g.HumanBoard.ReceivedShots.ToList();
                             var opponentBoardReceived = g.OpponentBoard.ReceivedShots.ToList();
-                            return ownReceived.Count + opponentShots.Count
-                                + humanBoardReceived.Count + opponentBoardReceived.Count;
+                            return ownReceived.Count == humanBoardReceived.Count
+                                && opponentShots.Count == opponentBoardReceived.Count;
                         });
 
                         if (!result.IsOk)
                             throw new InvalidOperationException($"Unexpected read failure: {result.Error}");
+                        if (!result.Value)
+                            throw new InvalidOperationException(
+                                "Inconsistent snapshot: History and Board.ReceivedShots disagree.");
                     }
                     catch (Exception ex)
                     {
@@ -164,6 +171,7 @@ public sealed class InMemoryGameStoreTests
 
         var messages = string.Join(" | ", exceptions.Select(e => $"{e.GetType().Name}: {e.Message}").Distinct());
         Assert.True(exceptions.IsEmpty, $"{exceptions.Count} exception(s) surfaced: {messages}");
+        Assert.Equal(totalShots, successfulShots.Sum());
     }
 
     [Fact]

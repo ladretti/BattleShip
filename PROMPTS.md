@@ -220,8 +220,11 @@ jamais des `Ship` vivants (R7) : sans cela, `Fold` se serait contaminé lui-mêm
 coup — 18 décisions numérotées (R1 à R18), dont R7 (Critique, requalifié après vérification dans le code) et
 R18 (régression front trouvée par le contrôleur, seul défaut du chantier situé dans le code livré et non dans
 les tests ou la spec). Sur ces 18 décisions, **six portent sur des tests incapables de discriminer une
-conception correcte d'une conception fautive**, contre un seul défaut de code de production — ratio à charge
-de la conception des tests, pas de l'implémentation (détail : revue 9).
+conception correcte d'une conception fautive**, contre un seul défaut de code **observable à
+l'exécution** (R18) — R7, R11 et R12 ont bien touché du code de production (`GameEvent.cs`,
+`GameFold.cs`, `Game.cs`), mais comme durcissements trouvés avant qu'un appelant existe, pas comme
+défauts constatés en fonctionnement. Ratio à charge de la conception des tests, pas de
+l'implémentation (détail : revue 9).
 **Vérification** : `dotnet test` mesuré après chaque tâche, croissant sans régression — 145 (ligne de base) →
 148 → 150 → 155 → 160 → 164 → 168 → **169** (front, aucun projet de tests dédié, attendu) ; `dotnet build`
 0 avertissement à chaque étape. Vérification navigateur du 2026-09-18, serveurs relancés sur le build courant :

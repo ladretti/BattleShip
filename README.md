@@ -79,8 +79,10 @@ Essais manuels des endpoints HTTP : `api.http` à la racine — `@api = http://l
   seul fait écrit une seule fois, plutôt que trois écritures dupliquées à chaque tir.
 - **Rejeu fidèle** : le curseur reconstitue l'état « coulé » réellement atteint à chaque instant, y compris en
   cours de partie sur un journal censuré — plus seulement la liste des coups.
-- **Révélation de la flotte adverse en fin de partie** : le journal expose les positions adverses une fois
-  `GameEnded` reçu, jamais avant.
+- **Révélation de la flotte adverse dans le journal** : `GET /games/{id}/events` expose les positions
+  adverses une fois `GameEnded` reçu, jamais avant. Limite d'écran : le rejeu ne dessine que les
+  navires adverses coulés (coques révélées par une touche) ; un navire adverse survivant, y compris
+  après une partie perdue, n'est jamais dessiné.
 - **Reprise après rechargement de page** : l'identifiant de la partie en cours survit à un rechargement
   (`localStorage`), avec repli propre si la partie n'existe plus côté serveur.
 - **Coques dessinées en SVG** par géométrie, franchissant les gouttières entre les cases ; dégâts marqués sur la
@@ -120,8 +122,9 @@ annonces, glyphes, contrastes).
 **Écarté** :
 
 - **Persistance SQLite / EF** — infrastructure qui ne sert ni le moteur ni l'adversaire ; `IGameStore` rend le
-  changement local le jour où il devient utile. Le journal d'événements (ADR 0011) l'a rendue **triviale à
-  ajouter** (il suffirait de la sérialiser) — écartée quand même, par décision du binôme, faute de besoin réel.
+  changement local le jour où il devient utile. Le journal d'événements (ADR 0011) **la rendrait directe** :
+  un flux d'ajout seul se sérialise simplement, mais seule la sérialisation des DTO a été éprouvée, pas celle
+  des événements de domaine — écartée quand même, par décision du binôme, faute de besoin réel.
 - **Concurrence optimiste** (`Append(id, expectedVersion, events)`, la forme « canonique » de l'event sourcing)
   — examinée puis écartée à l'ADR 0011 : elle résout un problème déjà résolu par le verrou par partie de
   l'ADR 0002, testé et correct dans un store mono-processus en mémoire.
