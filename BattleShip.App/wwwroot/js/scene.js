@@ -1,6 +1,6 @@
 import * as THREE from '../lib/three.module.js';
 
-const state = { renderer: null, scene: null, camera: null, sea: null, ships: [], raf: 0, frozen: false };
+const state = { renderer: null, scene: null, camera: null, sea: null, ships: [], raf: 0, frozen: false, resize: null };
 
 function disposeShips() {
     for (const mesh of state.ships) {
@@ -18,7 +18,6 @@ window.battleshipScene = {
         } catch (e) {
             return false;
         }
-        if (!state.renderer) return false;
 
         state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         state.scene = new THREE.Scene();
@@ -47,6 +46,7 @@ window.battleshipScene = {
             state.camera.updateProjectionMatrix();
         };
         resize();
+        state.resize = resize;
         window.addEventListener('resize', resize);
 
         const base = seaGeometry.attributes.position.array.slice();
@@ -97,7 +97,16 @@ window.battleshipScene = {
 
     dispose() {
         cancelAnimationFrame(state.raf);
+        if (state.resize) {
+            window.removeEventListener('resize', state.resize);
+            state.resize = null;
+        }
         if (state.scene) disposeShips();
+        if (state.sea) {
+            state.sea.geometry.dispose();
+            state.sea.material.dispose();
+            state.sea = null;
+        }
         if (state.renderer) state.renderer.dispose();
         state.renderer = null;
         state.scene = null;
