@@ -29,7 +29,7 @@ else
     var finished = game.Status == "Finished";
     var won = PlayerWon(game);
 
-    <SceneCanvas State="@SceneFor(game)" />
+    <SceneCanvas State="@_scene" />
 
     @if (finished)
     {
@@ -176,6 +176,8 @@ else
 
     private int _impactSequence;
 
+    private SceneState? _scene;
+
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += OnStateChanged;
@@ -265,7 +267,11 @@ else
                 ? new Coordinate(ship.X, ship.Y + i)
                 : new Coordinate(ship.X + i, ship.Y));
 
-    private void SetReplayCursor(int? cursor) => _replayCursor = cursor;
+    private void SetReplayCursor(int? cursor)
+    {
+        _replayCursor = cursor;
+        RecomputeScene();
+    }
 
     private async Task LoadHistoryAsync()
     {
@@ -279,6 +285,8 @@ else
         _events = [.. result.Value.Select(ToDomainEvent).OfType<GameEvent>()];
         _history = [.. _events.OfType<ShotFired>()
             .Select(e => new ShotDto(e.At.X, e.At.Y, StateOf(e.Result), e.By.ToString(), e.SunkShipName))];
+
+        RecomputeScene();
     }
 
     private static GameEvent? ToDomainEvent(GameEventDto dto) => dto switch
@@ -331,7 +339,10 @@ else
         _events.Count == 0
             ? null
             : ScenePlan.For(game.Id, game, _events, _replayCursor,
-                lastImpact: _opponentImpact?.At);
+                lastImpact: _replayCursor is null ? _opponentImpact?.At : null);
+
+    private void RecomputeScene() =>
+        _scene = State.Current is { Status: not "Placing" } game ? SceneFor(game) : null;
 
     private async Task FireAsync(Coordinate at)
     {
