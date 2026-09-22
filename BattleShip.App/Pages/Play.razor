@@ -266,51 +266,21 @@ else
         return GameFold.Fold(State.Current!.Id, upTo);
     }
 
-    private IReadOnlyList<ShipOutline> OpponentHulls(GameDto game)
-    {
-        if (_replayCursor is not { } cursor)
-            return LiveOpponentHulls(game);
-
-        if (ReplayedGame(cursor) is { } replayed && replayed.OpponentBoard.Ships.Count > 0)
-            return RevealedOpponentHulls(replayed);
-
-        return CensoredOpponentHulls(game, cursor);
-    }
-
-    private static IReadOnlyList<ShipOutline> LiveOpponentHulls(GameDto game) =>
+    private IReadOnlyList<ShipOutline> OpponentHulls(GameDto game) =>
     [
-        .. game.Opponent.SunkShips
-            .Select(ship => ShipOutline.FromCells(ship.Name, ship.Cells, isSunk: true))
-            .OfType<ShipOutline>()
-    ];
-
-    private static IReadOnlyList<ShipOutline> RevealedOpponentHulls(Game replayed) =>
-    [
-        .. replayed.OpponentBoard.Ships
-            .Where(s => s.IsSunk)
-            .Select(s => ShipOutline.FromCells(
-                s.Name,
-                [.. s.Cells.Select(c => new CellDto(c.X, c.Y, "sunk"))],
+        .. ScenePlan.For(game.Id, game, _events, _replayCursor, lastImpact: null).Wrecks
+            .Select(w => ShipOutline.FromCells(
+                w.Name,
+                [.. Footprint(w).Select(c => new CellDto(c.X, c.Y, "sunk"))],
                 isSunk: true))
             .OfType<ShipOutline>()
     ];
 
-    private IReadOnlyList<ShipOutline> CensoredOpponentHulls(GameDto game, int cursor)
-    {
-        var sunkByCursor = _events.OfType<ShotFired>()
-            .Take(cursor)
-            .Where(shot => shot.By == Player.Human && shot.Result == ShotResult.Sunk)
-            .Select(shot => shot.SunkShipName!)
-            .ToHashSet();
-
-        return
-        [
-            .. game.Opponent.SunkShips
-                .Where(ship => sunkByCursor.Contains(ship.Name))
-                .Select(ship => ShipOutline.FromCells(ship.Name, ship.Cells, isSunk: true))
-                .OfType<ShipOutline>()
-        ];
-    }
+    private static IEnumerable<Coordinate> Footprint(SceneShip ship) =>
+        Enumerable.Range(0, ship.Size)
+            .Select(i => ship.Vertical
+                ? new Coordinate(ship.X, ship.Y + i)
+                : new Coordinate(ship.X + i, ship.Y));
 
     private void SetReplayCursor(int? cursor) => _replayCursor = cursor;
 
