@@ -12,7 +12,11 @@ Second des deux axes retenus le 2026-09-17. Le premier — le journal d'événem
 ## 1. Ce qui est construit, et ce qui ne l'est pas
 
 Un arrière-plan 3D **réactif** derrière le jeu : une mer, la flotte du joueur, les épaves, et
-une caméra qui réagit aux impacts. Il est alimenté par l'état que le front calcule déjà.
+une réaction visible à la case impactée. Il est alimenté par l'état que le front calcule déjà.
+
+*Amendé le 2026-09-22 — la rédaction initiale annonçait « une caméra qui réagit aux impacts ».
+Le rendu livré est un **halo pulsé** à la case impactée ; la caméra reste fixe après
+l'initialisation. Voir l'ADR 0012 § Conséquences et le `README.md`.*
 
 **Le jeu reste le DOM.** Le canvas est décoratif : `aria-hidden`, `pointer-events: none`,
 `z-index: -1`. On ne clique pas dedans, on n'y navigue pas au clavier, il ne porte aucune

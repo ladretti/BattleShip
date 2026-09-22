@@ -6,8 +6,10 @@ Accepté — 2026-09-22
 ## Contexte
 
 Second des deux axes retenus le 2026-09-17 (le premier, le journal d'événements, est livré —
-ADR 0011). Il s'agit d'ajouter une scène 3D réactive — mer, flotte du joueur, épaves, caméra qui
-réagit aux impacts — derrière le jeu, alimentée par l'état que le front calcule déjà. C'est la
+ADR 0011). Il s'agit d'ajouter une scène 3D réactive — mer, flotte du joueur, épaves, réaction
+visible à la case impactée — derrière le jeu, alimentée par l'état que le front calcule déjà.
+*Amendé le 2026-09-22 : la rédaction initiale annonçait ici « caméra qui réagit aux impacts » ;
+le rendu livré est un halo pulsé et la caméra reste fixe, comme le dit le § Conséquences.* C'est la
 première dépendance front du projet : aucun `package.json`, aucune bibliothèque JS n'existait
 avant cette tâche. Une dépendance est un ajout structurant au sens du `CLAUDE.md` § 3 bis et se
 décide en ADR avant d'être codée — d'où cette tâche 0, avant la moindre ligne de code.
