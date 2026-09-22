@@ -126,6 +126,29 @@ Mais **la partie dangereuse n'est pas le dessin, c'est ce qu'on envoie à la sc�
 est donc construit par une **fonction C# pure**, sans dépendance à Blazor ni à `IJSRuntime`, et
 testée dans `BattleShip.Tests`.
 
+### Où vit cette fonction — vérifié par spike, pas supposé
+
+La première rédaction la plaçait dans `BattleShip.App`. **C'est infaisable** : `BattleShip.Tests`
+ne référence pas `App`, et l'y ajouter casse la compilation —
+
+```
+error CS0433: Le type 'BattleService' existe dans 'BattleShip.API' et 'BattleShip.App'
+```
+
+les deux projets générant leurs stubs gRPC depuis le *même* `battle.proto`.
+
+La fonction vit donc dans **`BattleShip.Models`**, ce que rien n'empêche : elle ne manipule que
+`GameDto`, `GameEvent` et `GameFold`, tous déjà dans `Models`. Seul `ShipOutline` appartenait à
+`App`, et ce n'est qu'un helper de mise en forme dont la projection n'a pas besoin.
+
+**Conséquence retenue, et c'est une simplification** : `Play.razor` contient aujourd'hui trois
+méthodes privées (`LiveOpponentHulls`, `RevealedOpponentHulls`, `CensoredOpponentHulls`) qui
+répondent déjà à « quels navires adverses sont coulés à l'instant *n* ». La scène 3D pose la
+même question. Deux implémentations du **même calcul critique pour le secret** dériveraient — le
+chantier précédent a montré ce que ça coûte. `Play.razor` sera donc rebranché sur la fonction
+partagée et allégé de ses trois méthodes ; aucun comportement visible ne change, et le fichier
+de 467 lignes en perd une quarantaine.
+
 | # | ce que le test affirme | l'erreur qu'il détecte |
 |---|---|---|
 | 1 | en cours de partie, `Wrecks` ne contient que des navires coulés | une fuite du secret dans la scène |
