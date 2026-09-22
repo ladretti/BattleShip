@@ -1138,3 +1138,13 @@ kbd {
     .keyart__content { background: var(--bg); max-width: none; }
     .keyart .page-title { max-width: none; }
 }
+
+.scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+    display: block;
+}

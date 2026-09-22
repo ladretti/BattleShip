@@ -1,0 +1,58 @@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+
+<canvas @ref="_canvas" class="scene-canvas" aria-hidden="true"></canvas>
+
+@code {
+    [Parameter] public SceneState? State { get; set; }
+
+    private ElementReference _canvas;
+    private bool _ready;
+    private SceneState? _sent;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _ready = await Js.InvokeAsync<bool>("battleshipScene.init", _canvas);
+                if (_ready)
+                {
+                    var calm = await Js.InvokeAsync<bool>("battleshipSettings.prefersReducedMotion");
+                    await Js.InvokeVoidAsync("battleshipScene.freeze", calm);
+                }
+            }
+            catch (JSException)
+            {
+                _ready = false;
+            }
+        }
+
+        if (_ready && State is not null && !ReferenceEquals(State, _sent))
+        {
+            _sent = State;
+            try
+            {
+                await Js.InvokeVoidAsync("battleshipScene.update", State);
+            }
+            catch (JSException)
+            {
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (!_ready)
+            return;
+
+        try
+        {
+            await Js.InvokeVoidAsync("battleshipScene.dispose");
+        }
+        catch (JSException)
+        {
+        }
+    }
+}

@@ -29,6 +29,8 @@ else
     var finished = game.Status == "Finished";
     var won = PlayerWon(game);
 
+    <SceneCanvas State="@SceneFor(game)" />
+
     @if (finished)
     {
         <h1 class="page-title">@(won ? "Their fleet is gone." : "Your fleet is gone.")</h1>
@@ -324,6 +326,12 @@ else
     };
 
     private static bool PlayerWon(GameDto game) => game.Winner == "Human";
+
+    private SceneState? SceneFor(GameDto game) =>
+        _events.Count == 0
+            ? null
+            : ScenePlan.For(game.Id, game, _events, _replayCursor,
+                lastImpact: _opponentImpact?.At);
 
     private async Task FireAsync(Coordinate at)
     {

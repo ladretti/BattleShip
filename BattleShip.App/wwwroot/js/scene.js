@@ -110,5 +110,6 @@ window.battleshipScene = {
         if (state.renderer) state.renderer.dispose();
         state.renderer = null;
         state.scene = null;
+        state.frozen = false;
     }
 };
