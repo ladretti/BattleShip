@@ -1,7 +1,7 @@
 # ADR 0012 : Un arrière-plan 3D décoratif, pas un jeu en 3D
 
 ## Statut et date
-Accepté — 2026-09-22
+Accepté — 2026-09-22. Remplacé par l'ADR 0013 — 2026-09-22
 
 ## Contexte
 
