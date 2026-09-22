@@ -431,7 +431,15 @@ else
 
     private void NewGame() => Navigation.NavigateTo("/");
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    private void OnStateChanged() => InvokeAsync(HandleStateChangedAsync);
+
+    private async Task HandleStateChangedAsync()
+    {
+        if (_events.Count == 0 && State.Current is not null)
+            await LoadHistoryAsync();
+
+        StateHasChanged();
+    }
 
     public void Dispose() => State.OnChange -= OnStateChanged;
 }
