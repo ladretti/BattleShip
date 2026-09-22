@@ -70,14 +70,18 @@ forme**, pas une seconde manière de parler à JavaScript.
 battleshipScene = {
   init(canvas),      // -> bool : false si WebGL indisponible
   update(state),     // état complet, idempotent
+  freeze(bool),      // gèle/dégèle la scène sous mouvement réduit
   dispose()
 }
 ```
 
+*Amendé le 2026-09-22 — la rédaction initiale n'en listait que trois (`init`/`update`/`dispose`) ;
+`freeze` a été ajouté par un ruling de pré-vol et assumé par l'ADR 0012.*
+
 Ce qui traverse la frontière, et rien d'autre :
 
 ```csharp
-public sealed record SceneShip(int X, int Y, int Size, bool Vertical, bool Sunk);
+public sealed record SceneShip(string Name, int X, int Y, int Size, bool Vertical, bool Sunk);
 
 public sealed record SceneState(
     int GridSize,
@@ -86,6 +90,9 @@ public sealed record SceneState(
     Coordinate? LastImpact,
     bool Revealed);
 ```
+
+*Amendé le 2026-09-22 — `SceneShip` porte aussi `Name` : pour une épave, le nom a déjà été
+annoncé au joueur, ce n'est pas une fuite du secret.*
 
 `update` reçoit l'état **entier** à chaque changement, jamais un delta. Un graphe de scène
 synchronisé par deltas dérive dès qu'un message se perd ; ici il n'y a rien à réconcilier, et

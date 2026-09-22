@@ -267,6 +267,6 @@ R13 : piège posé via `page.addInitScript` + `Object.defineProperty` **avant** 
 sur code non instrumenté — `init`, `freeze`, `update` capturés au chargement, un seul `update` par clic
 réel, `lastImpact` exact.
 **Preuve / limite** : ADR `docs/adr/0012-rendu-3d.md`, `progress.md` (rulings P1, P2, R10, R13, R13 retiré,
-R14) ; commits `d3db021` (ADR 0012 et projection), `377fb06` (revue 10, R13 retiré). Limite : le spike n'a
+R14) ; commits `d3db021` (ADR 0012), `7ccdedf` (projection), `377fb06` (revue 10, R13 retiré). Limite : le spike n'a
 mesuré qu'un conflit de compilation, pas un choix de conception parmi plusieurs alternatives viables —
 `Models` était la seule option qui compile, pas la meilleure de plusieurs.

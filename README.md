@@ -79,8 +79,8 @@ Essais manuels des endpoints HTTP : `api.http` à la racine — `@api = http://l
 - **Journal d'événements** (`GET /games/{id}/events`) comme source de vérité unique du moteur (ADR 0011) : un
   seul fait écrit une seule fois, plutôt que trois écritures dupliquées à chaque tir.
 - **Arrière-plan 3D réactif** (ADR 0012) : mer, flotte du joueur et épaves rendues avec Three.js, vendorisé
-  dans `wwwroot/lib/` — aucun prérequis nouveau, rien à installer. Caméra qui réagit aux impacts, scène figée
-  sous mouvement réduit.
+  dans `wwwroot/lib/` — aucun prérequis nouveau, rien à installer. Halo pulsé à la case impactée, scène
+  figée sous mouvement réduit.
 - **Rejeu fidèle** : le curseur reconstitue l'état « coulé » réellement atteint à chaque instant, y compris en
   cours de partie sur un journal censuré — plus seulement la liste des coups.
 - **Révélation de la flotte adverse dans le journal** : `GET /games/{id}/events` expose les positions

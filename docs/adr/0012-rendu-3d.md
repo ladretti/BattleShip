@@ -105,6 +105,9 @@ interrupteur n'est inventé.
   fusionnée avec lui.
 - `BattleShip.Models` gagne une dépendance interne supplémentaire à zéro dépendance externe : la
   fonction de projection reste un domaine pur, testable sans navigateur ni serveur.
+- La caméra reste fixe après l'initialisation (`position.set`, `lookAt`) ; seul `aspect` change au
+  redimensionnement. L'effet livré sur impact est un halo pulsé (`state.impactMesh`), pas un
+  mouvement de caméra — corrigé dans le `README.md` du 2026-09-22, qui l'annonçait à tort.
 - `Play.razor` perd environ une quarantaine de lignes sur 467 en supprimant ses trois méthodes
   privées devenues redondantes.
 - Aucun test automatisé ne couvre le rendu, la dégradation sans WebGL, le gel sous mouvement réduit

@@ -1,5 +1,6 @@
 @implements IAsyncDisposable
 @inject IJSRuntime Js
+@inject AppearanceState Appearance
 
 <canvas @ref="_canvas" class="scene-canvas" aria-hidden="true"></canvas>
 
@@ -8,7 +9,14 @@
 
     private ElementReference _canvas;
     private bool _ready;
+    private bool _disposed;
     private SceneState? _sent;
+    private bool _osPrefersStill;
+    private bool? _sentCalm;
+
+    private bool Calm => _osPrefersStill || Appearance.Motion == "calm";
+
+    protected override void OnInitialized() => Appearance.OnChange += OnAppearanceChanged;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -18,10 +26,7 @@
             {
                 _ready = await Js.InvokeAsync<bool>("battleshipScene.init", _canvas);
                 if (_ready)
-                {
-                    var calm = await Js.InvokeAsync<bool>("battleshipSettings.prefersReducedMotion");
-                    await Js.InvokeVoidAsync("battleshipScene.freeze", calm);
-                }
+                    _osPrefersStill = await Js.InvokeAsync<bool>("battleshipSettings.prefersReducedMotion");
             }
             catch (JSException)
             {
@@ -29,7 +34,22 @@
             }
         }
 
-        if (_ready && State is not null && !ReferenceEquals(State, _sent))
+        if (_disposed || !_ready)
+            return;
+
+        if (_sentCalm != Calm)
+        {
+            _sentCalm = Calm;
+            try
+            {
+                await Js.InvokeVoidAsync("battleshipScene.freeze", Calm);
+            }
+            catch (JSException)
+            {
+            }
+        }
+
+        if (State is not null && !ReferenceEquals(State, _sent))
         {
             _sent = State;
             try
@@ -42,8 +62,13 @@
         }
     }
 
+    private void OnAppearanceChanged() => InvokeAsync(StateHasChanged);
+
     public async ValueTask DisposeAsync()
     {
+        Appearance.OnChange -= OnAppearanceChanged;
+        _disposed = true;
+
         if (!_ready)
             return;
 

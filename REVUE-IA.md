@@ -424,12 +424,16 @@ protocole qui a produit R13 juste avant sur le même fichier.
 **Preuves reproductibles et liens vers les commits** : `progress.md`, ruling R14 ; commits
 `8c68a91`..`b7bf1ba` (les trois relectures), `8dfb98a` (correction et mesure au pixel).
 
-**Après correction éventuelle : résultat avant / après** : avant, `lastImpact` et `revealed`
-inertes, aucune trace visuelle d'un tir manqué ni d'une fin de partie ; après, pic de pixel exact
-à l'impact et gel bit à bit identique sous `freeze(true)`.
+**Après correction éventuelle : résultat avant / après** : avant (établi par lecture du source,
+pas par mesure pixel) : `lastImpact` et `revealed` non référencés dans `update()`, donc aucune
+trace visuelle attendue d'un tir manqué ni d'une fin de partie ; après (mesure pixel) : pic de
+pixel exact à l'impact et gel bit à bit identique sous `freeze(true)`.
 
 **Limites et points non vérifiés** : le delta de **+4 textures par cycle `dispose`/`init`**
 observé pendant la mesure a été attribué aux placeholders internes de `THREE.WebGLRenderer`
 **par raisonnement, pas par mesure** — à re-instruire si une fuite est un jour suspectée. Le
 recul visuel des épaves avec le curseur reste non observé à l'écran (revue 10) : aucun navire
-adverse n'a été coulé dans les parties mesurées ici non plus.
+adverse n'a été coulé dans les parties mesurées ici non plus. La prédiction du § « résultat
+attendu » sur `revealed` (la fin de partie change le rendu de la flotte adverse) n'a pas été
+observée au pixel dans cette revue : le `README.md` classe la révélation visuelle de fin de
+partie en non vérifiée, et cette revue ne la vérifie pas non plus.
