@@ -177,6 +177,8 @@ else
     private int _impactSequence;
 
     private SceneState? _scene;
+    private bool _loadingHistory;
+    private bool _disposed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -435,11 +437,28 @@ else
 
     private async Task HandleStateChangedAsync()
     {
-        if (_events.Count == 0 && State.Current is not null)
-            await LoadHistoryAsync();
+        if (_events.Count == 0 && State.Current is not null && !_loadingHistory)
+        {
+            _loadingHistory = true;
+            try
+            {
+                await LoadHistoryAsync();
+            }
+            finally
+            {
+                _loadingHistory = false;
+            }
+        }
+
+        if (_disposed)
+            return;
 
         StateHasChanged();
     }
 
-    public void Dispose() => State.OnChange -= OnStateChanged;
+    public void Dispose()
+    {
+        _disposed = true;
+        State.OnChange -= OnStateChanged;
+    }
 }
