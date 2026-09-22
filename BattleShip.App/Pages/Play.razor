@@ -247,25 +247,6 @@ else
         ];
     }
 
-    private Game? ReplayedGame(int cursor)
-    {
-        if (_events.Count == 0)
-            return null;
-
-        var shots = 0;
-        var upTo = new List<GameEvent>();
-
-        foreach (var next in _events)
-        {
-            if (next is ShotFired && shots++ >= cursor)
-                break;
-
-            upTo.Add(next);
-        }
-
-        return GameFold.Fold(State.Current!.Id, upTo);
-    }
-
     private IReadOnlyList<ShipOutline> OpponentHulls(GameDto game) =>
     [
         .. ScenePlan.For(game.Id, game, _events, _replayCursor, lastImpact: null).Wrecks
