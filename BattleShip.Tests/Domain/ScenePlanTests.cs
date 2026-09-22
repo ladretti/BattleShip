@@ -65,30 +65,72 @@ public sealed class ScenePlanTests
 
         var scene = ScenePlan.For(id, dto, events, cursor: null, lastImpact: null);
 
-        Assert.All(scene.Wrecks, w => Assert.True(w.Sunk));
+        Assert.Equal(
+            game.OpponentBoard.Ships.Where(s => s.IsSunk).Select(s => s.Name).Order(),
+            scene.Wrecks.Select(w => w.Name).Order());
         Assert.False(scene.Revealed);
     }
 
-    [Fact]
-    public void During_a_game_no_unsunk_opposing_cell_reaches_the_scene()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(7)]
+    [InlineData(12)]
+    [InlineData(41)]
+    [InlineData(99)]
+    [InlineData(123)]
+    [InlineData(2024)]
+    public void During_a_game_no_unsunk_opposing_cell_reaches_the_scene(int seed)
     {
-        var (id, dto, events, game) = Played(seed: 41, shots: 6);
+        var (id, dto, events, game) = Played(seed, shots: 6);
         Assert.NotEqual(GameStatus.Finished, game.Status);
 
         var scene = ScenePlan.For(id, dto, events, cursor: null, lastImpact: null);
-
-        var exposed = scene.Friendly.Concat(scene.Wrecks)
-            .SelectMany(Footprint)
-            .ToHashSet();
 
         var revealed = game.OpponentBoard.ReceivedShots;
         var secret = game.OpponentBoard.Ships
             .SelectMany(s => s.Cells)
             .Where(c => !revealed.Contains(c))
-            .ToList();
+            .ToHashSet();
 
         Assert.NotEmpty(secret);
-        Assert.Empty(exposed.Intersect(secret));
+
+        var exposedWrecks = scene.Wrecks.SelectMany(Footprint).ToHashSet();
+        Assert.Empty(exposedWrecks.Intersect(secret));
+
+        var friendlyCells = scene.Friendly.SelectMany(Footprint).ToHashSet();
+        var humanCells = game.HumanBoard.Ships.SelectMany(s => s.Cells).ToHashSet();
+        Assert.Equal(humanCells, friendlyCells);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(7)]
+    [InlineData(12)]
+    [InlineData(41)]
+    [InlineData(99)]
+    [InlineData(123)]
+    [InlineData(2024)]
+    public void At_every_cursor_on_either_journal_no_unsunk_opposing_cell_reaches_the_scene(int seed)
+    {
+        var (id, dto, events, _) = Played(seed, shots: 500);
+        var censored = Censored(events);
+        var totalShots = events.OfType<ShotFired>().Count();
+        Assert.True(totalShots > 0);
+
+        for (var cursor = 0; cursor <= totalShots; cursor++)
+        {
+            var secret = TrueSecretAt(id, events, cursor);
+
+            var full = ScenePlan.For(id, dto, events, cursor, lastImpact: null);
+            var onCensored = ScenePlan.For(id, dto, censored, cursor, lastImpact: null);
+
+            Assert.Empty(full.Wrecks.SelectMany(Footprint).ToHashSet().Intersect(secret));
+            Assert.Empty(onCensored.Wrecks.SelectMany(Footprint).ToHashSet().Intersect(secret));
+        }
     }
 
     [Fact]
@@ -151,6 +193,34 @@ public sealed class ScenePlanTests
             ? new GameCreated(created.Sequence, created.Rules, [], created.Difficulty)
             : e)
     ];
+
+    private static HashSet<Coordinate> TrueSecretAt(Guid id, IReadOnlyList<GameEvent> events, int cursor)
+    {
+        var upTo = Prefix(events, cursor);
+        var replayed = GameFold.Fold(id, upTo);
+        var revealed = replayed.OpponentBoard.ReceivedShots;
+
+        return replayed.OpponentBoard.Ships
+            .SelectMany(s => s.Cells)
+            .Where(c => !revealed.Contains(c))
+            .ToHashSet();
+    }
+
+    private static List<GameEvent> Prefix(IReadOnlyList<GameEvent> events, int cursor)
+    {
+        var shots = 0;
+        var upTo = new List<GameEvent>();
+
+        foreach (var next in events)
+        {
+            if (next is ShotFired && shots++ >= cursor)
+                break;
+
+            upTo.Add(next);
+        }
+
+        return upTo;
+    }
 
     private static IEnumerable<Coordinate> Footprint(SceneShip ship) =>
         Enumerable.Range(0, ship.Size)

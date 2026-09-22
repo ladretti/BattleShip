@@ -80,6 +80,13 @@ public static class ScenePlan
         if (!sameRow && !sameColumn)
             return null;
 
+        var span = sameRow
+            ? cells.Max(c => c.X) - cells.Min(c => c.X)
+            : cells.Max(c => c.Y) - cells.Min(c => c.Y);
+
+        if (cells.Count != span + 1)
+            return null;
+
         return new SceneShip(
             name,
             cells.Min(c => c.X),
