@@ -318,3 +318,62 @@ distincte, et humaine.
 que le journal de chantier tient lui-même sur ses propres occurrences (R10 = 3e défaut de mes
 tests, R14 = 4e, R15 = 5e, R16 = 6e — les deux premiers ne sont pas détaillés ici par souci de
 densité) ; ce n'est pas une mesure indépendante sur l'ensemble du dépôt.
+
+---
+
+## Revue 10 — « Le composant 3D n'appelle plus `update` » — rejetée, l'instrument était faux
+
+**Proposition et référence** : à l'issue de trois rounds de réparation sur
+`BattleShip.App/Components/SceneCanvas.razor` et `BattleShip.App/Pages/Play.razor` (commits
+`8c68a91`, `8e203ef`, `9b288ef`, `b7bf1ba`), un diagnostic à l'exécution concluait que
+l'arrière-plan 3D ne recevait qu'un seul `update` au chargement de la page et plus jamais aucun
+ensuite — ni après un tir, ni au mouvement du curseur de rejeu. Le protocole : remplacer
+`window.battleshipScene` par un objet-piège **depuis la console du navigateur, partie déjà en
+cours**, puis tirer.
+
+**Hypothèse à vérifier** : pour que ce diagnostic tienne, il faut que remplacer
+`window.battleshipScene` après le chargement de la page intercepte les appels d'interop suivants.
+
+**Scénario** : `scene.js` instrumenté temporairement **à l'intérieur** de ses propres fonctions
+(`init`, `update`, `freeze`, `dispose` poussent chacune dans `window.__sceneTrace`), donc insensible
+à toute substitution sur `window` ; le piège de la console posé en plus, dans un second tableau ;
+un vrai clic Playwright sur une case de la grille adverse.
+
+**Résultat attendu avant exécution** : si le diagnostic est correct, les deux traces restent vides
+après le tir. Si le piège est aveugle, la trace interne enregistre les appels et le piège reste vide.
+
+**Erreur que ce contrôle peut détecter** : il sépare « le composant n'appelle pas `update` » de
+« l'instrument ne voit pas l'appel » — ce qu'aucune des trois relectures par lecture de code, ni la
+mesure qui les a suivies, ne pouvait distinguer.
+
+**Résultat réellement observé** :
+
+```
+trace interne au module : ["update:441", "update:441"]
+piège posé sur window   : []
+```
+
+**Décision** : **rejetée**. L'interop JS de Blazor mémorise la fonction résolue pour un identifiant
+(`battleshipScene.update`) au premier appel ; remplacer `window.battleshipScene` ensuite n'a plus
+d'effet sur les appels suivants. Seul `dispose`, jamais appelé avant la pose du piège, était résolu
+à froid — d'où l'unique appel que le piège capturait, et la fausse élimination de toutes les autres
+pistes. **Aucune ligne de code n'a été modifiée.**
+
+**Contre-mesure retenue et re-mesure sur le code non instrumenté** : poser le piège **avant** le
+premier appel d'interop (`page.addInitScript` + `Object.defineProperty(window, 'battleshipScene',
+{ get, set })`, le setter enveloppant l'objet au moment où `scene.js` l'assigne). Sur le dépôt
+propre (`curl http://localhost:5210/js/scene.js | grep -c trace` → `0`) :
+
+- chargement de `/play` : `init`, `freeze`, `update` ;
+- vrai clic sur la case H8 : **un seul** `update`, avec `"lastImpact":{"x":7,"y":7}` ;
+- deux `ArrowLeft` sur le curseur de rejeu : **un** `update` par cran, `"lastImpact":null`.
+
+**Preuves et limites** : `dotnet build` 0 avertissement, `dotnet test` 191/191. Le recul des
+**épaves** avec le curseur n'a pas été observé à l'écran — aucun navire adverse n'était coulé dans
+la partie mesurée, `wrecks` valait `[]` dans toutes les traces ; cette partie reste couverte par
+`At_cursor_n_the_wrecks_are_those_sunk_at_that_instant` et
+`On_a_censored_journal_the_wreck_appears_at_the_shot_that_sank_it`
+(`BattleShip.Tests/Domain/ScenePlanTests.cs`). À noter par ailleurs : `update()` dans `scene.js`
+n'utilise que `gridSize`, `friendly` et `wrecks` — `lastImpact` et `revealed` sont transmis mais
+ignorés par le rendu, donc un tir qui ne coule rien ne modifie pas l'image bien que l'appel ait
+lieu ; c'est un écart de périmètre visuel, pas un défaut de plomberie.
