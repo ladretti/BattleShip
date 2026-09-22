@@ -1,10 +1,11 @@
 # Revues de propositions IA
 
-Neuf revues ; huit ont vu leur résultat attendu énoncé **avant** de lancer la commande — une
+Onze revues ; dix ont vu leur résultat attendu énoncé **avant** de lancer la commande — une
 proposition acceptée exige une preuve autant qu'une proposition rejetée. La neuvième (revue 9) est
 une reconstruction faite après coup, et le dit elle-même dans son propre texte.
-**Bilan : neuf revues, toutes closes : 4 acceptées, 3 adaptées, 1 rejetée, 1 corrigée** (la revue 2,
-confirmée par la mesure, compte parmi les acceptées).
+**Bilan : onze revues, toutes closes : 4 acceptées, 3 adaptées, 2 rejetées, 2 corrigées** (la revue 2,
+confirmée par la mesure, compte parmi les acceptées ; la revue 10 est une rejetée pure — l'instrument
+de mesure était faux, aucun code corrigé ; la revue 11 est rejetée puis corrigée).
 
 ## Revue 1 — Aucune exception par tour d'adversaire (ADR 0004) — acceptée
 
@@ -377,3 +378,58 @@ la partie mesurée, `wrecks` valait `[]` dans toutes les traces ; cette partie r
 n'utilise que `gridSize`, `friendly` et `wrecks` — `lastImpact` et `revealed` sont transmis mais
 ignorés par le rendu, donc un tir qui ne coule rien ne modifie pas l'image bien que l'appel ait
 lieu ; c'est un écart de périmètre visuel, pas un défaut de plomberie.
+
+## Revue 11 — Trois relectures ont approuvé un composant qui ignorait deux champs — rejetée puis corrigée
+
+**Proposition et référence** : `BattleShip.App/wwwroot/js/scene.js`, fonction `update()`, telle
+qu'approuvée après les commits `8c68a91`, `8e203ef`, `9b288ef`, `b7bf1ba` — trois relectures
+indépendantes du même fichier, avant le fix R14 du commit `8dfb98a`.
+
+**Hypothèse à vérifier** : pour que ces trois approbations vaillent quelque chose, il faut que
+`update()` traite bien **tous** les champs de l'état qu'on lui passe — `gridSize`, `friendly`,
+`wrecks`, `lastImpact`, `revealed` — pas seulement ceux qu'une lecture attentive remarque.
+
+**Scénario, données ou commande** : les trois relectures ont porté sur la pureté de `update`
+(pas d'effet de bord hors la scène), le cycle de vie (`init`/`dispose`, ordre de libération),
+les fuites de ressources (écouteur `resize`, buffers GPU) et le comptage d'appels (réentrance,
+démontage concurrent) — R6 et R7 en sont issues, deux vrais défauts trouvés et corrigés par
+cette voie. Aucune des trois n'a lu `update()` en se demandant si chaque champ reçu était
+consommé. La correction du R14 a mesuré à l'exécution, au pixel : tir sur A1 puis B1, lecture
+RGB du canvas à la position de l'impact avant/après chaque tir ; puis `freeze(true)`, trois
+lectures espacées de 400 ms.
+
+**Résultat attendu avant exécution** : si `update()` traite bien `lastImpact`, un tir sans
+naufrage doit produire un changement d'image localisé à la case tirée ; si `revealed` est traité,
+la fin de partie doit changer le rendu de la flotte adverse.
+
+**Erreur que ce contrôle pourrait détecter** : une relecture qui approuve un fichier sur des
+critères réels (pureté, cycle de vie, fuites) sans jamais vérifier que la sortie dépend de
+chaque entrée déclarée — trois relectures ont exactement ce point aveugle ici, malgré des
+critères par ailleurs exigeants.
+
+**Résultat réellement observé** : `update()` n'utilisait que `gridSize`, `friendly` et `wrecks` ;
+`lastImpact` et `revealed` traversaient la frontière C#/JS sans effet sur le rendu. Après
+correction (commit `8dfb98a`) : tir A1 puis B1 → exactement 1 `update` par tir, `lastImpact` =
+la case cliquée ({0,0} puis {1,0}) ; lecture pixel du canvas → pic net à la position de l'impact
+(R moyen 14,0 → 18,1, max 157), retour à 14,0 après effacement. `freeze(true)` → trois lectures
+à 400 ms d'intervalle **bit à bit identiques** (14,875), contre 15,7 → 15,2 → 14,8 sans freeze.
+
+**Décision et justification** : **rejetée puis corrigée**. Ce que trois relectures par lecture de
+code ont approuvé à tort n'est pas requalifié en « code correct dès le début » — c'est un défaut
+réel, corrigé au round 5 (dernier autorisé), et la leçon porte sur la méthode : compiler et faire
+approuver un fichier par plusieurs relecteurs ne prouve aucun comportement (`CLAUDE.md` § 6). Ce
+qui l'a trouvé n'est pas une quatrième relecture plus attentive, mais l'exécution — exactement le
+protocole qui a produit R13 juste avant sur le même fichier.
+
+**Preuves reproductibles et liens vers les commits** : `progress.md`, ruling R14 ; commits
+`8c68a91`..`b7bf1ba` (les trois relectures), `8dfb98a` (correction et mesure au pixel).
+
+**Après correction éventuelle : résultat avant / après** : avant, `lastImpact` et `revealed`
+inertes, aucune trace visuelle d'un tir manqué ni d'une fin de partie ; après, pic de pixel exact
+à l'impact et gel bit à bit identique sous `freeze(true)`.
+
+**Limites et points non vérifiés** : le delta de **+4 textures par cycle `dispose`/`init`**
+observé pendant la mesure a été attribué aux placeholders internes de `THREE.WebGLRenderer`
+**par raisonnement, pas par mesure** — à re-instruire si une fuite est un jour suspectée. Le
+recul visuel des épaves avec le curseur reste non observé à l'écran (revue 10) : aucun navire
+adverse n'a été coulé dans les parties mesurées ici non plus.

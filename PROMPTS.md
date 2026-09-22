@@ -237,3 +237,36 @@ disparaître — la régression R18 est morte à l'écran, pas seulement en test
 18 rulings). Limite dite telle quelle : la révélation de la flotte adverse **après** `GameEnded` n'a **pas**
 été jouée à l'écran — finir une partie manuellement demande une vingtaine de tirs — et repose sur le seul test
 d'intégration `After_the_game_ends_the_full_journal_is_served`.
+
+## 2026-09-22 — Rendu 3D : spike de placement (`CS0433`) et deux décisions retirées par l'expérience
+
+**Contexte** : ADR 0012 à écrire avant tout code — l'arrière-plan 3D est la première dépendance front du
+projet. La spec plaçait d'abord la projection `ScenePlan.For` dans `BattleShip.App`, à côté de `Play.razor`,
+sur la même hypothèse que le reste du front. **Prompt** : « spike le placement de la projection avant
+d'écrire le contrat — ajoute un `ProjectReference` de `App` à `Tests` pour vérifier qu'elle est testable
+depuis là. »
+**Réponse** : le spike a échoué à la compilation avant même d'écrire un test. Attendu : la référence
+compile, la fonction se teste depuis `BattleShip.Tests`. Observé : `error CS0433: Le type 'BattleService'
+existe dans 'BattleShip.API, Version=1.0.0.0' et 'BattleShip.App, Version=1.0.0.0'` — `API` et `App`
+génèrent chacun leurs stubs gRPC depuis le même `Protos/battle.proto`, donc une troisième assembly qui
+référence les deux ne compile pas.
+**Décision** : la projection descend dans `BattleShip.Models`, seul point atteignable à la fois par `App`
+(pour appeler la fonction) et par `Tests` (pour la vérifier) sans ce conflit — acceptée, consignée en ADR
+0012. Deux autres décisions du contrôleur, prises en cours de chantier sur la même base « ça a l'air
+prouvé », ont ensuite été **retirées par l'expérience** : R10 (axe A, tâche 7) sur l'atteignabilité de
+`JSDisconnectedException` en Blazor WebAssembly autonome, et R13 de ce chantier sur la disparition de
+`update` après le chargement initial. Pour R13, la cause exacte : l'interop JS de Blazor **mémorise la
+fonction résolue** pour un identifiant (`battleshipScene.update`) au premier appel — remplacer
+`window.battleshipScene` depuis la console **après** ce premier appel n'intercepte donc plus rien. Seul
+`dispose`, jamais appelé avant la pose du piège, restait à résoudre, donc seul lui était capturé — ce qui a
+été pris pour une preuve que le composant ne rappelait jamais `update`, alors que ce n'était que l'indice
+que l'instrument de mesure était aveugle sur les trois autres fonctions.
+**Vérification** : spike jetable (copie de dépôt, `ProjectReference` retiré après constat) — sortie exacte
+ci-dessus, reproductible par `error CS0433` sur toute troisième assembly référençant `API` et `App`. Pour
+R13 : piège posé via `page.addInitScript` + `Object.defineProperty` **avant** le premier appel d'interop,
+sur code non instrumenté — `init`, `freeze`, `update` capturés au chargement, un seul `update` par clic
+réel, `lastImpact` exact.
+**Preuve / limite** : ADR `docs/adr/0012-rendu-3d.md`, `progress.md` (rulings P1, P2, R10, R13, R13 retiré,
+R14) ; commits `d3db021` (ADR 0012 et projection), `377fb06` (revue 10, R13 retiré). Limite : le spike n'a
+mesuré qu'un conflit de compilation, pas un choix de conception parmi plusieurs alternatives viables —
+`Models` était la seule option qui compile, pas la meilleure de plusieurs.

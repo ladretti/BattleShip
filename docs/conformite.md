@@ -17,7 +17,7 @@ assumé, non corrigé.
 | Partie complète contre l'ordinateur (5, 63) | `FireGrpcTests.A_game_played_to_the_end_finishes_with_the_player_as_winner` ; `Play.razor` bouton *New game* | `dotnet test --filter A_game_played_to_the_end` | `FireGrpcTests.A_game_played_to_the_end_finishes_with_the_player_as_winner` au vert |
 | FluentValidation sur toutes les entrées serveur, HTTP et gRPC (40, 50) | `BattleShip.API/Validation/` (5 validateurs, dont `EventQueryValidator`), appel explicite `ValidateAsync` dans chaque route et dans `BattleGrpcService.Fire` | `grep -rn ValidateAsync BattleShip.API` | 5 entrées, 5 appels explicites |
 | gRPC-Web : réponse **et** erreur attendue depuis le navigateur (48) | `Protos/battle.proto`, `docs/demo/*.png`, `docs/demo/grpc-web-trace.md` | `ls docs/demo` | 3 captures + trace |
-| Tests métier et d'intégration (6, 39) | `BattleShip.Tests/Domain`, `/Api`, `/Opponent` | `dotnet test` | 169 tests, 96 [Fact] et 8 [Theory] (2026-09-18) |
+| Tests métier et d'intégration (6, 39) | `BattleShip.Tests/Domain`, `/Api`, `/Opponent` | `dotnet test` | 191 tests, 100 [Fact] et 10 [Theory] (2026-09-22) |
 | Livrables IA (11, 62) | `PROMPTS.md`, `docs/adr/`, `REVUE-IA.md`, `README.md` | `ls` | présents ; condensés le 2026-09-17 |
 | Historique Git exploitable (62) | `git log` | `git log --format=%s \| grep -vcE '^(feat\|fix\|docs\|test\|chore\|refactor): '` | 1 écart : le commit initial `init` (limite) |
 
@@ -45,7 +45,7 @@ assumé, non corrigé.
 | Pas de `.Result` / `.Wait()` (4) | — | `grep -rnE '\.Wait\(\)\|GetAwaiter\(\)\.GetResult' --include='*.cs' --include='*.razor' BattleShip.API BattleShip.App BattleShip.Models \| grep -v /obj/ \| wc -l` | 0 ; 0 `Task.Result` : toutes les occurrences de `.Result` sont la propriété `Result` d'un tir |
 | `Nullable` activé, 0 avertissement (24) | 4 `.csproj` | `grep -c '<Nullable>enable' BattleShip.*/*.csproj && dotnet build` | 4 fichiers à 1 ; 0 warning |
 | `sealed` sauf statique (CLAUDE.md § 2) | — | `grep -rnE '^\s*public (static \|abstract \|partial )?class ' --include='*.cs' . \| grep -v /obj/ \| grep -v sealed \| grep -vE 'static class\|partial class Program'` | aucune ligne : 0 classe ouverte |
-| Contraintes de route, `TypedResults`, statuts 201/204/400/404/409 (31, 34) | `GameEndpoints.cs`, `ErrorMapping.cs` | `grep -rnoE 'Map(Get\|Post)\("[^"]+"' --include='*.cs' BattleShip.API \| grep -v /obj/` ; `grep -rnoE '\b(TypedResults\|Results)\.' --include='*.cs' BattleShip.API \| grep -v /obj/ \| cut -d: -f3 \| sort \| uniq -c` | 5 routes dont 3 en `{id:guid}` ; 12 `TypedResults.`, 0 `Results.` |
+| Contraintes de route, `TypedResults`, statuts 201/204/400/404/409 (31, 34) | `GameEndpoints.cs`, `ErrorMapping.cs` | `grep -rnoE 'Map(Get\|Post)\("[^"]+"' --include='*.cs' BattleShip.API \| grep -v /obj/` ; `grep -rnoE '\b(TypedResults\|Results)\.' --include='*.cs' BattleShip.API \| grep -v /obj/ \| cut -d: -f3 \| sort \| uniq -c` | 6 routes (5 sur `/games`, dont 4 en `{id:guid}`, + `/benchmark`) ; 16 `TypedResults.`, 0 `Results.` (2026-09-22, corrigé — comptait 5/12 avant l'ajout de `GET /games/{id}/events`) |
 | Traduction des refus en un seul endroit, sans `catch` par type (ADR 0004) | `ErrorMapping.cs` | `grep -rn catch --include='*.cs' BattleShip.API \| grep -v /obj/` | aucune ligne : 0 `catch` |
 | OpenAPI en développement, `api.http` versionné (35) | `Program.cs`, `api.http` | `grep -nE 'AddOpenApi\|MapOpenApi' BattleShip.API/Program.cs && git ls-files api.http` | lignes 14 et 36 (`MapOpenApi` sous `IsDevelopment`) ; `api.http` versionné |
 | Durées de vie DI choisies et justifiées (33) | `Program.cs` ×2, ADR 0002, ADR 0007, revue 5 | `grep -nE 'AddSingleton\|AddScoped\|AddTransient' BattleShip.API/Program.cs BattleShip.App/Program.cs` | API : 3 `Singleton` (store, aléa, fabrique) + 5 `Scoped` (validateurs) ; App : 9 `Scoped` (`GameSessionStorage` inclus) |
@@ -68,8 +68,25 @@ assumé, non corrigé.
 | Un journal désérialisé malformé ou tronqué ne se replie pas silencieusement (ADR 0011 § 2.1 bis) | `Game.Replay`, garde de contiguïté des rangs (R12) | `dotnet test --filter GameFoldTests` | journal vide → `ArgumentException` (R11) ; rangs non contigus → `InvalidOperationException` |
 | Reprise de partie après rechargement de page (extension, ADR 0007 amendé) | `GameState.InitializeAsync`, `battleshipSettings` (`wwwroot/index.html`) | `dotnet build BattleShip.App` puis vérification navigateur (rechargement sur `/play`) | flotte redessinée, 5 navires à 0 touche, constaté à l'écran le 2026-09-18 |
 
+## Arrière-plan 3D (ADR 0012, 2026-09-22)
+
+| Exigence | Preuve dans le dépôt | Commande de contrôle | Constat |
+|---|---|---|---|
+| Le secret ne franchit pas le graphe de scène 3D, y compris à tout curseur de rejeu (ADR 0012) | `ScenePlanTests` (paire de tests 1/3, plus les cas à curseur) | `dotnet test --filter FullyQualifiedName~ScenePlanTests` | 22/22 (2026-09-22) |
+| La projection de scène (`ScenePlan.For`) vit dans `BattleShip.Models`, atteignable par `App` et `Tests` sans conflit `CS0433` (spike, ADR 0012) | `BattleShip.Models/Scene/ScenePlan.cs` | `find BattleShip.Models -iname ScenePlan.cs && grep -c Reference BattleShip.Models/BattleShip.Models.csproj` | fichier présent ; 0 référence (Models reste sans dépendance) |
+| Contrat d'interop à quatre fonctions : `init`, `update`, `freeze`, `dispose` (ADR 0012) | `BattleShip.App/wwwroot/js/scene.js` | `grep -nE "^\s*(init\|update\|freeze\|dispose)\s*\(" BattleShip.App/wwwroot/js/scene.js` | 4 lignes (20, 93, 136, 138) |
+| Dépendance JS vendorisée, aucun CDN (ADR 0012) | `BattleShip.App/wwwroot/lib/three.module.js` | `wc -c BattleShip.App/wwwroot/lib/three.module.js && grep -rn "cdn\." BattleShip.App/wwwroot/index.html BattleShip.App/wwwroot/js/scene.js` | 1 304 820 octets présents ; 0 référence CDN |
+| Canvas décoratif : `aria-hidden`, ne vole aucun événement (ADR 0012) | `SceneCanvas.razor`, `wwwroot/css/app.css` | `grep -n aria-hidden BattleShip.App/Components/SceneCanvas.razor ; grep -n "z-index: -1" BattleShip.App/wwwroot/css/app.css` | `aria-hidden="true"` (l.4) ; `z-index: -1` + `pointer-events: none` (l.1147-1148) |
+
+Non vérifié — consigné en limite (`README.md`) plutôt qu'en constat : la dégradation sans WebGL et
+la révélation visuelle de fin de partie n'ont pas été jouées à l'écran ; le recul visuel des épaves
+avec le curseur est déduit de `ScenePlanTests` et du rendu des navires vérifié au pixel (revue 11),
+pas observé directement — aucun navire adverse n'a été coulé dans les parties mesurées.
+
 ## Limites assumées
 
 - Le commit initial `init` ne suit pas la convention `type: sujet` ; l'historique n'est pas réécrit.
 - `BattleGrpcService.Fire` n'a pas le suffixe `Async` : la signature est celle de `BattleServiceBase` générée par `Grpc.Tools`.
 - Aucun lecteur d'écran réel n'a été essayé (README, « Limites connues »).
+- Arrière-plan 3D : dégradation sans WebGL et révélation visuelle de fin de partie non vérifiées ; recul des
+  épaves avec le curseur déduit, non observé à l'écran (voir section ci-dessus et `REVUE-IA.md`, revue 11).

@@ -1,8 +1,9 @@
 # Bataille Navale — C# / ASP.NET Core
 
-TP d'autonomie C# ASP.NET (HTS Learning, Christophe MOMMER). **État au 2026-09-18 : le socle, les trois
-extensions du 2026-09-17 et le journal d'événements (ADR 0011) sont livrés ; une partie complète se joue dans
-le navigateur, de la création à la victoire, avec rejeu fidèle et reprise après rechargement.**
+TP d'autonomie C# ASP.NET (HTS Learning, Christophe MOMMER). **État au 2026-09-22 : le socle, les trois
+extensions du 2026-09-17, le journal d'événements (ADR 0011) et l'arrière-plan 3D réactif (ADR 0012) sont
+livrés ; une partie complète se joue dans le navigateur, de la création à la victoire, avec rejeu fidèle et
+reprise après rechargement.**
 
 ## Binôme
 
@@ -40,7 +41,7 @@ dotnet run --project BattleShip.App --launch-profile https   # https://localhost
 
 ```bash
 dotnet build      # 0 avertissement
-dotnet test       # 169 tests
+dotnet test       # 191 tests
 dotnet format     # avant tout commit
 ```
 
@@ -77,6 +78,9 @@ Essais manuels des endpoints HTTP : `api.http` à la racine — `@api = http://l
   mémorisés entre deux visites (ADR 0009).
 - **Journal d'événements** (`GET /games/{id}/events`) comme source de vérité unique du moteur (ADR 0011) : un
   seul fait écrit une seule fois, plutôt que trois écritures dupliquées à chaque tir.
+- **Arrière-plan 3D réactif** (ADR 0012) : mer, flotte du joueur et épaves rendues avec Three.js, vendorisé
+  dans `wwwroot/lib/` — aucun prérequis nouveau, rien à installer. Caméra qui réagit aux impacts, scène figée
+  sous mouvement réduit.
 - **Rejeu fidèle** : le curseur reconstitue l'état « coulé » réellement atteint à chaque instant, y compris en
   cours de partie sur un journal censuré — plus seulement la liste des coups.
 - **Révélation de la flotte adverse dans le journal** : `GET /games/{id}/events` expose les positions
@@ -152,6 +156,18 @@ annonces, glyphes, contrastes).
   (`After_the_game_ends_the_full_journal_is_served`) mais **n'a pas été jouée à l'écran** — terminer une partie
   manuellement demande une vingtaine de tirs.
 - La sérialisation JSON du front repose sur la réflexion ; son comportement sous **publication trimmée** est inconnu.
+- **Arrière-plan 3D, secret** : pendant une partie en cours, l'arrière-plan ne montre que la mer, la flotte du
+  joueur et les épaves — le secret l'interdit autrement ; la cascade de naufrages est une scène de fin de
+  partie ou de rejeu.
+- **Arrière-plan 3D, recul des épaves** : le recul visuel des épaves avec le curseur de rejeu est **déduit,
+  non observé** — aucun navire adverse n'a été coulé dans les parties mesurées à l'écran. Il est couvert par
+  les tests de `ScenePlanTests` et par le rendu identique des navires, vérifié au pixel — composition de deux
+  parties prouvées, pas une observation directe.
+- **Arrière-plan 3D, non vérifié** : la dégradation sans WebGL et la révélation visuelle de fin de partie
+  n'ont pas été vérifiées.
+- Un test préexistant, `FireGrpcTests.A_missed_shot_triggers_the_opponent_s_counterattack`, a été signalé une
+  fois en échec puis **non reproduit** (3 exécutions sur 3 au vert en isolation) — à surveiller, pas à
+  déclarer cassé.
 
 ## Code généré
 
@@ -170,8 +186,8 @@ annonces, glyphes, contrastes).
 | `docs/superpowers/specs/2026-09-15-bataille-navale-design.md` | conception d'ensemble |
 | `docs/superpowers/plans/` | plan d'implémentation découpé en tâches |
 | `docs/demo/` | preuves de la démonstration gRPC-Web |
-| `docs/adr/` | décisions d'architecture (0001 à 0011) |
+| `docs/adr/` | décisions d'architecture (0001 à 0012) |
 | `PROMPTS.md` | échanges décisifs avec l'IA |
-| `REVUE-IA.md` | neuf revues argumentées des propositions de l'IA |
+| `REVUE-IA.md` | onze revues argumentées des propositions de l'IA |
 | `CONTEXTE-IA.md` | contexte du projet |
 | `CLAUDE.md` | cadre de travail de l'IA sur ce dépôt |
