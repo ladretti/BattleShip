@@ -50,7 +50,7 @@ window.battleshipScene = {
         seaGeometry.rotateX(-Math.PI / 2);
         state.sea = new THREE.Mesh(
             seaGeometry,
-            new THREE.MeshStandardMaterial({ color: 0x14384a, roughness: 0.75, metalness: 0.1 })
+            new THREE.MeshStandardMaterial({ color: 0x1d5f7e, roughness: 0.55, metalness: 0.15 })
         );
         state.scene.add(state.sea);
 
