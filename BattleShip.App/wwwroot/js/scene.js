@@ -1,6 +1,11 @@
 import * as THREE from '../lib/three.module.js';
 
-const state = { renderer: null, scene: null, camera: null, sea: null, ships: [], raf: 0, frozen: false, resize: null };
+const state = {
+    renderer: null, scene: null, camera: null, sea: null, ships: [], raf: 0, frozen: false, resize: null,
+    impactMesh: null, impactKey: null, impactStart: 0, revealLight: null
+};
+
+const IMPACT_PULSE_MS = 700;
 
 function disposeShips() {
     for (const mesh of state.ships) {
@@ -29,6 +34,17 @@ window.battleshipScene = {
         const sun = new THREE.DirectionalLight(0xffffff, 0.8);
         sun.position.set(12, 30, 18);
         state.scene.add(sun);
+
+        state.revealLight = new THREE.PointLight(0xffd27a, 0, 70, 0);
+        state.revealLight.position.set(0, 6, 0);
+        state.scene.add(state.revealLight);
+
+        state.impactMesh = new THREE.Mesh(
+            new THREE.RingGeometry(0.55, 0.85, 24),
+            new THREE.MeshBasicMaterial({ color: 0xffd764, transparent: true, opacity: 0, side: THREE.DoubleSide }));
+        state.impactMesh.rotation.x = -Math.PI / 2;
+        state.impactMesh.visible = false;
+        state.scene.add(state.impactMesh);
 
         const seaGeometry = new THREE.PlaneGeometry(200, 200, 96, 96);
         seaGeometry.rotateX(-Math.PI / 2);
@@ -61,6 +77,12 @@ window.battleshipScene = {
                 }
                 p.needsUpdate = true;
                 seaGeometry.computeVertexNormals();
+
+                if (state.impactMesh.visible) {
+                    const progress = Math.min((t - state.impactStart) / IMPACT_PULSE_MS, 1);
+                    state.impactMesh.scale.setScalar(1 + progress * 0.8);
+                    state.impactMesh.material.opacity = 0.55 * (1 - progress) + 0.12;
+                }
             }
             state.renderer.render(state.scene, state.camera);
         };
@@ -91,6 +113,24 @@ window.battleshipScene = {
 
         for (const s of scene.friendly) place(s, 0x8fb8c9, s.sunk);
         for (const s of scene.wrecks) place(s, 0x6b3f3f, true);
+
+        if (scene.lastImpact) {
+            const key = `${scene.lastImpact.x},${scene.lastImpact.y}`;
+            state.impactMesh.position.set(scene.lastImpact.x - half + 0.5, 0.4, scene.lastImpact.y - half + 0.5);
+            state.impactMesh.visible = true;
+            if (key !== state.impactKey) {
+                state.impactKey = key;
+                state.impactStart = performance.now();
+                state.impactMesh.scale.setScalar(1);
+                state.impactMesh.material.opacity = 0.55;
+            }
+        } else {
+            state.impactMesh.visible = false;
+            state.impactMesh.material.opacity = 0;
+            state.impactKey = null;
+        }
+
+        state.revealLight.intensity = scene.revealed ? 6 : 0;
     },
 
     freeze(frozen) { state.frozen = !!frozen; },
@@ -107,6 +147,18 @@ window.battleshipScene = {
             state.sea.material.dispose();
             state.sea = null;
         }
+        if (state.impactMesh) {
+            if (state.scene) state.scene.remove(state.impactMesh);
+            state.impactMesh.geometry.dispose();
+            state.impactMesh.material.dispose();
+            state.impactMesh = null;
+        }
+        if (state.revealLight) {
+            if (state.scene) state.scene.remove(state.revealLight);
+            state.revealLight = null;
+        }
+        state.impactKey = null;
+        state.impactStart = 0;
         if (state.renderer) state.renderer.dispose();
         state.renderer = null;
         state.scene = null;
