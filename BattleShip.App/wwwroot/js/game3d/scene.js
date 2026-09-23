@@ -23,6 +23,7 @@ function makeBoard(gridSize, offsetX) {
     group.add(new THREE.LineSegments(
         geometry, new THREE.LineBasicMaterial({ color: 0x6f9db2, transparent: true, opacity: 0.55 })));
 
+    group.userData.plate = plate;
     group.userData.originX = offsetX - span / 2;
     group.userData.originZ = -span / 2;
     group.userData.cellSize = CELL;

@@ -13,12 +13,12 @@ export function createInput(renderer, camera, getBoards, onPick) {
         const rect = renderer.domElement.getBoundingClientRect();
         pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        camera.updateMatrixWorld();
         raycaster.setFromCamera(pointer, camera);
 
-        const hits = raycaster.intersectObject(boards.opponent, true);
-        if (hits.length === 0) return null;
-
         const board = boards.opponent;
+        const hits = raycaster.intersectObject(board.userData.plate);
+        if (hits.length === 0) return null;
         const point = hits[0].point;
         const x = Math.floor((point.x - board.userData.originX) / board.userData.cellSize);
         const y = Math.floor((point.z - board.userData.originZ) / board.userData.cellSize);
