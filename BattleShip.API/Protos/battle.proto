@@ -1,0 +1,27 @@
+syntax = "proto3";
+option csharp_namespace = "BattleShip.API.Grpc";
+package battleship;
+
+service BattleService {
+  rpc Fire (FireRequest) returns (FireResponse);
+}
+
+message FireRequest {
+  string game_id = 1;
+  int32 x = 2;
+  int32 y = 3;
+}
+
+message Shot {
+  int32 x = 1;
+  int32 y = 2;
+  string result = 3;
+  string sunk_ship_name = 4;
+}
+
+message FireResponse {
+  Shot player_shot = 1;
+  repeated Shot opponent_shots = 2;
+  string status = 3;
+  string current_player = 4;
+}

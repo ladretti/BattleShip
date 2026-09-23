@@ -1,16 +1,55 @@
-﻿@inherits LayoutComponentBase
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject GameState State
+@inject AppearanceState Appearance
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+<div class="shell">
+    <header class="masthead">
+        <a class="masthead__name" href="">Battleship</a>
 
-        <article class="content px-4">
-            @Body
-        </article>
+        @if (State.Current is { } game)
+        {
+            <span class="masthead__state">
+                @game.OpponentDifficulty · @game.Own.GridSize × @game.Own.GridSize ·
+                @(game.Status switch
+                {
+                    "Placing" => "placing your fleet",
+                    "Finished" => "game over",
+                    _ => "in play"
+                })
+            </span>
+        }
+
+        <span class="masthead__spacer"></span>
+        <SettingsMenu />
+    </header>
+
+    <main class="main">
+        @Body
     </main>
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        State.OnChange += OnChanged;
+        Appearance.OnChange += OnChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Appearance.InitializeAsync();
+            await State.InitializeAsync();
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        State.OnChange -= OnChanged;
+        Appearance.OnChange -= OnChanged;
+    }
+}

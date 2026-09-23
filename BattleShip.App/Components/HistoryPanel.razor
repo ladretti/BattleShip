@@ -1,0 +1,64 @@
+<details class="drawer">
+    <summary>Shot history — @Shots.Count</summary>
+
+    @if (Shots.Count == 0)
+    {
+        <p class="fleet__note">Nothing fired yet.</p>
+    }
+    else
+    {
+        <div class="replay">
+            <label class="field__label" for="replay-cursor">Replay</label>
+            <input id="replay-cursor" type="range"
+                   min="0" max="@Shots.Count" step="1"
+                   value="@(Cursor ?? Shots.Count)"
+                   @oninput="OnCursorInputAsync"
+                   aria-valuetext="@Describe(Cursor ?? Shots.Count)" />
+            <span class="fleet__note" aria-live="polite">@Describe(Cursor ?? Shots.Count)</span>
+
+            @if (Cursor is not null)
+            {
+                <button class="button" @onclick="BackToLiveAsync">Back to live</button>
+            }
+        </div>
+
+        <ol class="log">
+            @for (var i = 0; i < Shots.Count; i++)
+            {
+                var shot = Shots[i];
+                var isPast = i < (Cursor ?? Shots.Count);
+                <li class="log__entry" data-future="@((!isPast).ToString().ToLowerInvariant())"
+                    data-result="@shot.Result">
+                    <span class="log__who">@(shot.By == "Human" ? "You" : "Them")</span>
+                    <span class="log__square">@Square(shot)</span>
+                    <span class="log__result">
+                        @shot.Result@(shot.SunkShipName is { } name ? $" — {name} down" : "")
+                    </span>
+                </li>
+            }
+        </ol>
+    }
+</details>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ShotDto> Shots { get; set; } = [];
+
+    [Parameter] public int? Cursor { get; set; }
+
+    [Parameter] public EventCallback<int?> CursorChanged { get; set; }
+
+    private async Task OnCursorInputAsync(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var value))
+            return;
+
+        await CursorChanged.InvokeAsync(value >= Shots.Count ? null : value);
+    }
+
+    private async Task BackToLiveAsync() => await CursorChanged.InvokeAsync(null);
+
+    private static string Square(ShotDto shot) => $"{(char)('A' + shot.X)}{shot.Y + 1}";
+
+    private string Describe(int cursor) =>
+        cursor >= Shots.Count ? "live" : $"after {cursor} of {Shots.Count} shots";
+}

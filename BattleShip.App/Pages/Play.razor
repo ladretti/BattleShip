@@ -1,0 +1,467 @@
+@page "/play"
+@implements IDisposable
+@inject GameState State
+@inject BattleGrpcClient Grpc
+@inject BattleApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Battle — Battleship</PageTitle>
+
+@if (State.Current is null)
+{
+    <h1 class="page-title">Nothing under way.</h1>
+    <div class="alert alert--note" role="alert">
+        <span class="alert__title">No game in progress.</span>
+        <p><a href="">Create one first.</a></p>
+    </div>
+}
+else if (State.Current.Status == "Placing")
+{
+    <h1 class="page-title">Your fleet is still on the dock.</h1>
+    <div class="alert alert--note" role="alert">
+        <span class="alert__title">Place it before you fire.</span>
+        <p><a href="placement">Go to placement.</a></p>
+    </div>
+}
+else
+{
+    var game = State.Current;
+    var finished = game.Status == "Finished";
+    var won = PlayerWon(game);
+
+    @if (finished)
+    {
+        <h1 class="page-title">@(won ? "Their fleet is gone." : "Your fleet is gone.")</h1>
+        <div class="alert @(won ? "alert--note" : "alert--error")" role="alert">
+            <span class="alert__title">@(won ? "You win." : "You lose.")</span>
+            <p>Every ship of the losing fleet has been sunk.</p>
+            <button class="button button--primary stage__confirm" @onclick="NewGame">New game</button>
+        </div>
+    }
+    else
+    {
+        <h1 class="page-title">Their waters.</h1>
+        <p class="lede">
+            @game.OpponentDifficulty. Pick a square and fire — a hit buys you another shot.
+        </p>
+    }
+
+    <div class="stage">
+
+        <div class="stage__board">
+            <FiringGrid @ref="_opponentGrid"
+                        GridSize="game.Opponent.GridSize"
+                        Cells="OpponentCells(game)"
+                        Ships="OpponentHulls(game)"
+                        Label="Opponent board — choose a square to fire at"
+                        Interactive="@(!finished && !_firing && _replayCursor is null)"
+                        Impact="_opponentImpact"
+                        SunkLabel="@_sunkLabel"
+                        OnCellClick="FireAsync" />
+            <p class="board-caption">
+                Sunk @game.Opponent.SunkShips.Count of @game.Fleet.Count
+                @if (_streak > 1)
+                {
+                    <span class="streak">@_streak hits in a row</span>
+                }
+            </p>
+        </div>
+
+        <aside class="stage__side panel">
+            <h2 class="panel__title">Your fleet</h2>
+
+            <div class="own-board">
+                <FiringGrid GridSize="game.Own.GridSize"
+                            Cells="OwnCells(game)"
+                            Ships="OwnHulls(game)"
+                            Compact="true"
+                            Label="Your board"
+                            Impact="_ownImpact"
+                            Interactive="false" />
+            </div>
+
+            <ul class="fleet">
+                @foreach (var ship in game.Own.Ships)
+                {
+                    <li class="fleet__ship" data-sunk="@ship.IsSunk.ToString().ToLowerInvariant()">
+                        <span class="fleet__name">@ship.Name</span>
+                        <span class="fleet__note">
+                            @(ship.IsSunk ? "sunk" : $"{ship.Cells.Count(c => c.State == "hit")} of {ship.Size} hit")
+                        </span>
+                        <span class="hull" aria-hidden="true">
+                            @foreach (var cell in ship.Cells)
+                            {
+                                <span class="hull__pip" data-state="@cell.State"></span>
+                            }
+                        </span>
+                    </li>
+                }
+            </ul>
+        </aside>
+    </div>
+
+    <p class="status" role="status" aria-live="polite">
+        @if (_firing)
+        {
+            <span class="busy" aria-hidden="true"></span>
+        }
+        <span>@_announcement</span>
+    </p>
+
+    @if (_shotError is not null)
+    {
+        <div class="alert alert--error" role="alert">
+            <span class="alert__title">Shot refused.</span>
+            <p>@_shotError</p>
+        </div>
+    }
+    else if (State.State == LoadState.Failed)
+    {
+        <div class="alert alert--error" role="alert">
+            <span class="alert__title">Could not read the board.</span>
+            <p>@State.ErrorMessage</p>
+        </div>
+    }
+
+    @if (_replayCursor is not null)
+    {
+        <div class="alert alert--note" role="status">
+            <span class="alert__title">Replaying.</span>
+            <p>
+                The boards show the game after @_replayCursor of @_history.Count shots.
+                Firing is off until you go back to live — nothing here is sent to the server.
+            </p>
+        </div>
+    }
+
+    <HistoryPanel Shots="_history" Cursor="_replayCursor" CursorChanged="SetReplayCursor" />
+
+    <details class="drawer">
+        <summary>gRPC-Web diagnostics</summary>
+        <p class="fleet__note">
+            Fires at a game id that does not exist, so you can watch an expected
+            <code>NotFound</code> come back over gRPC-Web in the Network tab.
+        </p>
+        <button class="button" @onclick="FireAtUnknownGameAsync" disabled="@_firing">
+            Fire at an unknown game
+        </button>
+    </details>
+}
+
+@code {
+    private readonly List<CellDto> _opponentOverlay = [];
+    private readonly List<CellDto> _ownOverlay = [];
+
+    private bool _firing;
+    private string? _shotError;
+
+    private string _announcement = "Your move.";
+
+    private IReadOnlyList<ShotDto> _history = [];
+    private IReadOnlyList<GameEvent> _events = [];
+
+    private int? _replayCursor;
+
+    private FiringGrid? _opponentGrid;
+
+    private Coordinate? _refocus;
+
+    private FiringGrid.ImpactMark? _opponentImpact;
+    private FiringGrid.ImpactMark? _ownImpact;
+    private string? _sunkLabel;
+
+    private int _streak;
+
+    private int _impactSequence;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.OnChange += OnStateChanged;
+        await LoadHistoryAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_refocus is not { } cell || _opponentGrid is null)
+            return;
+
+        if (await _opponentGrid.FocusCellAsync(cell))
+            _refocus = null;
+    }
+
+    private IReadOnlyList<CellDto> OpponentCells(GameDto game)
+    {
+        if (_replayCursor is { } cursor)
+            return [.. _history.Take(cursor).Where(s => s.By == "Human").Select(ToCell)];
+
+        return
+        [
+            .. game.Opponent.Shots,
+            .. game.Opponent.SunkShips.SelectMany(s => s.Cells),
+            .. _opponentOverlay
+        ];
+    }
+
+    private IReadOnlyList<CellDto> OwnCells(GameDto game)
+    {
+        if (_replayCursor is { } cursor)
+            return
+            [
+                .. game.Own.Ships.SelectMany(s => s.Cells).Select(c => c with { State = "ship" }),
+                .. _history.Take(cursor).Where(s => s.By == "Opponent").Select(ToCell)
+            ];
+
+        return
+        [
+            .. game.Own.Ships.SelectMany(s => s.Cells),
+            .. game.Own.ReceivedShots,
+            .. _ownOverlay
+        ];
+    }
+
+    private static CellDto ToCell(ShotDto shot) => new(shot.X, shot.Y, shot.Result);
+
+    private IReadOnlyList<ShipOutline> OwnHulls(GameDto game)
+    {
+        var shown = new Dictionary<Coordinate, string>();
+        foreach (var cell in OwnCells(game))
+            shown[new Coordinate(cell.X, cell.Y)] = cell.State;
+
+        return
+        [
+            .. game.Own.Ships
+                .Select(ship =>
+                {
+                    IReadOnlyList<CellDto> cells =
+                    [
+                        .. ship.Cells.Select(c => c with
+                        {
+                            State = shown.GetValueOrDefault(new Coordinate(c.X, c.Y), c.State)
+                        })
+                    ];
+
+                    var sunk = cells.All(c => c.State is "hit" or "sunk");
+                    return ShipOutline.FromCells(ship.Name, cells, sunk);
+                })
+                .OfType<ShipOutline>()
+        ];
+    }
+
+    private Game? ReplayedGame(int cursor)
+    {
+        if (_events.Count == 0)
+            return null;
+
+        var shots = 0;
+        var upTo = new List<GameEvent>();
+
+        foreach (var next in _events)
+        {
+            if (next is ShotFired && shots++ >= cursor)
+                break;
+
+            upTo.Add(next);
+        }
+
+        return GameFold.Fold(State.Current!.Id, upTo);
+    }
+
+    private IReadOnlyList<ShipOutline> OpponentHulls(GameDto game)
+    {
+        if (_replayCursor is not { } cursor)
+            return LiveOpponentHulls(game);
+
+        if (ReplayedGame(cursor) is { } replayed && replayed.OpponentBoard.Ships.Count > 0)
+            return RevealedOpponentHulls(replayed);
+
+        return CensoredOpponentHulls(game, cursor);
+    }
+
+    private static IReadOnlyList<ShipOutline> LiveOpponentHulls(GameDto game) =>
+    [
+        .. game.Opponent.SunkShips
+            .Select(ship => ShipOutline.FromCells(ship.Name, ship.Cells, isSunk: true))
+            .OfType<ShipOutline>()
+    ];
+
+    private static IReadOnlyList<ShipOutline> RevealedOpponentHulls(Game replayed) =>
+    [
+        .. replayed.OpponentBoard.Ships
+            .Where(s => s.IsSunk)
+            .Select(s => ShipOutline.FromCells(
+                s.Name,
+                [.. s.Cells.Select(c => new CellDto(c.X, c.Y, "sunk"))],
+                isSunk: true))
+            .OfType<ShipOutline>()
+    ];
+
+    private IReadOnlyList<ShipOutline> CensoredOpponentHulls(GameDto game, int cursor)
+    {
+        var sunkByCursor = _events.OfType<ShotFired>()
+            .Take(cursor)
+            .Where(shot => shot.By == Player.Human && shot.Result == ShotResult.Sunk)
+            .Select(shot => shot.SunkShipName!)
+            .ToHashSet();
+
+        return
+        [
+            .. game.Opponent.SunkShips
+                .Where(ship => sunkByCursor.Contains(ship.Name))
+                .Select(ship => ShipOutline.FromCells(ship.Name, ship.Cells, isSunk: true))
+                .OfType<ShipOutline>()
+        ];
+    }
+
+    private void SetReplayCursor(int? cursor) => _replayCursor = cursor;
+
+    private async Task LoadHistoryAsync()
+    {
+        if (State.Current is not { } game)
+            return;
+
+        var result = await Api.GetEventsAsync(game.Id);
+        if (!result.IsOk)
+            return;
+
+        _events = [.. result.Value.Select(ToDomainEvent).OfType<GameEvent>()];
+        _history = [.. _events.OfType<ShotFired>()
+            .Select(e => new ShotDto(e.At.X, e.At.Y, StateOf(e.Result), e.By.ToString(), e.SunkShipName))];
+    }
+
+    private static GameEvent? ToDomainEvent(GameEventDto dto) => dto switch
+    {
+        GameCreatedDto created => new GameCreated(
+            created.Sequence,
+            GameRules.Default with
+            {
+                GridSize = created.GridSize,
+                Fleet = [.. created.Fleet.Select(f => new ShipTemplate(f.Name, f.Size))],
+                ShipsMayTouch = created.ShipsMayTouch
+            },
+            ToShips(created.OpponentShips),
+            created.Difficulty),
+
+        HumanFleetPlacedDto placed => new HumanFleetPlaced(placed.Sequence, ToShips(placed.Ships)),
+
+        ShotFiredDto shot => new ShotFired(
+            shot.Sequence, new Coordinate(shot.X, shot.Y),
+            Enum.Parse<Player>(shot.By), ResultOf(shot.Result), shot.SunkShipName),
+
+        GameEndedDto ended => new GameEnded(ended.Sequence, Enum.Parse<Player>(ended.Winner)),
+
+        _ => null
+    };
+
+    private static IReadOnlyList<ShipSnapshot> ToShips(IReadOnlyList<ShipDto> ships) =>
+        [.. ships.Select(s => new ShipSnapshot(
+            s.Name, s.Size, [.. s.Cells.Select(c => new Coordinate(c.X, c.Y))]))];
+
+    private static ShotResult ResultOf(string state) => state switch
+    {
+        "miss" => ShotResult.Miss,
+        "hit" => ShotResult.Hit,
+        "sunk" => ShotResult.Sunk,
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown shot state.")
+    };
+
+    private static string StateOf(ShotResult result) => result switch
+    {
+        ShotResult.Miss => "miss",
+        ShotResult.Hit => "hit",
+        ShotResult.Sunk => "sunk",
+        _ => throw new ArgumentOutOfRangeException(nameof(result), result, "Unknown shot result.")
+    };
+
+    private static bool PlayerWon(GameDto game) => game.Winner == "Human";
+
+    private async Task FireAsync(Coordinate at)
+    {
+        if (State.Current is not { } game || _firing)
+            return;
+
+        await RunShotAsync(game.Id, at);
+    }
+
+    private async Task FireAtUnknownGameAsync() =>
+        await RunShotAsync(Guid.NewGuid(), new Coordinate(0, 0), restoreFocus: false);
+
+    private async Task RunShotAsync(Guid gameId, Coordinate at, bool restoreFocus = true)
+    {
+        if (restoreFocus)
+            _refocus = at;
+
+        _opponentImpact = null;
+        _ownImpact = null;
+        _sunkLabel = null;
+
+        _firing = true;
+        _shotError = null;
+        _announcement = "Firing…";
+
+        var result = await Grpc.FireAsync(gameId, at);
+
+        if (!result.IsOk)
+        {
+            _shotError = result.ErrorMessage;
+            _announcement = result.ErrorMessage ?? "The shot was refused.";
+            _firing = false;
+            _streak = 0;
+
+            await State.RefreshAsync();
+            return;
+        }
+
+        var response = result.Value;
+
+        _opponentOverlay.Add(new CellDto(response.PlayerShot.X, response.PlayerShot.Y, response.PlayerShot.Result));
+        _opponentImpact = new FiringGrid.ImpactMark(
+            new Coordinate(response.PlayerShot.X, response.PlayerShot.Y),
+            response.PlayerShot.Result,
+            ++_impactSequence);
+        _sunkLabel = string.IsNullOrEmpty(response.PlayerShot.SunkShipName)
+            ? null
+            : $"{response.PlayerShot.SunkShipName} down";
+        _streak = response.PlayerShot.Result == "miss" ? 0 : _streak + 1;
+        _announcement = Announce("Your shot", response.PlayerShot);
+        StateHasChanged();
+
+        foreach (var shot in response.OpponentShots)
+        {
+            await Task.Delay(520);
+            _ownOverlay.Add(new CellDto(shot.X, shot.Y, shot.Result));
+            _ownImpact = new FiringGrid.ImpactMark(
+                new Coordinate(shot.X, shot.Y), shot.Result, ++_impactSequence);
+            _announcement = Announce("Opponent fires", shot);
+            StateHasChanged();
+        }
+
+        await Task.Delay(420);
+
+        await State.RefreshAsync();
+        await LoadHistoryAsync();
+        _opponentOverlay.Clear();
+        _ownOverlay.Clear();
+        _firing = false;
+
+        if (State.Current is { Status: "Finished" } ended)
+        {
+            _streak = 0;
+            _announcement = PlayerWon(ended)
+                ? "You win. Every opposing ship is sunk."
+                : "You lose. Your fleet is sunk.";
+        }
+    }
+
+    private static string Announce(string who, BattleShip.API.Grpc.Shot shot)
+    {
+        var square = $"{(char)('A' + shot.X)}{shot.Y + 1}";
+        var sunk = string.IsNullOrEmpty(shot.SunkShipName) ? "" : $" {shot.SunkShipName} is sunk.";
+        return $"{who} at {square}: {shot.Result}.{sunk}";
+    }
+
+    private void NewGame() => Navigation.NavigateTo("/");
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.OnChange -= OnStateChanged;
+}

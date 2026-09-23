@@ -4,29 +4,64 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BattleShip.App</title>
+    <title>Battleship</title>
     <base href="/" />
     <link rel="preload" id="webassembly" />
-    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Fraunces:opsz,wght,SOFT,WONK@9..144,100..900,0..100,0..1&display=swap" />
+
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="BattleShip.App.styles.css" rel="stylesheet" />
     <script type="importmap"></script>
+
+    <script>
+        // Settings the page must honour BEFORE anything paints, otherwise the first frame
+        // shows one theme and the next shows another. Blazor has not booted at this point,
+        // so this is deliberately plain, synchronous, and failure-tolerant: private windows
+        // and blocked site data make localStorage throw rather than return null.
+        window.battleshipSettings = {
+            read: function (key, fallback) {
+                try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
+            },
+            write: function (key, value) {
+                try { localStorage.setItem(key, value); } catch (e) { /* not worth failing over */ }
+            },
+            remove: function (key) {
+                try { localStorage.removeItem(key); } catch (e) { /* not worth failing over */ }
+            },
+            prefersReducedMotion: function () {
+                try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+                catch (e) { return false; }
+            },
+            apply: function (theme, motion) {
+                var root = document.documentElement;
+                root.setAttribute('data-theme', theme);
+                root.setAttribute('data-motion', motion);
+            }
+        };
+
+        (function () {
+            var s = window.battleshipSettings;
+            s.apply(s.read('battleship.theme', 'chart'), s.read('battleship.motion', 'full'));
+        })();
+    </script>
 </head>
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
+        <div class="boot">
+            <span class="boot__mark" aria-hidden="true"></span>
+            <p class="boot__text">Plotting the chart…</p>
+        </div>
     </div>
 
     <div id="blazor-error-ui">
-        An unhandled error has occurred.
-        <a href="." class="reload">Reload</a>
-        <span class="dismiss">🗙</span>
+        Something went wrong. <a href="." class="reload">Reload the page</a>
+        <span class="dismiss">✕</span>
     </div>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>

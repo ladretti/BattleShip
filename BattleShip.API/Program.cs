@@ -1,12 +1,37 @@
+using BattleShip.API.Benchmark;
+using BattleShip.Models.Contracts;
+using BattleShip.API.Endpoints;
+using BattleShip.API.Grpc;
+using BattleShip.API.Services;
+using BattleShip.API.Stores;
+using BattleShip.API.Strategies;
+using BattleShip.API.Validation;
+using BattleShip.Models;
+using FluentValidation;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddGrpc();
+
+builder.Services.AddCors(options => options.AddPolicy("front", policy => policy
+    .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .WithExposedHeaders("grpc-status", "grpc-message", "grpc-encoding",
+                        "grpc-accept-encoding")));
+builder.Services.AddScoped<IValidator<BenchmarkInput>, BenchmarkInputValidator>();
+
+builder.Services.AddSingleton<IGameStore, InMemoryGameStore>();
+builder.Services.AddSingleton(_ => Random.Shared);
+builder.Services.AddSingleton<IOpponentStrategyFactory, OpponentStrategyFactory>();
+builder.Services.AddScoped<IValidator<CreateGameInput>, CreateGameInputValidator>();
+builder.Services.AddScoped<IValidator<PlacementInput>, PlacementInputValidator>();
+builder.Services.AddScoped<IValidator<FireRequest>, FireRequestValidator>();
+builder.Services.AddScoped<IValidator<EventQuery>, EventQueryValidator>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -14,28 +39,23 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+app.UseCors("front");
 
-app.MapGet("/weatherforecast", () =>
+app.UseGrpcWeb();
+app.MapGrpcService<BattleGrpcService>().EnableGrpcWeb();
+
+app.MapGameEndpoints();
+
+app.MapPost("/benchmark", async Task<IResult> (
+    BenchmarkInput input, IValidator<BenchmarkInput> validator) =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    var check = await validator.ValidateAsync(input);
+    if (!check.IsValid)
+        return TypedResults.ValidationProblem(check.ToDictionary());
+
+    return TypedResults.Ok(StrategyBenchmark.Run(GameRules.Default, input.Games, input.Seed));
+});
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+public partial class Program;

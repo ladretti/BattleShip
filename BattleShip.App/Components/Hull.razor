@@ -1,0 +1,38 @@
+@using BattleShip.App.Rendering
+
+<svg class="hull @Class" viewBox="0 0 @HullGeometry.N(_shape.ViewWidth) @HullGeometry.N(_shape.ViewHeight)"
+     preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <path class="hull__body" d="@_shape.Outline" />
+    <path class="hull__deck" d="@_shape.DeckLine" />
+
+    @if (!Compact)
+    {
+        @foreach (var block in _shape.Blocks)
+        {
+            <rect class="hull__block"
+                  x="@HullGeometry.N(block.X)" y="@HullGeometry.N(block.Y)"
+                  width="@HullGeometry.N(block.Width)" height="@HullGeometry.N(block.Height)"
+                  rx="@HullGeometry.N(block.Radius)" />
+        }
+        @foreach (var turret in _shape.Turrets)
+        {
+            <circle class="hull__turret"
+                    cx="@HullGeometry.N(turret.Cx)" cy="@HullGeometry.N(turret.Cy)"
+                    r="@HullGeometry.N(turret.R)" />
+        }
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public int Size { get; set; }
+
+    [Parameter] public bool Vertical { get; set; }
+
+    [Parameter] public bool Compact { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    private HullShape _shape = HullGeometry.For(1, false);
+
+    protected override void OnParametersSet() => _shape = HullGeometry.For(Size, Vertical);
+}

@@ -1,0 +1,221 @@
+@inject Random Random
+
+<div class="board-frame">
+    <div class="board" role="group" aria-label="@Label" style="@Template">
+
+        <span class="ruler" aria-hidden="true"></span>
+        @for (var x = 0; x < GridSize; x++)
+        {
+            <span class="ruler" aria-hidden="true">@Column(x)</span>
+        }
+
+        @for (var y = 0; y < GridSize; y++)
+        {
+            var row = y;
+            <span class="ruler" aria-hidden="true">@(row + 1)</span>
+
+            @for (var x = 0; x < GridSize; x++)
+            {
+                var column = x;
+                var index = row * GridSize + column;
+                var cell = new Coordinate(column, row);
+                var state = StateOf(cell);
+
+                var struck = Impact is { } mark && mark.At == cell;
+
+                @if (Interactive)
+                {
+                    <button type="button" class="cell @state @(struck ? "is-struck" : null) @(OverHull(cell) ? "over-hull" : null)"
+                            aria-label="@LabelFor(cell, state)"
+                            @ref="_cellRefs[index]"
+                            tabindex="@(index == _focused ? 0 : -1)"
+                            @onclick="() => OnCellClick.InvokeAsync(cell)"
+                            @onfocus="() => _focused = index"
+                            @onkeydown="args => MoveFocusAsync(args, index)">
+                        <span aria-hidden="true">@Glyph(state)</span>
+                        @if (struck) { @Burst(Impact!) }
+                    </button>
+                }
+                else
+                {
+                    <div class="cell @state @(struck ? "is-struck" : null) @(OverHull(cell) ? "over-hull" : null)" role="img"
+                         aria-label="@LabelFor(cell, state)">
+                        <span aria-hidden="true">@Glyph(state)</span>
+                        @if (struck) { @Burst(Impact!) }
+                    </div>
+                }
+            }
+        }
+
+    </div>
+
+    <div class="board-overlay" aria-hidden="true" style="@Template">
+        @foreach (var ship in Ships)
+        {
+            <span class="hull-slot" style="@Slot(ship)">
+                <Hull Size="ship.Size" Vertical="ship.Vertical" Compact="Compact"
+                      Class="@(ship.IsSunk ? "hull--sunk" : null)" />
+            </span>
+        }
+
+        @foreach (var (at, state) in Ships.SelectMany(ship => ship.Damage))
+        {
+            <span class="scar scar--@state"
+                  style="grid-column: @(at.X + 2); grid-row: @(at.Y + 2)"></span>
+        }
+    </div>
+
+    @if (Impact is { Kind: "sunk" } sinking)
+    {
+        <div class="sunk-stamp" aria-hidden="true">
+            <span @key="sinking.Sequence">@(SunkLabel ?? "Sunk")</span>
+        </div>
+    }
+</div>
+
+@{
+    RenderFragment Burst(ImpactMark impact) =>
+        @<span @key="impact.Sequence" class="impact impact--@impact.Kind" aria-hidden="true">
+            <span class="impact__flash"></span>
+            <span class="impact__ring"></span>
+            <span class="impact__ring impact__ring--late"></span>
+            @foreach (var shard in Shards(impact.Kind))
+            {
+                <span class="impact__shard" style="@shard"></span>
+            }
+        </span>;
+}
+
+@code {
+    public sealed record ImpactMark(Coordinate At, string Kind, int Sequence);
+
+    [Parameter, EditorRequired] public int GridSize { get; set; }
+
+    [Parameter, EditorRequired] public IReadOnlyList<CellDto> Cells { get; set; } = [];
+
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+
+    [Parameter] public bool Interactive { get; set; }
+
+    [Parameter] public IReadOnlyList<ShipOutline> Ships { get; set; } = [];
+
+    [Parameter] public bool Compact { get; set; }
+
+    [Parameter] public ImpactMark? Impact { get; set; }
+
+    [Parameter] public string? SunkLabel { get; set; }
+
+    [Parameter] public EventCallback<Coordinate> OnCellClick { get; set; }
+
+    private Dictionary<Coordinate, string> _states = [];
+    private HashSet<Coordinate> _hullCells = [];
+    private ElementReference[] _cellRefs = [];
+    private int _focused;
+
+    private string Template =>
+        $"grid-template-columns: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));" +
+        $"grid-template-rows: var(--ruler-size) repeat({GridSize}, var(--cell-size, 2.15rem));";
+
+    private static string Slot(ShipOutline ship) => ship.Vertical
+        ? $"grid-column: {ship.Origin.X + 2}; grid-row: {ship.Origin.Y + 2} / span {ship.Size}"
+        : $"grid-column: {ship.Origin.X + 2} / span {ship.Size}; grid-row: {ship.Origin.Y + 2}";
+
+    private bool OverHull(Coordinate cell) => _hullCells.Contains(cell);
+
+    protected override void OnParametersSet()
+    {
+        _states = [];
+        foreach (var cell in Cells)
+            _states[new Coordinate(cell.X, cell.Y)] = cell.State;
+
+        _hullCells = [.. Ships.SelectMany(ship => ship.Footprint)];
+
+        if (_cellRefs.Length != GridSize * GridSize)
+            _cellRefs = new ElementReference[GridSize * GridSize];
+
+        _focused = Math.Clamp(_focused, 0, Math.Max(0, _cellRefs.Length - 1));
+    }
+
+    public async Task<bool> FocusCellAsync(Coordinate cell)
+    {
+        var index = cell.Y * GridSize + cell.X;
+        if (!Interactive || index < 0 || index >= _cellRefs.Length)
+            return false;
+
+        _focused = index;
+        await _cellRefs[index].FocusAsync();
+        return true;
+    }
+
+    private async Task MoveFocusAsync(KeyboardEventArgs args, int index)
+    {
+        var row = index / GridSize;
+        var column = index % GridSize;
+
+        var target = args.Key switch
+        {
+            "ArrowRight" => column + 1 < GridSize ? index + 1 : index,
+            "ArrowLeft" => column > 0 ? index - 1 : index,
+            "ArrowDown" => row + 1 < GridSize ? index + GridSize : index,
+            "ArrowUp" => row > 0 ? index - GridSize : index,
+            "Home" => row * GridSize,
+            "End" => row * GridSize + GridSize - 1,
+            _ => index
+        };
+
+        if (target == index)
+            return;
+
+        _focused = target;
+        await _cellRefs[target].FocusAsync();
+    }
+
+    private IEnumerable<string> Shards(string kind)
+    {
+        var count = kind == "miss" ? 6 : 12;
+        var reach = kind == "miss" ? 26 : 52;
+
+        for (var i = 0; i < count; i++)
+        {
+            var angle = (2 * Math.PI * i / count) + (Random.NextDouble() * 0.5);
+            var distance = reach * (0.55 + (Random.NextDouble() * 0.75));
+            var dx = Math.Round(Math.Cos(angle) * distance, 1);
+            var dy = Math.Round(Math.Sin(angle) * distance, 1);
+            var size = kind == "miss" ? 3 + Random.Next(3) : 4 + Random.Next(5);
+            var delay = Random.Next(0, 90);
+
+            yield return
+                $"--dx:{Css(dx)}px;--dy:{Css(dy)}px;--s:{size}px;--d:{delay}ms";
+        }
+    }
+
+    private static string Css(double value) =>
+        value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private string StateOf(Coordinate cell) => _states.GetValueOrDefault(cell, "unknown");
+
+    private static string Column(int x) => ((char)('A' + x)).ToString();
+
+    private static string Glyph(string state) => state switch
+    {
+        "ship" => "■",
+        "miss" => "·",
+        "hit" => "✱",
+        "sunk" => "✖",
+        _ => ""
+    };
+
+    private static string LabelFor(Coordinate cell, string state)
+    {
+        var what = state switch
+        {
+            "miss" => "miss",
+            "hit" => "hit",
+            "sunk" => "sunk",
+            "ship" => "your ship",
+            _ => "not fired at"
+        };
+
+        return $"{Column(cell.X)}{cell.Y + 1}, {what}";
+    }
+}

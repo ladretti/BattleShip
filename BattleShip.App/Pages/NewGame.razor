@@ -1,0 +1,120 @@
+@page "/"
+@implements IDisposable
+@inject GameState State
+@inject NavigationManager Navigation
+
+<PageTitle>Battleship</PageTitle>
+
+<section class="keyart">
+    <SeaBattle />
+    <div class="keyart__scrim" aria-hidden="true"></div>
+
+    <div class="keyart__content">
+        <h1 class="page-title">Find their fleet before they find yours.</h1>
+
+        <p class="lede">
+            Two grids of open water, five ships each. You lay yours out by hand; theirs are
+            already somewhere, and only the server knows where. Every hit buys you another
+            shot — which cuts both ways.
+        </p>
+
+        <div class="new-game">
+            <div class="field">
+                <label class="field__label" for="grid-size">Grid</label>
+                <select id="grid-size" @bind="_gridSize" disabled="@IsBusy">
+                    @foreach (var size in GridSizes)
+                    {
+                        <option value="@size">@size × @size</option>
+                    }
+                </select>
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="difficulty">Opponent</label>
+
+                <select id="difficulty" @bind="_difficulty" disabled="@IsBusy">
+                    @foreach (var level in DifficultyLevels.All)
+                    {
+                        <option value="@level">@level — @Describe(level)</option>
+                    }
+                </select>
+            </div>
+
+            <button class="button button--primary" @onclick="CreateAsync" disabled="@IsBusy">
+                @(IsBusy ? "Creating…" : "Create game")
+            </button>
+        </div>
+
+        <p class="status" role="status" aria-live="polite">
+            @if (IsBusy)
+            {
+                <span class="busy" aria-hidden="true"></span>
+                <span>Creating the game…</span>
+            }
+        </p>
+
+        @if (!IsBusy && State.State == LoadState.Failed)
+        {
+            <div class="alert alert--error" role="alert">
+                <span class="alert__title">Could not create the game.</span>
+                <p>@State.ErrorMessage</p>
+            </div>
+        }
+    </div>
+</section>
+
+<section class="levels">
+    <h2 class="levels__title">How long each opponent takes to sink you</h2>
+    <dl class="levels__list">
+        @foreach (var level in Levels)
+        {
+            <div class="levels__item" data-selected="@((_difficulty == level.Name).ToString().ToLowerInvariant())">
+                <dt class="levels__name">@level.Name</dt>
+                <dd class="levels__value">@level.Shots<span class="levels__unit"> shots</span></dd>
+                <dd class="levels__note">@level.Note</dd>
+            </div>
+        }
+    </dl>
+    <p class="levels__source">
+        Averages over 200 games per level, fixed seed, default fleet on a 10 × 10 grid.
+        Lower is worse for you.
+    </p>
+</section>
+
+@code {
+    private static readonly int[] GridSizes = [8, 10, 12, 15];
+
+    private static readonly (string Name, string Shots, string Note)[] Levels =
+    [
+        (DifficultyLevels.Easy, "95.7", "Fires at random. You have time."),
+        (DifficultyLevels.Normal, "52.6", "Hunts down whatever it hits. The playable one."),
+        (DifficultyLevels.Hard, "41.2", "Reads the whole board. You will probably lose.")
+    ];
+
+    private int _gridSize = 10;
+    private string _difficulty = DifficultyLevels.Normal;
+
+    private bool IsBusy => State.State == LoadState.Loading;
+
+    protected override void OnInitialized() => State.OnChange += OnStateChanged;
+
+    private static string Describe(string level) => level switch
+    {
+        DifficultyLevels.Easy => "fires at random",
+        DifficultyLevels.Normal => "hunts down what it hits",
+        DifficultyLevels.Hard => "reads the board, and wins",
+        _ => ""
+    };
+
+    private async Task CreateAsync()
+    {
+        await State.CreateAsync(_gridSize, _difficulty);
+
+        if (State.State == LoadState.Ready)
+            Navigation.NavigateTo("/placement");
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.OnChange -= OnStateChanged;
+}

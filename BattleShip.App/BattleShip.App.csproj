@@ -8,8 +8,23 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.36.1" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.83.0" />
+    <PackageReference Include="Grpc.Net.Client.Web" Version="2.83.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.84.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same .proto file the server compiles, not a copy of it: the client stubs are
+         generated from BattleShip.API/Protos/battle.proto itself, so the two ends of the
+         wire cannot drift. Link keeps it displayed under Protos/ in the IDE. -->
+    <Protobuf Include="../BattleShip.API/Protos/battle.proto"
+              GrpcServices="Client" Link="Protos/battle.proto" />
   </ItemGroup>
 
   <ItemGroup>

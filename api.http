@@ -1,0 +1,44 @@
+@api = http://localhost:5184
+@apiHttps = https://localhost:7050
+
+### Create a game
+POST {{api}}/games
+Content-Type: application/json
+
+{ "gridSize": 10, "difficulty": "Normal" }
+
+### Get a game
+GET {{api}}/games/{{gameId}}
+
+### Place the fleet
+POST {{api}}/games/{{gameId}}/placement
+Content-Type: application/json
+
+{
+  "ships": [
+    { "name": "Carrier", "x": 0, "y": 0, "orientation": "Horizontal" },
+    { "name": "Battleship", "x": 0, "y": 2, "orientation": "Horizontal" },
+    { "name": "Cruiser", "x": 0, "y": 4, "orientation": "Horizontal" },
+    { "name": "Submarine", "x": 0, "y": 6, "orientation": "Horizontal" },
+    { "name": "Destroyer", "x": 0, "y": 8, "orientation": "Horizontal" }
+  ]
+}
+
+### Get the shot history
+GET {{api}}/games/{{gameId}}/history
+
+### Get the event journal (censored while the game is in progress)
+GET {{api}}/games/{{gameId}}/events
+
+### Get the event journal from a given sequence
+GET {{api}}/games/{{gameId}}/events?from=2
+
+### Reject a negative 'from'
+GET {{api}}/games/{{gameId}}/events?from=-1
+
+### Benchmark: run 200 games
+POST {{api}}/benchmark
+Content-Type: application/json
+
+{ "games": 200, "seed": 20260915 }
+
