@@ -55,11 +55,17 @@
                 await Js.InvokeVoidAsync("battleshipGame3d.freeze", Calm);
             }
 
+            if (_disposed)
+                return;
+
             if (!ReferenceEquals(State, _sent))
             {
                 _sent = State;
                 await Js.InvokeVoidAsync("battleshipGame3d.update", State);
             }
+
+            if (_disposed)
+                return;
 
             if (_sentFocus != Focused)
             {
@@ -80,12 +86,6 @@
     {
         _disposed = true;
         Appearance.OnChange -= OnAppearanceChanged;
-
-        if (!_ready)
-        {
-            _self?.Dispose();
-            return;
-        }
 
         try
         {

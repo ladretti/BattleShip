@@ -3,7 +3,7 @@ import { createScene } from './scene.js';
 import { createCamera } from './camera.js';
 import { createInput } from './input.js';
 
-const state = { renderer: null, world: null, cam: null, input: null, raf: 0, frozen: false, resize: null, ref: null };
+const state = { renderer: null, world: null, cam: null, input: null, raf: 0, frozen: false, dirty: true, resize: null, ref: null };
 
 window.battleshipGame3d = {
     init(canvas, dotnetRef) {
@@ -28,23 +28,25 @@ window.battleshipGame3d = {
             state.cam.camera.updateProjectionMatrix();
             state.cam.frame(w);
         };
-        state.resize = resize;
+        state.resize = () => { resize(); state.dirty = true; };
         resize();
-        window.addEventListener('resize', resize);
+        window.addEventListener('resize', state.resize);
 
         const tick = () => {
             state.raf = requestAnimationFrame(tick);
+            if (state.frozen && !state.dirty) return;
+            state.dirty = false;
             state.renderer.render(state.world.scene, state.cam.camera);
         };
         state.raf = requestAnimationFrame(tick);
         return true;
     },
 
-    update(scene) { if (state.world) state.world.setState(scene); },
+    update(scene) { if (state.world) { state.world.setState(scene); state.dirty = true; } },
 
-    hover(x, y) { if (state.input) state.input.setHover(x, y); },
+    hover(x, y) { if (state.input) { state.input.setHover(x, y); state.dirty = true; } },
 
-    freeze(frozen) { state.frozen = !!frozen; },
+    freeze(frozen) { state.frozen = !!frozen; state.dirty = true; },
 
     dispose() {
         cancelAnimationFrame(state.raf);
