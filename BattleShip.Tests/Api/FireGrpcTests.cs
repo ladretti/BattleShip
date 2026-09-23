@@ -118,17 +118,19 @@ public sealed class FireGrpcTests : IClassFixture<WebApplicationFactory<Program>
         var client = Client();
 
         FireResponse reply;
-        var x = 5;
+        var cell = 0;
         do
         {
             reply = await client.FireAsync(new FireRequest
             {
                 GameId = id.ToString(),
-                X = x++,
-                Y = 5
+                X = cell % 10,
+                Y = cell / 10
             });
-        } while (reply.PlayerShot.Result != "miss" && x < 10);
+            cell++;
+        } while (reply.PlayerShot.Result != "miss" && cell < 100);
 
+        Assert.Equal("miss", reply.PlayerShot.Result);
         Assert.NotEmpty(reply.OpponentShots);
     }
 
