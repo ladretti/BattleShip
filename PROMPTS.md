@@ -52,3 +52,19 @@ mention contraire. Les contrôles détaillés sont dans `REVUE-IA.md`.
   les trailers.
 - **Preuve** : commits `0e5ec13` et `ed4cb56`, captures dans `docs/demo/`. Un `400` isolé vu une fois
   ne s'est jamais reproduit.
+
+## 2026-09-23 — Lancer le projet avec Docker Compose
+
+- **Contexte** : le README demandait deux terminaux et le SDK .NET 10 ; on voulait une seule commande.
+- **Prompt** : « Ajoute un fichier compose pour lancer le projet et assure-toi que le README soit complet. »
+- **Réponse résumée** : un `Dockerfile` à deux cibles (API sous `aspnet:10.0`, front publié et servi par nginx) et
+  un `compose.yaml` qui publie les ports déjà attendus par le front (5184 et 5210), donc aucune configuration à
+  changer.
+- **Décision** : acceptée après correction. Le premier essai compilait et servait la page, mais le préflight
+  CORS revenait en `204` sans aucun en-tête `Access-Control-*` : `Cors:Origins` n'était que dans
+  `appsettings.Development.json`. L'origine est maintenant passée par variable d'environnement dans le compose.
+- **Vérification** : dans Chrome piloté sur le compose, partie créée, flotte posée, puis trois appels
+  `Fire` en `application/grpc-web` : tir accepté, même case (`grpc-status 3`, `CellAlreadyShot`), partie
+  inconnue (`grpc-status 5`, `GameNotFound`). `dotnet test` : 169/169.
+- **Preuve** : `Dockerfile`, `compose.yaml`, `.dockerignore`. Seul HTTP est servi ; le HTTPS en conteneur n'a pas
+  été essayé.

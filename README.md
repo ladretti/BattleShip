@@ -14,8 +14,20 @@ le navigateur, de la création à la victoire, avec rejeu fidèle et reprise apr
 - **.NET SDK 10.x** — vérifier avec `dotnet --version` ; version épinglée par `global.json`.
 - Un navigateur récent : la démonstration gRPC-Web se lit dans la console F12.
 - **Pour le profil HTTPS uniquement** : certificat de développement *approuvé* — `dotnet dev-certs https --check --trust`.
+- **Ou**, à la place du SDK : **Docker** avec Compose v2 (`docker compose version`).
 
-## Lancer le projet
+## Lancer avec Docker
+
+```bash
+docker compose up --build        # API sur http://localhost:5184, front sur http://localhost:5210  ← ouvrir
+docker compose down              # arrêter
+```
+
+Le premier `--build` télécharge les images .NET et les paquets NuGet (quelques minutes). Le front est publié puis
+servi par nginx ; l'API tourne en `Production`, d'où l'origine CORS du front déclarée dans `compose.yaml`
+(`Cors__Origins__0`) : `Cors:Origins` n'existe que dans `appsettings.Development.json`. HTTP uniquement.
+
+## Lancer avec le SDK .NET
 
 L'API et le front sont deux applications distinctes, à lancer dans **deux terminaux**. Chaque projet a deux profils,
 `http` et `https` ; `dotnet run` sans option prend le premier, `http`. **Prendre le même profil des deux côtés.**
@@ -128,7 +140,8 @@ annonces, glyphes, contrastes).
 - **Concurrence optimiste** (`Append(id, expectedVersion, events)`, la forme « canonique » de l'event sourcing)
   — examinée puis écartée à l'ADR 0011 : elle résout un problème déjà résolu par le verrou par partie de
   l'ADR 0002, testé et correct dans un store mono-processus en mémoire.
-- **Multijoueur** (sessions et temps réel) et **déploiement** — hors périmètre, sans valeur ajoutée pour l'évaluation.
+- **Multijoueur** (sessions et temps réel) et **déploiement public** — hors périmètre, sans valeur ajoutée pour
+  l'évaluation ; `compose.yaml` sert seulement à lancer le projet en local.
 - **Placement automatique du joueur** — le placement manuel démontre mieux la validation serveur.
 
 ## Limites connues
@@ -152,6 +165,8 @@ annonces, glyphes, contrastes).
   (`After_the_game_ends_the_full_journal_is_served`) mais **n'a pas été jouée à l'écran** — terminer une partie
   manuellement demande une vingtaine de tirs.
 - La sérialisation JSON du front repose sur la réflexion ; son comportement sous **publication trimmée** est inconnu.
+- **Hors `Development`, l'API n'autorise aucune origine CORS** tant que `Cors:Origins` n'est pas fourni : le compose le
+  fait par variable d'environnement, un autre hébergement devra le faire aussi.
 
 ## Code généré
 
