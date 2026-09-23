@@ -1,0 +1,100 @@
+@using BattleShip.Models
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@inject AppearanceState Appearance
+
+<canvas @ref="_canvas" class="game-canvas" aria-hidden="true"></canvas>
+
+@code {
+    [Parameter] public SceneState? State { get; set; }
+
+    [Parameter] public EventCallback<Coordinate> OnPick { get; set; }
+
+    [Parameter] public Coordinate? Focused { get; set; }
+
+    private ElementReference _canvas;
+    private DotNetObjectReference<GameCanvas>? _self;
+    private bool _ready;
+    private bool _disposed;
+    private SceneState? _sent;
+    private Coordinate? _sentFocus;
+    private bool? _sentCalm;
+    private bool _osPrefersStill;
+
+    private bool Calm => _osPrefersStill || Appearance.Motion == "calm";
+
+    protected override void OnInitialized() => Appearance.OnChange += OnAppearanceChanged;
+
+    private void OnAppearanceChanged() => InvokeAsync(StateHasChanged);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _self = DotNetObjectReference.Create(this);
+                _ready = await Js.InvokeAsync<bool>("battleshipGame3d.init", _canvas, _self);
+                if (_ready)
+                    _osPrefersStill = await Js.InvokeAsync<bool>("battleshipSettings.prefersReducedMotion");
+            }
+            catch (JSException)
+            {
+                _ready = false;
+            }
+        }
+
+        if (!_ready || _disposed)
+            return;
+
+        try
+        {
+            if (_sentCalm != Calm)
+            {
+                _sentCalm = Calm;
+                await Js.InvokeVoidAsync("battleshipGame3d.freeze", Calm);
+            }
+
+            if (!ReferenceEquals(State, _sent))
+            {
+                _sent = State;
+                await Js.InvokeVoidAsync("battleshipGame3d.update", State);
+            }
+
+            if (_sentFocus != Focused)
+            {
+                _sentFocus = Focused;
+                await Js.InvokeVoidAsync(
+                    "battleshipGame3d.hover", Focused?.X, Focused?.Y);
+            }
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public async Task PickAsync(int x, int y) => await OnPick.InvokeAsync(new Coordinate(x, y));
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        Appearance.OnChange -= OnAppearanceChanged;
+
+        if (!_ready)
+        {
+            _self?.Dispose();
+            return;
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync("battleshipGame3d.dispose");
+        }
+        catch (JSException)
+        {
+        }
+
+        _self?.Dispose();
+    }
+}
