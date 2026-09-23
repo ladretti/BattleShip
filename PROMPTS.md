@@ -25,8 +25,8 @@ mention contraire. Les contrôles détaillés sont dans `REVUE-IA.md`.
 
 - **Contexte** : la brique centrale du sujet. La traduction `GameError` → statut était dupliquée dans
   les endpoints HTTP.
-- **Prompt** : « Reprends le brief de la tâche 14 en TDD strict, avec un contrôle discriminant sur le
-  mapping `NotFound` et un test de course `Read`/`Mutate`. »
+- **Prompt** : « Implémente le tir en gRPC-Web en TDD strict, avec un contrôle qui prouve que
+  `GameNotFound` donne bien `NotFound`, et un test de course entre lecture et tir. »
 - **Réponse résumée** : `Fire` renvoie la suite des coups (le nôtre puis ceux de l'adversaire tant
   qu'il touche), et un seul `ErrorMapping` sert HTTP et gRPC.
 - **Décision** : adaptée. Le `.proto` et les cinq tests ont été gardés, mais le test de course écrit
@@ -40,7 +40,8 @@ mention contraire. Les contrôles détaillés sont dans `REVUE-IA.md`.
 
 - **Contexte** : pages de placement et de jeu, et la démonstration gRPC-Web demandée par le sujet
   (une réponse et une erreur visibles depuis le navigateur).
-- **Prompt** : suite de l'exécution du même plan, tâches 17 à 19.
+- **Prompt** : « Fais la page de placement de la flotte, puis la page de jeu avec le tir en
+  gRPC-Web, et vérifie dans le navigateur qu'on voit une réponse et une erreur. »
 - **Réponse résumée** : l'aperçu de placement réutilise la règle du serveur (`PlacementRules.Validate`)
   mais ne bloque jamais le clic, sinon on ne pourrait plus montrer le refus du serveur. Les erreurs
   gRPC sont lues avec `Enum.TryParse<GameError>`, pas en comparant des chaînes.
@@ -51,23 +52,3 @@ mention contraire. Les contrôles détaillés sont dans `REVUE-IA.md`.
   les trailers.
 - **Preuve** : commits `0e5ec13` et `ed4cb56`, captures dans `docs/demo/`. Un `400` isolé vu une fois
   ne s'est jamais reproduit.
-
-## 2026-09-17/18 — Le journal d'événements
-
-- **Contexte** : socle et extensions livrés ; on voulait une amélioration d'architecture plutôt
-  qu'un effet visuel.
-- **Prompt** : « un simple jeu en 2D c'est trop bateau, je veux aller plus loin — qu'est-ce qui côté
-  architecture pourrait améliorer le jeu ? », puis l'exécution du plan
-  `docs/superpowers/plans/2026-09-17-journal-evenements.md`.
-- **Réponse résumée** : l'IA a proposé un journal d'événements, 3D ou du temps réel. Son argument pour
-  le journal venait du code : un tir était écrit trois fois (`Game._history`, `Board._receivedShots`,
-  `Ship._hitCells`). Le journal supprime ce doublon au lieu d'ajouter une couche.
-- **Décision** : journal et 3D retenus, le journal d'abord (ADR 0011) ; temps réel écarté ;
-  persistance au backlog ; verrou par partie conservé. Pendant l'implémentation, l'IA a vu que stocker des `Ship` vivants dans les
-  événements les ferait changer après coup : on stocke des `ShipSnapshot` immuables.
-- **Vérification** : `dotnet test` de 145 à 169 sans régression. En HTTP, `/events` n'expose pendant
-  la partie que les 17 cases du joueur ; `from=-1` donne `400`, un id inconnu `404`. Dans le rejeu,
-  la coque d'un navire apparaît exactement au tir qui l'a coulé.
-- **Preuve** : spec `81449d5`, commits `d488e8d` à `fa5422b`. La révélation de la flotte adverse en
-  fin de partie n'est vérifiée que par un test d'intégration, pas à l'écran. Plusieurs tests écrits
-  par l'IA ne pouvaient pas échouer et ont dû être corrigés à la relecture.
