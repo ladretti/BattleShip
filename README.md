@@ -1,9 +1,6 @@
 # Bataille Navale — C# / ASP.NET Core
 
-TP d'autonomie C# ASP.NET (HTS Learning, Christophe MOMMER). **État au 2026-09-18 : le socle, les trois
-extensions du 2026-09-17 et le journal d'événements (ADR 0011) sont livrés ; une partie complète se joue dans
-le navigateur, de la création à la victoire, avec rejeu fidèle et reprise après rechargement.**
-
+TP d'autonomie C# ASP.NET. 
 ## Binôme
 
 - Luca Ceccarelli
@@ -59,7 +56,7 @@ dotnet format     # avant tout commit
 Essais manuels des endpoints HTTP : `api.http` à la racine — `@api = http://localhost:5184`,
 `@apiHttps = https://localhost:7050`. **Le tir n'y figure pas** : il passe par gRPC-Web (ADR 0005).
 
-## Règles du jeu retenues
+## Règles du jeu
 
 | Règle | Valeur |
 |---|---|
@@ -102,28 +99,6 @@ Essais manuels des endpoints HTTP : `api.http` à la racine — `@api = http://l
 - **Page d'accueil illustrée** en SVG, `aria-hidden`, figée en mode calme et sous `prefers-reduced-motion`.
 - **Accessibilité** : les deux grilles au clavier seul (flèches, `Début`/`Fin`, `Entrée`, `R`), région `aria-live`, un
   **glyphe** par état en plus de la couleur, contrastes mesurés.
-
-## Démonstration gRPC-Web
-
-Dans le navigateur, console F12 ouverte sur l'onglet **Réseau**, filtre `Fire`.
-
-1. Créer une partie (`/`), poser les cinq navires, puis **Confirm fleet**.
-2. **Réponse attendue** — cliquer une case vierge de « Their waters » : un `POST /battleship.BattleService/Fire` en
-   `HTTP 200`, `application/grpc-web` ; le coup s'affiche, puis la riposte adverse se déroule.
-3. **Erreur attendue nº 1** — recliquer **la même case** : `grpc-status: 3` (`InvalidArgument`),
-   `grpc-message: CellAlreadyShot`.
-4. **Erreur attendue nº 2** — déplier **gRPC-Web diagnostics** en bas de la page de jeu, puis **Fire at an unknown
-   game** : `grpc-status: 5` (`NotFound`), `grpc-message: GameNotFound`.
-
-> Une erreur gRPC-Web revient en **`HTTP 200`** : le statut voyage dans les *trailers* (`grpc-status`,
-> `grpc-message`), pas dans le code HTTP — d'où l'exposition explicite de ces en-têtes par CORS.
-
-| Preuve | Contenu |
-|---|---|
-| `docs/demo/01-fire-success.png` | le tir accepté |
-| `docs/demo/02-invalid-argument.png` | `InvalidArgument` / `CellAlreadyShot` |
-| `docs/demo/03-not-found.png` | `NotFound` / `GameNotFound` |
-| `docs/demo/grpc-web-trace.md` | la trace réseau des trois appels et leurs `grpc-status` |
 
 ## Arbitrages du backlog
 
@@ -168,25 +143,3 @@ annonces, glyphes, contrastes).
 - **Hors `Development`, l'API n'autorise aucune origine CORS** tant que `Cors:Origins` n'est pas fourni : le compose le
   fait par variable d'environnement, un autre hébergement devra le faire aussi.
 
-## Code généré
-
-- **Protobuf** : `Grpc.Tools` génère dans `obj/`, depuis `Protos/battle.proto`, `BattleService`,
-  `BattleServiceBase`, `FireRequest`, `FireResponse` et `Shot` ; seul le `.proto` est versionné.
-- **`public partial class Program;`** (fin de `BattleShip.API/Program.cs`) : accroche de `WebApplicationFactory<Program>`
-  pour les tests d'intégration, pas du code métier.
-- **Gabarits** : `Program.cs`, `Properties/launchSettings.json` et `.gitignore` sortent de `dotnet new webapi`,
-  `dotnet new blazorwasm` et `dotnet new gitignore`, puis ont été adaptés.
-
-## Documentation
-
-| Document | Contenu |
-|---|---|
-| `docs/conformite.md` | une ligne par exigence du sujet, avec sa commande de contrôle |
-| `docs/superpowers/specs/2026-09-15-bataille-navale-design.md` | conception d'ensemble |
-| `docs/superpowers/plans/` | plan d'implémentation découpé en tâches |
-| `docs/demo/` | preuves de la démonstration gRPC-Web |
-| `docs/adr/` | décisions d'architecture (0001 à 0011) |
-| `PROMPTS.md` | échanges décisifs avec l'IA |
-| `REVUE-IA.md` | quatre revues argumentées des propositions de l'IA |
-| `CONTEXTE-IA.md` | contexte du projet |
-| `CLAUDE.md` | cadre de travail de l'IA sur ce dépôt |
