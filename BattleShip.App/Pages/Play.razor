@@ -29,8 +29,6 @@ else
     var finished = game.Status == "Finished";
     var won = PlayerWon(game);
 
-    <SceneCanvas State="@_scene" />
-
     @if (finished)
     {
         <h1 class="page-title">@(won ? "Their fleet is gone." : "Your fleet is gone.")</h1>
@@ -50,7 +48,8 @@ else
 
     <div class="stage">
 
-        <div class="stage__board">
+        <div class="stage__board stage--3d">
+            <GameCanvas State="@_scene" OnPick="FireAsync" Focused="@_focusedCell" />
             <FiringGrid @ref="_opponentGrid"
                         GridSize="game.Opponent.GridSize"
                         Cells="OpponentCells(game)"
@@ -59,7 +58,9 @@ else
                         Interactive="@(!finished && !_firing && _replayCursor is null)"
                         Impact="_opponentImpact"
                         SunkLabel="@_sunkLabel"
-                        OnCellClick="FireAsync" />
+                        OnCellClick="FireAsync"
+                        OnCellFocus="c => _focusedCell = c"
+                        Silent="true" />
             <p class="board-caption">
                 Sunk @game.Opponent.SunkShips.Count of @game.Fleet.Count
                 @if (_streak > 1)
@@ -177,6 +178,7 @@ else
     private int _impactSequence;
 
     private SceneState? _scene;
+    private Coordinate? _focusedCell;
     private bool _loadingHistory;
     private bool _disposed;
 
