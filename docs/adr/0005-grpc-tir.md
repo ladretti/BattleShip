@@ -60,7 +60,7 @@ chaîne des coups adverses jusqu'au premier manqué.
 - Pouvoir discriminant établi : `GameNotFound` remappé vers `StatusCode.Unknown` fait échouer
   `A_shot_on_an_unknown_game_returns_NotFound` (`Expected: NotFound / Actual: Unknown`).
 - Course `Read` / `Mutate` : verrou de `Read` retiré, **5 exécutions sur 5 en échec**
-  (`ArgumentException`) ; rétabli, 5/5 au vert et suite 133/133 (`REVUE-IA.md`, revue 4).
+  (`ArgumentException`) ; rétabli, 5/5 au vert et suite 133/133 (commit `aef815e`).
 - **Constaté** : le scénario du README piloté dans Chrome renvoie `HTTP 200` avec `grpc-status` `3`
   puis `5` dans les trailers — trace et captures dans `docs/demo/grpc-web-trace.md`.
 

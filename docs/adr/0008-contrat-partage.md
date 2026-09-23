@@ -58,7 +58,7 @@ Option C. Les records du contrat vivent dans `BattleShip.Models/Contracts/`, nam
   imbriquées comprises, sans aucun attribut de sérialisation.
 - **Constaté** : pouvoir discriminant établi — renommer `GameDto.OpponentDifficulty` en
   `GameDto.Level` fait échouer la compilation de `BattleShip.App` (`NavMenu.razor(27,29): error
-  CS1061`), là où l'option A aurait compilé (`REVUE-IA.md`, revue 6).
+  CS1061`), là où l'option A aurait compilé (`REVUE-IA.md`, revue 3).
 - **Reste à vérifier** : aucun test ne garde la frontière domaine/transport, seule la revue le fait.
 - À réexaminer si un client hors solution apparaissait : l'option B redeviendrait pertinente.
 

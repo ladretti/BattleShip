@@ -1,7 +1,7 @@
 # ADR 0007 : Gestion de l'état côté Blazor
 
 ## Statut et date
-Accepté — 2026-09-15 — amendé 2026-09-16 (revue 5) : durée de vie `Scoped` — amendé 2026-09-18 :
+Accepté — 2026-09-15 — amendé 2026-09-16 (commit `d037bcf`) : durée de vie `Scoped` — amendé 2026-09-18 :
 condition de réexamen satisfaite, reprise de partie livrée (ADR 0011)
 
 ## Contexte
@@ -42,7 +42,7 @@ partie courante et expose un événement `OnChange` ; les composants s'y abonnen
 ## Vérification et réexamen
 
 - Réexamen 2026-09-16 : durée de vie `Scoped` pour `GameState`, `BattleApiClient` et `HttpClient`
-  (revue 5).
+  (commit `d037bcf`).
 - Vérification manuelle dans le navigateur : créer une partie, placer la flotte, naviguer vers le
   jeu, revenir — l'état doit être conservé, et la console F12 ne doit signaler aucun rendu sur
   composant détruit après plusieurs allers-retours.

@@ -60,7 +60,7 @@ La parité a le meilleur rapport gain/effort : tout navire de taille ≥ 2 couvr
   bout — jamais un coup hors grille ni deux fois la même case. Il échoue sur une stratégie qui ne
   filtre pas les cases jouées ou déborde sur un bord.
 - **Mesuré** : 95,69 / 52,60 / 41,22 coups en moyenne sur 200 parties à graine fixe
-  (`StrategyBenchmark.Run(GameRules.Default, games: 200, seed: 20260915)` ; `REVUE-IA.md`, revue 2)
+  (`StrategyBenchmark.Run(GameRules.Default, games: 200, seed: 20260915)` ; `StrategyBenchmarkTests`)
   — l'ordre attendu `Random` > `HuntTarget` > `Density`, `Density` sous le seuil de 55 fixé avant
   mesure. Reproductible : `dotnet test --filter "FullyQualifiedName~StrategyBenchmark"`. Limite :
   une seule flotte, une seule grille — à réexaminer si l'une des deux changeait.

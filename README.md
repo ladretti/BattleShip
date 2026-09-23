@@ -56,7 +56,7 @@ Essais manuels des endpoints HTTP : `api.http` à la racine — `@api = http://l
 | Navires adjacents | **interdits**, diagonales comprises |
 | Enchaînement des tours | **touche = on rejoue** |
 | Placement | joueur **manuel**, validé côté serveur ; adversaire automatique |
-| Niveaux d'adversaire | **Facile** aléatoire, **Normal** chasse/cible, **Difficile** densité — 95,7 / 52,6 / 41,2 coups en moyenne (mesurés, revue 2) |
+| Niveaux d'adversaire | **Facile** aléatoire, **Normal** chasse/cible, **Difficile** densité — 95,7 / 52,6 / 41,2 coups en moyenne (mesurés, `StrategyBenchmarkTests`) |
 
 ## Fonctionnalités livrées
 
@@ -136,7 +136,7 @@ annonces, glyphes, contrastes).
 - **Le niveau Difficile est écrasant** : la densité probabiliste combinée à « touche = on rejoue » enchaîne 4 à 5 coups
   dès qu'elle touche. **Normal est le mode jouable, Difficile une démonstration d'algorithme** (ADR 0006).
 - Les moyennes (200 parties par stratégie, graine 20260915) ne valent que pour cette flotte et cette grille ;
-  `Density` reste sous le seuil de 55 coups fixé avant mesure (revue 2).
+  `Density` reste sous le seuil de 55 coups fixé avant mesure (`StrategyBenchmarkTests`).
 - **État en mémoire** : redémarrer l'API perd les parties — la persistance est restée hors périmètre par
   décision du binôme (arbitrages du backlog ci-dessus), alors que le journal d'événements la rendrait triviale.
 - **`localStorage` est partagé par ORIGINE, pas par onglet** : un second onglet restaure la même partie que le
@@ -172,6 +172,6 @@ annonces, glyphes, contrastes).
 | `docs/demo/` | preuves de la démonstration gRPC-Web |
 | `docs/adr/` | décisions d'architecture (0001 à 0011) |
 | `PROMPTS.md` | échanges décisifs avec l'IA |
-| `REVUE-IA.md` | neuf revues argumentées des propositions de l'IA |
+| `REVUE-IA.md` | quatre revues argumentées des propositions de l'IA |
 | `CONTEXTE-IA.md` | contexte du projet |
 | `CLAUDE.md` | cadre de travail de l'IA sur ce dépôt |

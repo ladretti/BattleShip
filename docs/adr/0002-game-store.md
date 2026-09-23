@@ -50,7 +50,7 @@ l'implémentation. Signatures **synchrones** : rien n'est asynchrone dans un sto
 - `Find` est réservé à un test d'existence ou à la lecture d'un scalaire unique. **Toute
   projection qui énumère `Game.History` ou `Board.ReceivedShots` passe par `Read<T>`**, qui prend
   le même verrou par partie que `Mutate` — sans quoi l'énumération court contre une mutation
-  concurrente (`ArgumentException` reproduite 5 fois sur 5, `REVUE-IA.md`, revue 4).
+  concurrente (`ArgumentException` reproduite 5 fois sur 5, ADR 0005).
 - Le dictionnaire de verrous n'est **jamais purgé**, pas même par `Remove` : délibéré. Purger
   l'entrée laisserait un `GetOrAdd` concurrent distribuer un **second** objet de verrou pour le
   même identifiant — deux verrous pour une partie, donc plus d'exclusion mutuelle. La croissance
@@ -61,8 +61,8 @@ l'implémentation. Signatures **synchrones** : rien n'est asynchrone dans un sto
 - Test de concurrence : N tâches tirent simultanément sur la même case ; exactement une réussit,
   les autres reçoivent `CellAlreadyShot`. Il échoue si le verrou est absent ou mal indexé, et doit
   être rejoué plusieurs fois — une course qui passe une fois ne prouve rien (`REVUE-IA.md`,
-  revue 3). La course `Read` / `Mutate` est mesurée au niveau du store, verrou retiré puis rétabli
-  (revue 4 ; détail dans l'ADR 0005). Un store pré-rempli est injecté dans `WebApplicationFactory`.
+  revue 2). La course `Read` / `Mutate` est mesurée au niveau du store, verrou retiré puis rétabli
+  (détail dans l'ADR 0005). Un store pré-rempli est injecté dans `WebApplicationFactory`.
 - À réexaminer si la persistance quittait le backlog : signatures synchrones à reconsidérer.
 
 ## Références

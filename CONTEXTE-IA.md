@@ -44,13 +44,13 @@ vont dans `PROMPTS.md`, les propositions acceptées dans `REVUE-IA.md` avec leur
 `docs/adr/` — **0001** navires + tirs comme vérité, grille calculée · **0002** `IGameStore` `Singleton` à
 verrou par partie · **0003** `IOpponentStrategy` et `ShotHistory`, trois niveaux · **0004** `Result<T>` pour
 les refus métier (**renverse** `CLAUDE.md` § Gestion des erreurs) · **0005** tir en gRPC-Web exclusif ·
-**0006** règles du jeu · **0007** `GameState` (réexamen : `Scoped`, revue 5) · **0008** DTO partagés (revue 6)
+**0006** règles du jeu · **0007** `GameState` (réexamen : `Scoped`, commit `d037bcf`) · **0008** DTO partagés (revue 3)
 · **0009** trois apparences · **0010** coques SVG.
 
 ## Vérifications réalisées et limites connues
 
-**Mesurés** : 95,7 / 52,6 / 41,2 coups par stratégie (revue 2) ; 0 exception par tour d'adversaire (revue 1) ;
-gRPC-Web monté et testé (`FireGrpcTests`) ; store concurrent (revues 3 et 4). Exigence par exigence :
+**Mesurés** : 95,7 / 52,6 / 41,2 coups par stratégie (`StrategyBenchmarkTests`) ; 0 exception par tour d'adversaire (revue 1) ;
+gRPC-Web monté et testé (`FireGrpcTests`) ; store concurrent (revue 2, ADR 0005). Exigence par exigence :
 `docs/conformite.md`. **Non vérifié** : lecteur d'écran réel, publication trimmée.
 
 ## Arbitrages et évolution du périmètre
