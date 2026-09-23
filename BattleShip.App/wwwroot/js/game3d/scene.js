@@ -118,9 +118,21 @@ export function createScene(renderer) {
     function dispose() {
         marks = clear(marks);
         ships = clear(ships);
+
+        if (boards) {
+            for (const group of [boards.own, boards.opponent]) {
+                scene.remove(group);
+                group.traverse(o => {
+                    if (o.geometry) o.geometry.dispose();
+                    if (o.material) o.material.dispose();
+                });
+            }
+            boards = null;
+        }
+
+        scene.remove(sea);
         seaGeometry.dispose();
         sea.material.dispose();
-        boards = null;
     }
 
     return { scene, get boards() { return boards; }, setState, dispose };
