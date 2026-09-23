@@ -11,19 +11,46 @@ public static class ScenePlan
         int? cursor,
         Coordinate? lastImpact)
     {
-        var friendly = game.Own.Ships.Select(ToSceneShip).OfType<SceneShip>().ToList();
+        var ownShips = game.Own.Ships.Select(ToSceneShip).OfType<SceneShip>().ToList();
 
-        var wrecks = cursor is { } at
+        var opponentShips = cursor is { } at
             ? WrecksAt(id, game, events, at)
             : game.Opponent.SunkShips
                 .Select(s => ToSceneShip(s.Name, s.Cells, sunk: true))
                 .OfType<SceneShip>()
                 .ToList();
 
+        var shots = cursor is { } upTo
+            ? Prefix(events, upTo).OfType<ShotFired>().ToList()
+            : events.OfType<ShotFired>().ToList();
+
+        var opponentCells = shots
+            .Where(s => s.By == Player.Human)
+            .Select(s => new SceneCell(s.At.X, s.At.Y, StateOf(s.Result)))
+            .ToList();
+
+        var ownCells = shots
+            .Where(s => s.By == Player.Opponent)
+            .Select(s => new SceneCell(s.At.X, s.At.Y, StateOf(s.Result)))
+            .ToList();
+
         var revealed = game.Status == nameof(GameStatus.Finished);
 
-        return new SceneState(game.Own.GridSize, friendly, wrecks, lastImpact, revealed);
+        return new SceneState(
+            game.Own.GridSize,
+            new SceneSide(ownShips, ownCells),
+            new SceneSide(opponentShips, opponentCells),
+            lastImpact,
+            revealed);
     }
+
+    private static string StateOf(ShotResult result) => result switch
+    {
+        ShotResult.Miss => "miss",
+        ShotResult.Hit => "hit",
+        ShotResult.Sunk => "sunk",
+        _ => throw new ArgumentOutOfRangeException(nameof(result), result, "Unknown shot result.")
+    };
 
     private static List<SceneShip> WrecksAt(
         Guid id, GameDto game, IReadOnlyList<GameEvent> events, int cursor)

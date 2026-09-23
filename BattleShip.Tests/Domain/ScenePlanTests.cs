@@ -67,7 +67,7 @@ public sealed class ScenePlanTests
 
         Assert.Equal(
             game.OpponentBoard.Ships.Where(s => s.IsSunk).Select(s => s.Name).Order(),
-            scene.Wrecks.Select(w => w.Name).Order());
+            scene.Opponent.Ships.Select(w => w.Name).Order());
         Assert.False(scene.Revealed);
     }
 
@@ -96,10 +96,10 @@ public sealed class ScenePlanTests
 
         Assert.NotEmpty(secret);
 
-        var exposedWrecks = scene.Wrecks.SelectMany(Footprint).ToHashSet();
+        var exposedWrecks = scene.Opponent.Ships.SelectMany(Footprint).ToHashSet();
         Assert.Empty(exposedWrecks.Intersect(secret));
 
-        var friendlyCells = scene.Friendly.SelectMany(Footprint).ToHashSet();
+        var friendlyCells = scene.Own.Ships.SelectMany(Footprint).ToHashSet();
         var humanCells = game.HumanBoard.Ships.SelectMany(s => s.Cells).ToHashSet();
         Assert.Equal(humanCells, friendlyCells);
     }
@@ -128,9 +128,41 @@ public sealed class ScenePlanTests
             var full = ScenePlan.For(id, dto, events, cursor, lastImpact: null);
             var onCensored = ScenePlan.For(id, dto, censored, cursor, lastImpact: null);
 
-            Assert.Empty(full.Wrecks.SelectMany(Footprint).ToHashSet().Intersect(secret));
-            Assert.Empty(onCensored.Wrecks.SelectMany(Footprint).ToHashSet().Intersect(secret));
+            Assert.Empty(Exposed(full).Intersect(secret));
+            Assert.Empty(Exposed(onCensored).Intersect(secret));
         }
+    }
+
+    [Fact]
+    public void The_cell_states_mirror_the_shots_of_the_journal()
+    {
+        var (id, dto, events, _) = Played(seed: 41, shots: 12);
+
+        var scene = ScenePlan.For(id, dto, events, cursor: null, lastImpact: null);
+
+        var humanShots = events.OfType<ShotFired>().Where(s => s.By == Player.Human).ToList();
+        var opponentShots = events.OfType<ShotFired>().Where(s => s.By == Player.Opponent).ToList();
+
+        Assert.Equal(humanShots.Count, scene.Opponent.Cells.Count);
+        Assert.Equal(opponentShots.Count, scene.Own.Cells.Count);
+
+        Assert.Equal(
+            humanShots.Select(s => (s.At.X, s.At.Y)),
+            scene.Opponent.Cells.Select(c => (c.X, c.Y)));
+
+        Assert.All(scene.Opponent.Cells, c => Assert.Contains(c.State, new[] { "miss", "hit", "sunk" }));
+    }
+
+    [Fact]
+    public void At_a_cursor_the_cell_states_stop_at_that_instant()
+    {
+        var (id, dto, events, _) = Played(seed: 41, shots: 12);
+
+        var full = ScenePlan.For(id, dto, events, cursor: null, lastImpact: null);
+        var early = ScenePlan.For(id, dto, events, cursor: 3, lastImpact: null);
+
+        Assert.Equal(3, early.Opponent.Cells.Count + early.Own.Cells.Count);
+        Assert.True(full.Opponent.Cells.Count + full.Own.Cells.Count > 3);
     }
 
     [Fact]
@@ -144,7 +176,7 @@ public sealed class ScenePlanTests
         Assert.True(scene.Revealed);
         Assert.Equal(
             game.OpponentBoard.Ships.Count,
-            scene.Wrecks.Count);
+            scene.Opponent.Ships.Count);
     }
 
     [Fact]
@@ -162,8 +194,8 @@ public sealed class ScenePlanTests
         var before = ScenePlan.For(id, dto, events, cursor: shotsBefore, lastImpact: null);
         var after = ScenePlan.For(id, dto, events, cursor: shotsBefore + 1, lastImpact: null);
 
-        Assert.DoesNotContain(before.Wrecks, w => w.Name == sinking.SunkShipName);
-        Assert.Contains(after.Wrecks, w => w.Name == sinking.SunkShipName);
+        Assert.DoesNotContain(before.Opponent.Ships, w => w.Name == sinking.SunkShipName);
+        Assert.Contains(after.Opponent.Ships, w => w.Name == sinking.SunkShipName);
     }
 
     [Fact]
@@ -183,8 +215,8 @@ public sealed class ScenePlanTests
         var before = ScenePlan.For(id, dto, censored, shotsBefore, lastImpact: null);
         var after = ScenePlan.For(id, dto, censored, shotsBefore + 1, lastImpact: null);
 
-        Assert.DoesNotContain(before.Wrecks, w => w.Name == sinking.SunkShipName);
-        Assert.Contains(after.Wrecks, w => w.Name == sinking.SunkShipName);
+        Assert.DoesNotContain(before.Opponent.Ships, w => w.Name == sinking.SunkShipName);
+        Assert.Contains(after.Opponent.Ships, w => w.Name == sinking.SunkShipName);
     }
 
     private static IReadOnlyList<GameEvent> Censored(IReadOnlyList<GameEvent> events) =>
@@ -227,4 +259,37 @@ public sealed class ScenePlanTests
             .Select(i => ship.Vertical
                 ? new Coordinate(ship.X, ship.Y + i)
                 : new Coordinate(ship.X + i, ship.Y));
+
+    private static IEnumerable<Coordinate> Walk(System.Text.Json.JsonElement element)
+    {
+        if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
+        {
+            if (element.TryGetProperty("X", out var x) && element.TryGetProperty("Y", out var y)
+                && x.ValueKind == System.Text.Json.JsonValueKind.Number
+                && y.ValueKind == System.Text.Json.JsonValueKind.Number)
+            {
+                yield return new Coordinate(x.GetInt32(), y.GetInt32());
+            }
+
+            foreach (var property in element.EnumerateObject())
+                foreach (var found in Walk(property.Value))
+                    yield return found;
+        }
+        else if (element.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+                foreach (var found in Walk(item))
+                    yield return found;
+        }
+    }
+
+    private static HashSet<Coordinate> Exposed(SceneState scene)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(scene.Opponent);
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+
+        return Walk(document.RootElement)
+            .Concat(scene.Opponent.Ships.SelectMany(Footprint))
+            .ToHashSet();
+    }
 }
