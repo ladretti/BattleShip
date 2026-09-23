@@ -23,7 +23,7 @@ d'interaction. Repartir dessus coûterait plus que repartir propre.
 
 ### L'ADR 0012 est remplacé, pas amendé
 
-Sa décision centrale était : « le canvas est décoratif, le jeu reste le DOM », justifiée par le coût
+Sa décision centrale était : « Un arrière-plan 3D décoratif, pas un jeu en 3D », justifiée par le coût
 en accessibilité d'un jeu rendu en `<canvas>`. Le binôme a tranché l'inverse. L'ADR 0013 doit donc
 **reprendre cet argument et dire pourquoi il ne s'applique plus** — voir § 2.
 
