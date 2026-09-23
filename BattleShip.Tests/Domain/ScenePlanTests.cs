@@ -134,6 +134,19 @@ public sealed class ScenePlanTests
     }
 
     [Fact]
+    public void SceneState_exposes_coordinates_only_through_its_two_sides()
+    {
+        var expected = new[] { "GridSize", "LastImpact", "Opponent", "Own", "Revealed" };
+        var actual = typeof(SceneState).GetProperties().Select(p => p.Name).OrderBy(n => n).ToArray();
+
+        Assert.True(
+            expected.SequenceEqual(actual),
+            "SceneState gained or lost a top-level member. The leak guard only walks Opponent, "
+          + "so a coordinate placed directly on SceneState escapes it. Put it inside SceneSide, "
+          + "or extend Exposed() before updating this list.");
+    }
+
+    [Fact]
     public void The_cell_states_mirror_the_shots_of_the_journal()
     {
         var (id, dto, events, _) = Played(seed: 41, shots: 12);
