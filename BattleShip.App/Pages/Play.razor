@@ -255,7 +255,7 @@ else
 
     private IReadOnlyList<ShipOutline> OpponentHulls(GameDto game) =>
     [
-        .. ScenePlan.For(game.Id, game, _events, _replayCursor, lastImpact: null).Wrecks
+        .. ScenePlan.For(game.Id, game, _events, _replayCursor, lastImpact: null).Opponent.Ships
             .Select(w => ShipOutline.FromCells(
                 w.Name,
                 [.. Footprint(w).Select(c => new CellDto(c.X, c.Y, "sunk"))],
