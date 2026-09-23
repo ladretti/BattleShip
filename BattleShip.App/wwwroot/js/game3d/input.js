@@ -13,7 +13,6 @@ export function createInput(renderer, camera, getBoards, onPick) {
         const rect = renderer.domElement.getBoundingClientRect();
         pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-        camera.updateMatrixWorld();
         raycaster.setFromCamera(pointer, camera);
 
         const board = boards.opponent;
